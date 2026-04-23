@@ -1,0 +1,41 @@
+auto_merge:
+  allowed_labels:
+    - safe-update
+    - docs-only
+    - observability-docs
+    - inventory-refresh
+  allowed_path_prefixes:
+    - docs/
+    - inventory/
+    - config/
+  forbidden_path_prefixes:
+    - compose/secrets/
+    - compose/forgejo/
+    - compose/vaultwarden/
+    - compose/infisical/
+    - compose/model-gateway/
+  require_checks_passed: true
+
+human_review:
+  required_labels:
+    - sensitive
+    - new_capability
+    - finance
+    - auth-change
+    - network-exposure
+  required_path_prefixes:
+    - compose/
+    - apps/review_agent/
+    - apps/homelab_operator/
+  new_service_files:
+    - docker-compose.yml
+    - compose.yaml
+
+request_changes:
+  if_checks_failed: true
+  if_missing_plan_link: true
+  if_missing_planka_card: true
+  if_missing_risk_marker: true
+
+defaults:
+  on_ambiguity: needs_human_review

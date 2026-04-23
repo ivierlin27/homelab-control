@@ -1,0 +1,51 @@
+principals:
+  - id: human:kevin
+    kind: human
+    domains: [homelab, learning, products, finance]
+    default_access: admin
+
+  - id: agent:homelab
+    kind: agent
+    domains: [homelab]
+    git_user: agent-homelab
+    readable_domains: [homelab]
+    writable_domains: [homelab]
+    planka_project: homelab
+
+  - id: agent:review
+    kind: agent
+    domains: [homelab]
+    git_user: agent-review
+    readable_domains: [homelab]
+    writable_domains: []
+    planka_project: homelab
+    role: review-gate
+
+  - id: agent:chinese
+    kind: agent
+    domains: [learning]
+    git_user: agent-chinese
+    readable_domains: [learning]
+    writable_domains: [learning]
+    planka_project: learning
+
+  - id: agent:products
+    kind: agent
+    domains: [products]
+    git_user: agent-products
+    readable_domains: [products]
+    writable_domains: [products]
+    planka_project: products
+
+  - id: agent:finance
+    kind: agent
+    domains: [finance]
+    git_user: agent-finance
+    readable_domains: [finance]
+    writable_domains: [finance]
+    planka_project: finance
+
+default_rules:
+  deny_cross_domain_reads: true
+  require_distinct_git_identity_per_agent: true
+  require_distinct_secret_identity_per_agent: true

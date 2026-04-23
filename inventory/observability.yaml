@@ -1,0 +1,37 @@
+profiles:
+  web-app:
+    required:
+      - health_endpoint
+      - reverse_proxy_route
+      - uptime_check
+      - logs
+      - runbook
+  api:
+    required:
+      - health_endpoint
+      - metrics_endpoint
+      - logs
+      - runbook
+  worker:
+    required:
+      - logs
+      - heartbeat
+      - runbook
+
+checks:
+  - service: forgejo
+    has_health_endpoint: true
+    has_metrics_endpoint: false
+    has_logs: true
+    has_runbook: false
+
+  - service: model-gateway
+    has_health_endpoint: true
+    has_metrics_endpoint: true
+    has_logs: true
+    has_runbook: false
+
+  - service: homelab-operator
+    has_logs: true
+    has_heartbeat: false
+    has_runbook: false

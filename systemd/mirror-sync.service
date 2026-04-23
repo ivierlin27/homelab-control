@@ -1,0 +1,7 @@
+[Unit]
+Description=Mirror homelab repo to GitHub backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab-control
+ExecStart=/usr/bin/env bash /opt/homelab-control/scripts/mirror-to-github.sh /opt/homelab-control

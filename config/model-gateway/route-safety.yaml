@@ -1,0 +1,15 @@
+routes:
+  homelab-strong:
+    read_only_ok: true
+    pr_creation_ok: true
+    remediation_needs_human: true
+
+  homelab-fast:
+    read_only_ok: true
+    pr_creation_ok: false
+    remediation_needs_human: true
+
+  global-embed:
+    read_only_ok: false
+    pr_creation_ok: false
+    remediation_needs_human: true

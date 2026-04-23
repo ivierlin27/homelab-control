@@ -1,0 +1,54 @@
+services:
+  forgejo-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - /run/homelab-control/forgejo.env
+    environment:
+      POSTGRES_DB: forgejo
+      POSTGRES_USER: forgejo
+      POSTGRES_PASSWORD: ${FORGEJO_DB_PASSWORD}
+    volumes:
+      - forgejo_db:/var/lib/postgresql/data
+
+  forgejo-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - forgejo_redis:/data
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:11
+    restart: unless-stopped
+    env_file:
+      - /run/homelab-control/forgejo.env
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: forgejo-db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: forgejo
+      FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWORD}
+      FORGEJO__cache__ADAPTER: redis
+      FORGEJO__cache__HOST: forgejo-redis:6379
+      FORGEJO__server__DOMAIN: ${FORGEJO_DOMAIN}
+      FORGEJO__server__ROOT_URL: https://${FORGEJO_DOMAIN}/
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_DOMAIN}
+      FORGEJO__server__SSH_PORT: ${FORGEJO_SSH_PORT:-2222}
+      FORGEJO__service__DISABLE_REGISTRATION: true
+      FORGEJO__service__DEFAULT_KEEP_EMAIL_PRIVATE: true
+      FORGEJO__actions__ENABLED: true
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "2222:22"
+    volumes:
+      - forgejo_data:/data
+    depends_on:
+      - forgejo-db
+      - forgejo-redis
+
+volumes:
+  forgejo_db:
+  forgejo_redis:
+  forgejo_data:

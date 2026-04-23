@@ -1,0 +1,40 @@
+services:
+  infisical-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - /run/homelab-control/infisical.env
+    environment:
+      POSTGRES_DB: infisical
+      POSTGRES_USER: infisical
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD}
+    volumes:
+      - infisical_db:/var/lib/postgresql/data
+
+  infisical-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - infisical_redis:/data
+
+  infisical:
+    image: infisical/infisical:latest
+    restart: unless-stopped
+    env_file:
+      - /run/homelab-control/infisical.env
+    environment:
+      NODE_ENV: production
+      SITE_URL: https://${INFISICAL_DOMAIN}
+      DB_CONNECTION_URI: postgresql://infisical:${INFISICAL_DB_PASSWORD}@infisical-db:5432/infisical
+      REDIS_URL: redis://infisical-redis:6379
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      - infisical-db
+      - infisical-redis
+
+volumes:
+  infisical_db:
+  infisical_redis:

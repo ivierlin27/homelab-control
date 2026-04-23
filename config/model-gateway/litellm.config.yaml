@@ -1,0 +1,30 @@
+model_list:
+  - model_name: homelab-strong
+    litellm_params:
+      model: openai/homelab-strong
+      api_base: os.environ/HOMELAB_STRONG_API_BASE
+      api_key: os.environ/HOMELAB_STRONG_API_KEY
+      timeout: 180
+  - model_name: homelab-fast
+    litellm_params:
+      model: openai/homelab-fast
+      api_base: os.environ/HOMELAB_FAST_API_BASE
+      api_key: os.environ/HOMELAB_FAST_API_KEY
+      timeout: 60
+  - model_name: global-embed
+    litellm_params:
+      model: openai/global-embed
+      api_base: os.environ/GLOBAL_EMBED_API_BASE
+      api_key: os.environ/GLOBAL_EMBED_API_KEY
+      timeout: 60
+
+router_settings:
+  routing_strategy: simple-shuffle
+  enable_pre_call_checks: true
+  retry_policy:
+    max_retries: 2
+    retry_backoff: 1
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  infer_model_from_keys: false

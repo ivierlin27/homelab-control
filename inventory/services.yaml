@@ -1,0 +1,63 @@
+services:
+  - id: memory-engine
+    host: beelink-s12
+    type: lxc
+    role: memory
+    repo: memory-engine
+    observability_profile: web-app
+    endpoints:
+      - name: khoj
+        url: https://khoj.dev-path.org/health
+      - name: n8n
+        url: https://n8n.dev-path.org
+      - name: planka
+        url: https://planka.dev-path.org
+
+  - id: forgejo
+    host: beelink-s12
+    type: lxc
+    role: git
+    repo: homelab-control
+    observability_profile: web-app
+
+  - id: vaultwarden
+    host: beelink-s12
+    type: lxc
+    role: human-secrets
+    repo: homelab-control
+    observability_profile: web-app
+
+  - id: infisical
+    host: beelink-s12
+    type: lxc
+    role: machine-secrets
+    repo: homelab-control
+    observability_profile: web-app
+
+  - id: model-gateway
+    host: alienware-r10-primary
+    type: docker
+    role: llm-gateway
+    repo: homelab-control
+    observability_profile: api
+
+  - id: homelab-operator
+    host: beelink-s12
+    type: lxc
+    role: operator
+    repo: homelab-control
+    observability_profile: worker
+
+  - id: homelab-author-agent
+    host: alienware-r10-primary
+    type: docker
+    role: author-agent
+    repo: homelab-control
+    observability_profile: worker
+
+  - id: review-agent
+    host: alienware-r10-primary
+    type: docker
+    role: review-agent
+    repo: homelab-control
+    observability_profile: worker

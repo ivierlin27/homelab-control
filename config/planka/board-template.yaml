@@ -1,0 +1,44 @@
+project: Homelab Control
+
+lists:
+  - Inbox
+  - Plan Ready
+  - Approved To Execute
+  - In Progress
+  - Author Review Ready
+  - Review Agent
+  - Needs Human Review
+  - Blocked
+  - Merged / Applied
+  - Done
+  - Rejected
+
+labels:
+  - safe-update
+  - docs-only
+  - observability-docs
+  - inventory-refresh
+  - sensitive
+  - new_capability
+  - finance
+  - auth-change
+  - network-exposure
+  - needs-human
+
+automation:
+  plan_ready:
+    trigger: move-to-list
+    target: Plan Ready
+    action: author-agent-plan
+  approved_to_execute:
+    trigger: move-to-list
+    target: Approved To Execute
+    action: author-agent-execute
+  author_review_ready:
+    trigger: move-to-list
+    target: Author Review Ready
+    action: review-agent-start
+  needs_human_review:
+    trigger: move-to-list
+    target: Needs Human Review
+    action: notify-human

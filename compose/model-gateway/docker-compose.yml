@@ -1,0 +1,11 @@
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    env_file:
+      - /run/homelab-control/model-gateway.env
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ../../config/model-gateway/litellm.config.yaml:/app/config.yaml:ro

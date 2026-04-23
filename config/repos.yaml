@@ -1,0 +1,30 @@
+repositories:
+  - name: memory-engine
+    domain: homelab
+    author_agents: [agent:homelab]
+    review_agent: agent:review
+    mirror: github
+
+  - name: homelab-control
+    domain: homelab
+    author_agents: [agent:homelab]
+    review_agent: agent:review
+    mirror: github
+
+  - name: chinese-learning
+    domain: learning
+    author_agents: [agent:chinese]
+    review_agent: human:kevin
+    mirror: github
+
+  - name: product-research
+    domain: products
+    author_agents: [agent:products]
+    review_agent: human:kevin
+    mirror: github
+
+  - name: personal-finance
+    domain: finance
+    author_agents: [agent:finance]
+    review_agent: human:kevin
+    mirror: github

@@ -1,0 +1,7 @@
+[Unit]
+Description=Homelab operator reports
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab-control
+ExecStart=/usr/bin/env python3 /opt/homelab-control/apps/homelab_operator/main.py observability-report

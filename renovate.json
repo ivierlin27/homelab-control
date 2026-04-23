@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices"
+  ],
+  "labels": [
+    "safe-update"
+  ],
+  "packageRules": [
+    {
+      "matchFileNames": [
+        "compose/**"
+      ],
+      "groupName": "compose images"
+    }
+  ]
+}

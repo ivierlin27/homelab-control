@@ -1,0 +1,40 @@
+hardware:
+  - id: beelink-s12
+    role: proxmox-host
+    cpu: intel-n100
+    ram_gb: 16
+    storage:
+      - kind: nvme
+        size_gb: 500
+    thresholds:
+      ram_warn_percent: 75
+      ram_critical_percent: 90
+      disk_warn_percent: 80
+      disk_critical_percent: 92
+
+  - id: alienware-r10-primary
+    role: llm-and-agent
+    cpu: amd-ryzen
+    ram_gb: 32
+    gpu:
+      - model: rtx-3090
+        vram_gb: 24
+    storage:
+      - kind: nvme
+        size_gb: 256
+    thresholds:
+      disk_warn_percent: 75
+      disk_critical_percent: 90
+      gpu_memory_warn_percent: 80
+      gpu_memory_critical_percent: 95
+
+  - id: alienware-r10-secondary
+    role: future-llm-or-agent
+    cpu: amd-ryzen
+    ram_gb: 32
+    gpu:
+      - model: rtx-3090
+        vram_gb: 24
+    storage:
+      - kind: nvme
+        size_gb: 256

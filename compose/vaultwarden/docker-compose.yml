@@ -1,0 +1,19 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.35.4
+    restart: unless-stopped
+    env_file:
+      - /run/homelab-control/vaultwarden.env
+    environment:
+      DOMAIN: https://${VAULTWARDEN_DOMAIN}
+      WEBSOCKET_ENABLED: "true"
+      SIGNUPS_ALLOWED: "false"
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      ROCKET_PORT: 8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - vaultwarden_data:/data
+
+volumes:
+  vaultwarden_data:
