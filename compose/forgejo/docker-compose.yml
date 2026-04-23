@@ -18,7 +18,7 @@ services:
       - forgejo_redis:/data
 
   forgejo:
-    image: codeberg.org/forgejo/forgejo:11
+    image: code.forgejo.org/forgejo/forgejo:11
     restart: unless-stopped
     env_file:
       - /run/homelab-control/forgejo.env
@@ -31,7 +31,7 @@ services:
       FORGEJO__database__USER: forgejo
       FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWORD}
       FORGEJO__cache__ADAPTER: redis
-      FORGEJO__cache__HOST: forgejo-redis:6379
+      FORGEJO__cache__HOST: redis://forgejo-redis:6379/0?pool_size=100&idle_timeout=180s
       FORGEJO__server__DOMAIN: ${FORGEJO_DOMAIN}
       FORGEJO__server__ROOT_URL: https://${FORGEJO_DOMAIN}/
       FORGEJO__server__SSH_DOMAIN: ${FORGEJO_DOMAIN}
