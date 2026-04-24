@@ -37,6 +37,12 @@ checks:
     has_logs: true
     has_runbook: true
 
+  - service: vllm-strong
+    has_health_endpoint: true
+    has_metrics_endpoint: false
+    has_logs: true
+    has_runbook: true
+
   - service: homelab-operator
     has_logs: true
     has_heartbeat: false

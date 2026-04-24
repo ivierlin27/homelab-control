@@ -48,6 +48,13 @@ services:
     repo: homelab-control
     observability_profile: api
 
+  - id: vllm-strong
+    host: alienware-r10-primary
+    type: docker
+    role: llm-backend
+    repo: homelab-control
+    observability_profile: api
+
   - id: homelab-operator
     host: beelink-s12
     type: lxc

@@ -1,15 +1,15 @@
 model_list:
   - model_name: homelab-strong
     litellm_params:
-      model: openai/qwen/qwen3.6-27b
+      model: openai/homelab-strong-vllm
       api_base: os.environ/HOMELAB_STRONG_API_BASE
       api_key: os.environ/HOMELAB_STRONG_API_KEY
       timeout: 180
   - model_name: homelab-fast
     litellm_params:
-      model: openai/qwen/qwen3.5-9b
-      api_base: os.environ/HOMELAB_FAST_API_BASE
-      api_key: os.environ/HOMELAB_FAST_API_KEY
+      model: openai/homelab-fast-vllm
+      api_base: os.environ/HOMELAB_FAST_VLLM_API_BASE
+      api_key: os.environ/HOMELAB_FAST_VLLM_API_KEY
       timeout: 60
   - model_name: homelab-fast-vllm
     litellm_params:

@@ -60,3 +60,4 @@ See:
 - `config/memory/principals.yaml`
 - `docs/AGENT_SERVICES.md`
 - `docs/VLLM_FAST_SERVICE.md`
+- `docs/VLLM_STRONG_SERVICE.md`
