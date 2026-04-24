@@ -285,13 +285,21 @@ def create_execution_job_from_card(card_path: Path, output_path: Path) -> dict[s
     execution = card.get("execution")
     if not isinstance(execution, dict):
         raise ValueError("card is missing an execution object")
+    card_id = str(card.get("id", "")).strip()
+    title = card.get("title") or card.get("name") or "Untitled task"
+    branch_name = execution.get("branch_name")
+    if not branch_name:
+        slug_root = slugify(title)
+        branch_name = f"agent/card-{card_id}-{slug_root}" if card_id else f"agent/{slug_root}"
     payload = {
         "action": "execute-task",
-        "title": card.get("title") or card.get("name") or "Untitled task",
+        "title": title,
         "summary": card.get("summary", ""),
         "labels": card.get("labels", [card.get("risk", "safe-update")]),
         "plan_link": str(card_path),
-        "planka_card": card.get("planka_card", ""),
+        "planka_card": card.get("planka_card") or card.get("url", ""),
+        "branch_name": branch_name,
+        "card_id": card_id,
         **execution,
     }
     write_json(output_path, payload)
