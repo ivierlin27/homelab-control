@@ -7,8 +7,14 @@ The Alienware author and review agents run as `systemd --user` services.
 On the Alienware host:
 
 ```bash
+./scripts/install-alienware-agent-checkout.sh "${HOME}/git/homelab-control"
 ./scripts/install-alienware-agent-services.sh
 ```
+
+The workers should run from a clean git-backed checkout, not a hand-rsynced or
+dirty runtime tree. The recommended root is:
+
+- `~/git/homelab-control`
 
 This creates:
 
@@ -17,6 +23,17 @@ This creates:
 - `~/.config/homelab-control/agent-homelab.env`
 - `~/.config/homelab-control/agent-review.env`
 - queue directories under `~/.local/state/homelab-control/`
+
+The env files are the editable source of truth for:
+
+- `HOMELAB_CONTROL_ROOT`
+- Forgejo base URL, repo owner, repo name, and API token
+- the preferred git remote for author branches
+- whether the review agent may auto-merge low-risk PRs
+
+The author env should point `HOMELAB_CONTROL_ROOT` at the clean checkout and
+define a working `forgejo` push path through `AGENT_GIT_REMOTE` plus
+`AGENT_GIT_SSH_COMMAND`.
 
 ## Queues
 
@@ -35,6 +52,10 @@ Review queue:
 - `~/.local/state/homelab-control/agent-review/failed`
 
 Each worker writes a `heartbeat.json` file beside its queue root.
+
+The author queue also keeps git worktrees under:
+
+- `~/.local/state/homelab-control/agent-homelab/worktrees`
 
 ## Job examples
 
@@ -62,9 +83,40 @@ Review decision:
 
 ```json
 {
-  "action": "evaluate-review",
+  "action": "review-pr",
   "input": "/path/to/pr-context.json",
   "output_path": "/path/to/review-decision.json"
+}
+```
+
+Author execution job:
+
+```json
+{
+  "action": "execute-task",
+  "title": "Pin mutable container images",
+  "allowed_paths": [
+    "compose/model-gateway",
+    "compose/infisical"
+  ],
+  "operations": {
+    "replacements": [
+      {
+        "path": "compose/model-gateway/docker-compose.yml",
+        "old_string": "ghcr.io/berriai/litellm:main-latest",
+        "new_string": "ghcr.io/berriai/litellm:vX.Y.Z-stable"
+      }
+    ]
+  },
+  "checks": [
+    "git diff --check"
+  ],
+  "labels": [
+    "safe-update"
+  ],
+  "plan_link": "https://planka.example/cards/123",
+  "planka_card": "https://planka.example/cards/123",
+  "review_queue_dir": "/home/kenns/.local/state/homelab-control/agent-review"
 }
 ```
 
@@ -82,4 +134,11 @@ Tail logs:
 ```bash
 journalctl --user -u alienware-author-agent.service -f
 journalctl --user -u alienware-review-agent.service -f
+```
+
+Inspect queue state:
+
+```bash
+python3 apps/author_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-homelab
+python3 apps/review_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-review
 ```

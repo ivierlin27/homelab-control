@@ -18,10 +18,17 @@ mkdir -p "${SYSTEMD_USER_DIR}" "${CONFIG_DIR}" \
 
 if [[ ! -f "${CONFIG_DIR}/agent-homelab.env" ]]; then
   cat > "${CONFIG_DIR}/agent-homelab.env" <<'EOF'
+HOMELAB_CONTROL_ROOT=${HOME}/homelab-control
 MODEL_GATEWAY_BASE_URL=https://model-gateway.dev-path.org/v1
 MODEL_GATEWAY_API_KEY=replace-me
 FORGEJO_BASE_URL=https://forgejo.dev-path.org
 FORGEJO_REPO_OWNER=kevin
+FORGEJO_REPO_NAME=homelab-control
+FORGEJO_API_TOKEN=replace-me
+AGENT_GIT_REMOTE=forgejo
+AGENT_GIT_AUTHOR_NAME=agent-homelab
+AGENT_GIT_AUTHOR_EMAIL=agent-homelab@forgejo.dev-path.org
+AGENT_GIT_SSH_COMMAND=ssh -i ${HOME}/.ssh/forgejo_agent_homelab -o IdentitiesOnly=yes -p 2222
 AGENT_PRINCIPAL=agent:homelab
 EOF
   chmod 600 "${CONFIG_DIR}/agent-homelab.env"
@@ -29,10 +36,16 @@ fi
 
 if [[ ! -f "${CONFIG_DIR}/agent-review.env" ]]; then
   cat > "${CONFIG_DIR}/agent-review.env" <<'EOF'
+HOMELAB_CONTROL_ROOT=${HOME}/homelab-control
 MODEL_GATEWAY_BASE_URL=https://model-gateway.dev-path.org/v1
 MODEL_GATEWAY_API_KEY=replace-me
 FORGEJO_BASE_URL=https://forgejo.dev-path.org
 FORGEJO_REPO_OWNER=kevin
+FORGEJO_REPO_NAME=homelab-control
+FORGEJO_API_TOKEN=replace-me
+REVIEW_AGENT_ALLOW_AUTO_MERGE=false
+AGENT_GIT_AUTHOR_NAME=agent-review
+AGENT_GIT_AUTHOR_EMAIL=agent-review@forgejo.dev-path.org
 AGENT_PRINCIPAL=agent:review
 EOF
   chmod 600 "${CONFIG_DIR}/agent-review.env"

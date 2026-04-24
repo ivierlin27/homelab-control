@@ -6,9 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/homelab-control/agent-homelab.env
-WorkingDirectory=%h/homelab-control
 ExecStartPre=/usr/bin/bash -lc 'mkdir -p %h/.local/state/homelab-control/agent-homelab/{inbox,processing,done,failed}'
-ExecStart=/usr/bin/env python3 %h/homelab-control/apps/author_agent/main.py worker --queue-dir %h/.local/state/homelab-control/agent-homelab --heartbeat %h/.local/state/homelab-control/agent-homelab/heartbeat.json
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/homelab-control}" && exec python3 apps/author_agent/main.py worker --queue-dir %h/.local/state/homelab-control/agent-homelab --heartbeat %h/.local/state/homelab-control/agent-homelab/heartbeat.json'
 Restart=always
 RestartSec=5
 
