@@ -42,3 +42,7 @@ docker compose up -d
 
 After the service is healthy, add the proxy route and verify that the web UI and
 background jobs both come up cleanly.
+
+## Execution handoff
+
+This card was created from the real Planka board after the Immich scaffold PR merged. The next execution step is to prepare the target Proxmox runtime, create the real compose/immich/.env from the machine-secrets store, verify local SSD-backed paths for UPLOAD_LOCATION and DB_DATA_LOCATION, and only then run docker compose up -d on the selected host. After the service is reachable, add the reverse proxy route and update the inventory/observability records.
