@@ -6,6 +6,6 @@ services:
     env_file:
       - /run/homelab-control/model-gateway.env
     ports:
-      - "127.0.0.1:4000:4000"
+      - "4000:4000"
     volumes:
       - ../../config/model-gateway/litellm.config.yaml:/app/config.yaml:ro
