@@ -1,7 +1,10 @@
 [Unit]
-Description=Homelab operator reports
+Description=Homelab inventory memory sync
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/homelab-control
-ExecStart=/usr/bin/env python3 /opt/homelab-control/apps/homelab_operator/main.py observability-report
+EnvironmentFile=-/etc/default/homelab-operator
+ExecStartPre=/usr/bin/env bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-/opt/homelab-control}" && ./scripts/render-operator-env.sh'
+ExecStart=/usr/bin/env bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-/opt/homelab-control}" && exec python3 apps/homelab_operator/main.py inventory-memory-sync'

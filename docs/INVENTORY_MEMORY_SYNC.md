@@ -58,6 +58,38 @@ export MEMORY_ENGINE_INGEST_URL="https://n8n.dev-path.org/webhook/ingest"
 python3 apps/homelab_operator/main.py inventory-memory-sync
 ```
 
+## Scheduled sync on Proxmox
+
+The repo now includes a real `systemd` service + timer for the Proxmox-side
+operator.
+
+Install it from the checked-out repo on the operator host:
+
+```bash
+cd /opt/homelab-control
+./scripts/install-proxmox-operator-service.sh /opt/homelab-control
+```
+
+This does three things:
+
+- writes `/etc/default/homelab-operator` with the repo root and ingest URL
+- renders `/run/homelab-control/operator-homelab.env`
+- enables `homelab-operator.timer` and starts one sync immediately
+
+`/etc/default/homelab-operator` is the editable source of truth for the
+service path and ingest URL. The `/run/.../operator-homelab.env` file is a
+derived runtime render, not the place to hand-edit long-term settings.
+
+The timer uses the existing cadence in `systemd/homelab-operator.timer`.
+
+Useful operations:
+
+```bash
+systemctl status homelab-operator.service
+systemctl status homelab-operator.timer
+journalctl -u homelab-operator.service -n 50 --no-pager
+```
+
 ## Idempotence
 
 The current memory-engine ingest workflow is append-oriented, so this first
