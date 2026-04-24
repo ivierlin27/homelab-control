@@ -7,4 +7,4 @@ services:
     env_file:
       - /run/homelab-control/operator-homelab.env
     volumes:
-      - ../../:/workspace:rw
+      - ../../:/workspace:ro

@@ -18,7 +18,7 @@ services:
       - infisical_redis:/data
 
   infisical:
-    image: infisical/infisical:latest
+    image: infisical/infisical:v0.159.8
     restart: unless-stopped
     env_file:
       - /run/homelab-control/infisical.env
