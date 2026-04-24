@@ -64,6 +64,7 @@ Every run should include representative homelab tasks:
 - review a multi-file config diff and identify risk
 - draft a PR summary and test plan
 - plan a small homelab change that touches multiple files or services
+- extend the homelab memory layer with new structured inventory knowledge
 - answer a capacity or observability question using mixed structured inputs
 
 Run the same prompts across all candidates so the comparisons stay meaningful.
