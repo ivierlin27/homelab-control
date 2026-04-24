@@ -7,7 +7,7 @@ services:
     env_file:
       - /run/homelab-control/agent-homelab.env
     volumes:
-      - ../../:/workspace:rw
+      - ../../:/workspace:ro
 
   review-agent:
     image: python:3.12-slim
