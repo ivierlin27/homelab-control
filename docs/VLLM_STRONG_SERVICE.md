@@ -35,6 +35,10 @@ This creates:
 - `~/.config/systemd/user/alienware-vllm-strong.service`
 - `~/.config/homelab-control/vllm-strong.env`
 
+The service unit currently pins `docker.io/vllm/vllm-openai:v0.19.1` and runs
+with `--ipc=host`, matching the current container guidance from the `vllm`
+deployment docs.
+
 ## Gateway wiring
 
 Set these in `~/.config/homelab-control/model-gateway.env` on Alienware:
@@ -56,9 +60,10 @@ The strong service is configured around the practical limits of a 24 GB 3090:
   bounds
 - native `32768` token context as the target working window for coding,
   troubleshooting, and multi-file planning
-- FP8 KV cache (`VLLM_STRONG_KV_CACHE_DTYPE=fp8_e4m3`) plus
-  `--calculate-kv-scales` to stretch context capacity without immediately
-  falling back to a shorter static context cap
+- `--ipc=host` so the container keeps the shared-memory path that `vllm`
+  expects for model execution
+- FP8 KV cache (`VLLM_STRONG_KV_CACHE_DTYPE=fp8_e4m3`) to stretch context
+  capacity without immediately falling back to a shorter static context cap
 - `--enable-prefix-caching` to avoid recomputing repeated prompt prefixes
 - `--enable-chunked-prefill` so long prompts can be admitted incrementally
 - bounded batch sizes (`4096` batched tokens, `8` sequences) to reduce KV cache
@@ -68,6 +73,15 @@ If the active runtime still fails to stabilize with the 32K target, reduce
 `VLLM_STRONG_MAX_MODEL_LEN` before changing the model. The current priority is a
 reliable strong route with predictable latency, not a theoretical maximum
 context number.
+
+`vllm` `v0.19.1` replaces the old coarse `swap-space` knob with explicit
+offloading controls such as `--cpu-offload-gb` and `--kv-offloading-size`. The
+repo keeps both off by default until we deliberately trade latency for a larger
+model or a longer context target.
+
+On this runtime, FP8 KV scales are loaded from the checkpoint when available and
+otherwise fall back to the runtime default behavior, so the old explicit
+`--calculate-kv-scales` flag is no longer part of the default profile.
 
 ## One-model mode
 

@@ -22,6 +22,10 @@ This creates:
 - `~/.config/systemd/user/alienware-vllm-fast.service`
 - `~/.config/homelab-control/vllm-fast.env`
 
+The service unit currently pins `docker.io/vllm/vllm-openai:v0.19.1` and runs
+with `--ipc=host`, matching the current container guidance from the `vllm`
+deployment docs.
+
 ## Default model
 
 The installer defaults to:
@@ -49,6 +53,7 @@ HOMELAB_FAST_VLLM_API_KEY=<same value as VLLM_FAST_API_KEY>
 The fast service uses the same safe efficiency baseline as the strong route:
 
 - native `32768` token context rather than an artificially short cap
+- `--ipc=host` so the container has the shared memory that `vllm` expects
 - `--enable-prefix-caching` to reuse repeated system prompts and shared prefixes
 - `--enable-chunked-prefill` so longer prompts do not monopolize admission
 - bounded scheduler settings (`8192` batched tokens, `16` sequences)
@@ -56,6 +61,10 @@ The fast service uses the same safe efficiency baseline as the strong route:
 The KV cache dtype remains configurable through `VLLM_FAST_KV_CACHE_DTYPE`. It
 defaults to `auto` so the service stays conservative until we benchmark
 model-specific FP8 KV cache behavior on this hardware.
+
+`vllm` `v0.19.1` also exposes explicit CPU and KV offload settings, but the fast
+route leaves those disabled by default. This keeps latency predictable and
+avoids spending PCIe bandwidth on a model that already fits comfortably.
 
 ## One-model mode
 

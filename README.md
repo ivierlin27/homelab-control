@@ -61,3 +61,6 @@ See:
 - `docs/AGENT_SERVICES.md`
 - `docs/VLLM_FAST_SERVICE.md`
 - `docs/VLLM_STRONG_SERVICE.md`
+- `docs/STRONG_MODEL_STRATEGY.md`
+- `docs/MODEL_OPTIMIZER_AGENT.md`
+- `docs/HUMAN_INTERFACES.md`
