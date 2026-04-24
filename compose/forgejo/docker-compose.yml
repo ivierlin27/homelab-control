@@ -39,6 +39,7 @@ services:
       FORGEJO__service__DISABLE_REGISTRATION: true
       FORGEJO__service__DEFAULT_KEEP_EMAIL_PRIVATE: true
       FORGEJO__actions__ENABLED: true
+      FORGEJO__webhook__ALLOWED_HOST_LIST: n8n.dev-path.org,192.168.1.42
     ports:
       - "3000:3000"
       - "2222:22"
