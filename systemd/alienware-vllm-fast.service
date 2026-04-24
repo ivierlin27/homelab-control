@@ -1,0 +1,16 @@
+[Unit]
+Description=Homelab vLLM fast-model backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/vllm-fast.env
+ExecStartPre=/usr/bin/podman rm -f homelab-vllm-fast
+ExecStart=/usr/bin/bash -lc '/usr/bin/podman run --name homelab-vllm-fast --replace --device nvidia.com/gpu=all --security-opt=label=disable -p 0.0.0.0:8000:8000 -v %h/.cache/huggingface:/root/.cache/huggingface:Z --env-file %h/.config/homelab-control/vllm-fast.env vllm/vllm-openai:latest --host 0.0.0.0 --port 8000 --model "$VLLM_FAST_MODEL" --served-model-name "$VLLM_FAST_SERVED_MODEL_NAME" --dtype "$VLLM_FAST_DTYPE" --max-model-len "$VLLM_FAST_MAX_MODEL_LEN" --gpu-memory-utilization "$VLLM_FAST_GPU_MEMORY_UTILIZATION" --api-key "$VLLM_FAST_API_KEY"'
+ExecStop=/usr/bin/podman stop -t 20 homelab-vllm-fast
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -58,3 +58,5 @@ See:
 - `config/policies/review-policy.yaml`
 - `config/planka/board-template.yaml`
 - `config/memory/principals.yaml`
+- `docs/AGENT_SERVICES.md`
+- `docs/VLLM_FAST_SERVICE.md`

@@ -1,0 +1,16 @@
+[Unit]
+Description=Homelab author-agent queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/agent-homelab.env
+WorkingDirectory=%h/homelab-control
+ExecStartPre=/usr/bin/bash -lc 'mkdir -p %h/.local/state/homelab-control/agent-homelab/{inbox,processing,done,failed}'
+ExecStart=/usr/bin/env python3 %h/homelab-control/apps/author_agent/main.py worker --queue-dir %h/.local/state/homelab-control/agent-homelab --heartbeat %h/.local/state/homelab-control/agent-homelab/heartbeat.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

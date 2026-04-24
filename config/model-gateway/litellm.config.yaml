@@ -11,6 +11,12 @@ model_list:
       api_base: os.environ/HOMELAB_FAST_API_BASE
       api_key: os.environ/HOMELAB_FAST_API_KEY
       timeout: 60
+  - model_name: homelab-fast-vllm
+    litellm_params:
+      model: openai/homelab-fast-vllm
+      api_base: os.environ/HOMELAB_FAST_VLLM_API_BASE
+      api_key: os.environ/HOMELAB_FAST_VLLM_API_KEY
+      timeout: 60
   - model_name: global-embed
     litellm_params:
       model: openai/text-embedding-nomic-embed-text-v1.5
