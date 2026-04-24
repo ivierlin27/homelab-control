@@ -99,3 +99,7 @@ This supports both flows:
 - normal implementation PR merged -> card is done
 - plan/scaffold PR merged -> card can move back to `Approved To Execute` for the
   next execution step
+
+## Live smoke test
+
+A real Planka card can be moved to `Approved To Execute` to enqueue an author-agent job through n8n and the Alienware dispatcher. The matching Forgejo merge webhook moves the linked card to `Done`.
