@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh homelab agent platform status snapshot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/homelab-control/agent-review.env
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/homelab-control}" && exec python3 scripts/agent_platform_status.py --author-queue %h/.local/state/homelab-control/agent-homelab --review-queue %h/.local/state/homelab-control/agent-review --author-heartbeat %h/.local/state/homelab-control/agent-homelab/heartbeat.json --review-heartbeat %h/.local/state/homelab-control/agent-review/heartbeat.json --output %h/.local/state/homelab-control/platform-status.json'

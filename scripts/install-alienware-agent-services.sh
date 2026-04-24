@@ -53,10 +53,16 @@ fi
 
 cp "${ROOT_DIR}/systemd/alienware-author-agent.service" "${SYSTEMD_USER_DIR}/alienware-author-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-review-agent.service" "${SYSTEMD_USER_DIR}/alienware-review-agent.service"
+cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
+cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.timer" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.timer"
 
 systemctl --user daemon-reload
 systemctl --user enable --now alienware-author-agent.service
 systemctl --user enable --now alienware-review-agent.service
+systemctl --user enable --now alienware-agent-platform-report.timer
+systemctl --user start alienware-agent-platform-report.service
 
 systemctl --user status alienware-author-agent.service --no-pager
 systemctl --user status alienware-review-agent.service --no-pager
+systemctl --user status alienware-agent-platform-report.service --no-pager || true
+systemctl --user status alienware-agent-platform-report.timer --no-pager
