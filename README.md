@@ -64,4 +64,5 @@ See:
 - `docs/STRONG_MODEL_STRATEGY.md`
 - `docs/MODEL_OPTIMIZER_AGENT.md`
 - `docs/INVENTORY_MEMORY_SYNC.md`
+- `docs/IMMICH_ON_PROXMOX.md`
 - `docs/HUMAN_INTERFACES.md`
