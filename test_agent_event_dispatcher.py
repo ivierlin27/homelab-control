@@ -19,6 +19,34 @@ class AgentEventDispatcherTests(unittest.TestCase):
         execution = dispatcher.extract_execution(description)
         self.assertEqual(["docs"], execution["allowed_paths"])
 
+    def test_build_card_export_reads_metadata_from_agent_fence(self) -> None:
+        description = """Please do the thing.
+
+```agent-execution
+{
+  "summary": "Update the docs",
+  "labels": ["docs-only"],
+  "execution": {
+    "allowed_paths": ["docs"],
+    "operations": {"write_files": []}
+  }
+}
+```
+"""
+        card = dispatcher.build_card_export(
+            {
+                "body": {
+                    "cardId": "123",
+                    "name": "Update docs",
+                    "listName": "Approved To Execute",
+                    "description": description,
+                }
+            }
+        )
+        self.assertEqual("Update the docs", card["summary"])
+        self.assertEqual(["docs-only"], card["labels"])
+        self.assertEqual(["docs"], card["execution"]["allowed_paths"])
+
     def test_dispatch_planka_event_writes_author_queue_job(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)

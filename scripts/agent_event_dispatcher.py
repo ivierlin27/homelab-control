@@ -65,19 +65,24 @@ def extract_card_item(payload: dict[str, Any]) -> dict[str, Any]:
     return body.get("item") or body.get("card") or body.get("data", {}).get("item") or body
 
 
-def extract_execution(description: str) -> dict[str, Any]:
-    """Extract an execution object from a fenced JSON block in a Planka card."""
+def extract_agent_payload(description: str) -> dict[str, Any]:
+    """Extract automation metadata from a fenced JSON block in a Planka card."""
     patterns = [
         r"```agent-execution\s*(\{.*?\})\s*```",
         r"```json\s*(\{.*?\})\s*```",
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, description, flags=re.DOTALL | re.IGNORECASE):
-            data = json.loads(match.group(1))
-            if "execution" in data and isinstance(data["execution"], dict):
-                return data["execution"]
-            return data
+            return json.loads(match.group(1))
     return {}
+
+
+def extract_execution(description: str) -> dict[str, Any]:
+    """Extract the execution object from a fenced JSON block in a Planka card."""
+    data = extract_agent_payload(description)
+    if "execution" in data and isinstance(data["execution"], dict):
+        return data["execution"]
+    return data
 
 
 def planka_card_url(card_id: str) -> str:
@@ -99,14 +104,18 @@ def build_card_export(payload: dict[str, Any]) -> dict[str, Any]:
         or ""
     )
     description = str(item.get("description") or body.get("description") or "")
+    agent_payload = extract_agent_payload(description)
     execution = body.get("execution") if isinstance(body.get("execution"), dict) else extract_execution(description)
+    labels = label_names(item.get("labels") or body.get("labels"))
+    if not labels:
+        labels = label_names(agent_payload.get("labels"))
     return {
         "id": card_id,
         "title": item.get("name") or body.get("name") or "Untitled task",
-        "summary": body.get("summary", ""),
+        "summary": body.get("summary") or agent_payload.get("summary", ""),
         "description": description,
         "list_name": body.get("listName") or LISTS_BY_ID.get(dest_list_id, ""),
-        "labels": label_names(item.get("labels") or body.get("labels")),
+        "labels": labels or ["safe-update"],
         "url": body.get("url") or planka_card_url(card_id),
         "planka_card": body.get("url") or planka_card_url(card_id),
         "execution": execution,
