@@ -53,3 +53,49 @@ The card JSON should carry enough metadata to preserve linkage between:
 
 The generated queue job file name should include the Planka card ID so later
 receipts and PR artifacts remain traceable.
+
+## Live webhook dispatcher
+
+The Alienware agent host also runs an HTTP dispatcher for n8n:
+
+- `POST http://<alienware>:8765/planka-control-plane`
+- `POST http://<alienware>:8765/planka/card-moved`
+- `POST http://<alienware>:8765/forgejo/pull-request`
+
+Requests should include:
+
+```http
+X-Agent-Dispatch-Token: <shared secret>
+```
+
+For execution, a Planka card moved to `Approved To Execute` should include a
+fenced JSON block in its description:
+
+````markdown
+```agent-execution
+{
+  "allowed_paths": ["docs"],
+  "checks": ["git diff --check"],
+  "operations": {
+    "write_files": [
+      {
+        "path": "docs/example.md",
+        "content": "hello\n"
+      }
+    ]
+  },
+  "review_queue_dir": "/home/kenns/.local/state/homelab-control/agent-review"
+}
+```
+````
+
+When Forgejo reports a merged PR, the dispatcher moves the related Planka card:
+
+- default: `Done`
+- if the PR body contains `Next Planka list: Approved To Execute`: `Approved To Execute`
+
+This supports both flows:
+
+- normal implementation PR merged -> card is done
+- plan/scaffold PR merged -> card can move back to `Approved To Execute` for the
+  next execution step

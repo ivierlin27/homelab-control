@@ -51,18 +51,40 @@ EOF
   chmod 600 "${CONFIG_DIR}/agent-review.env"
 fi
 
+if [[ ! -f "${CONFIG_DIR}/agent-dispatcher.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-dispatcher.env" <<'EOF'
+AGENT_DISPATCH_HOST=0.0.0.0
+AGENT_DISPATCH_PORT=8765
+AGENT_DISPATCH_TOKEN=replace-me
+PLANKA_BASE_URL=https://planka.dev-path.org
+PLANKA_EMAIL_OR_USERNAME=admin
+PLANKA_PASSWORD=replace-me
+PLANKA_PLAN_READY_LIST_ID=replace-me
+PLANKA_APPROVED_LIST_ID=replace-me
+PLANKA_AUTHOR_REVIEW_LIST_ID=replace-me
+PLANKA_REVIEW_LIST_ID=replace-me
+PLANKA_NEEDS_HUMAN_LIST_ID=replace-me
+PLANKA_MERGED_LIST_ID=replace-me
+PLANKA_DONE_LIST_ID=replace-me
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-dispatcher.env"
+fi
+
 cp "${ROOT_DIR}/systemd/alienware-author-agent.service" "${SYSTEMD_USER_DIR}/alienware-author-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-review-agent.service" "${SYSTEMD_USER_DIR}/alienware-review-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.timer" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.timer"
+cp "${ROOT_DIR}/systemd/alienware-agent-event-dispatcher.service" "${SYSTEMD_USER_DIR}/alienware-agent-event-dispatcher.service"
 
 systemctl --user daemon-reload
 systemctl --user enable --now alienware-author-agent.service
 systemctl --user enable --now alienware-review-agent.service
 systemctl --user enable --now alienware-agent-platform-report.timer
+systemctl --user enable --now alienware-agent-event-dispatcher.service
 systemctl --user start alienware-agent-platform-report.service
 
 systemctl --user status alienware-author-agent.service --no-pager
 systemctl --user status alienware-review-agent.service --no-pager
+systemctl --user status alienware-agent-event-dispatcher.service --no-pager
 systemctl --user status alienware-agent-platform-report.service --no-pager || true
 systemctl --user status alienware-agent-platform-report.timer --no-pager

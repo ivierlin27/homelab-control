@@ -1,0 +1,16 @@
+[Unit]
+Description=Homelab agent event dispatcher for Planka and Forgejo webhooks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/agent-review.env
+EnvironmentFile=-%h/.config/homelab-control/agent-dispatcher.env
+ExecStartPre=/usr/bin/bash -lc 'mkdir -p %h/.local/state/homelab-control/planka-artifacts'
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/homelab-control}" && exec python3 scripts/agent_event_dispatcher.py --author-queue %h/.local/state/homelab-control/agent-homelab --review-queue %h/.local/state/homelab-control/agent-review --artifact-dir %h/.local/state/homelab-control/planka-artifacts'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
