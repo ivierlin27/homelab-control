@@ -258,7 +258,7 @@ def remove_card_label(card_id: str, label_name: str) -> None:
         return
     if label_id not in card_label_ids(card_id):
         return
-    planka_request(f"cards/{card_id}/labels/{label_id}", method="DELETE")
+    planka_request(f"cards/{card_id}/card-labels/labelId:{label_id}", method="DELETE")
 
 
 def set_card_state_labels(card_id: str, labels: list[str]) -> dict[str, Any]:
