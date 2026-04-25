@@ -107,3 +107,7 @@ A real Planka card can be moved to `Approved To Execute` to enqueue an author-ag
 ## Lifecycle lane smoke test
 
 A real Planka card now moves from `Approved To Execute` to `Author Review Ready` when the author agent opens a PR, then to `Merged / Applied` after review approval, and finally to `Done` when Forgejo reports the merged PR.
+
+## Lifecycle callback verification
+
+The author and review agents call back to the event dispatcher as work progresses, so real Planka cards advance through review lanes before the final Forgejo merge webhook moves them to `Done`.
