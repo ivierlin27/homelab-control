@@ -175,3 +175,7 @@ progresses:
 ## Simplified board verification
 
 The board now uses columns as triggers and labels as state metadata. Internal author/review lanes were removed from the human-facing board.
+
+## Post-guard E2E verification
+
+A real card with an actionable `agent-execution` block was moved to `Approved To Execute`, produced a PR, moved through review labels, and can complete through the Forgejo merge webhook.
