@@ -59,12 +59,11 @@ AGENT_DISPATCH_TOKEN=replace-me
 PLANKA_BASE_URL=https://planka.dev-path.org
 PLANKA_EMAIL_OR_USERNAME=admin
 PLANKA_PASSWORD=replace-me
+PLANKA_BOARD_ID=replace-me
 PLANKA_PLAN_READY_LIST_ID=replace-me
 PLANKA_APPROVED_LIST_ID=replace-me
-PLANKA_AUTHOR_REVIEW_LIST_ID=replace-me
-PLANKA_REVIEW_LIST_ID=replace-me
+PLANKA_IN_PROGRESS_LIST_ID=replace-me
 PLANKA_NEEDS_HUMAN_LIST_ID=replace-me
-PLANKA_MERGED_LIST_ID=replace-me
 PLANKA_DONE_LIST_ID=replace-me
 EOF
   chmod 600 "${CONFIG_DIR}/agent-dispatcher.env"

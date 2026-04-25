@@ -83,7 +83,7 @@ class PlankaDispatchTests(unittest.TestCase):
             job = json.loads((tmp / "author" / "inbox" / "card-43-execute.json").read_text())
             self.assertEqual("43", job["card_id"])
 
-    def test_author_review_ready_dispatches_review_job(self) -> None:
+    def test_needs_human_review_dispatches_review_job_when_context_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             context = tmp / "review-context.json"
@@ -94,7 +94,7 @@ class PlankaDispatchTests(unittest.TestCase):
                     {
                         "id": "84",
                         "title": "Review compose hardening",
-                        "list_name": "Author Review Ready",
+                        "list_name": "Needs Human Review",
                         "review_context_path": str(context),
                     }
                 )

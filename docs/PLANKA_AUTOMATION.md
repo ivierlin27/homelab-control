@@ -20,9 +20,21 @@ Planka is the control plane. Cards are the durable work items that tie together:
 
 - `Plan Ready` -> author agent expands plan
 - `Approved To Execute` -> author agent works on branch
-- `Author Review Ready` -> review agent runs
-- `Needs Human Review` -> notify Kevin and wait
-- `Merged / Applied` -> close loop and summarize into memory
+- `Needs Human Review` -> Kevin reviews plan, PR, or requested changes
+- `Done` -> work is complete
+
+Columns trigger work. Labels explain state, type, risk, and why human review is
+needed. Manual label changes should not enqueue work.
+
+Recommended review/state labels:
+
+- `review:plan`
+- `review:pr`
+- `review:changes-requested`
+- `state:author-working`
+- `state:pr-open`
+- `state:review-agent`
+- `state:ready-to-merge`
 
 ## Queue dispatch
 
@@ -39,8 +51,8 @@ python3 scripts/planka_dispatch.py \
 Expected mappings:
 
 - `Plan Ready` -> enqueue `create-execution-job`
-- `Approved To Execute` or `In Progress` -> enqueue `execute-task`
-- `Author Review Ready` or `Review Agent` -> enqueue `review-pr`
+- `Approved To Execute` -> enqueue `execute-task`
+- `Needs Human Review` -> no automatic execution; this is a human checkpoint
 
 The card JSON should carry enough metadata to preserve linkage between:
 
@@ -104,10 +116,10 @@ This supports both flows:
 
 A real Planka card can be moved to `Approved To Execute` to enqueue an author-agent job through n8n and the Alienware dispatcher. The matching Forgejo merge webhook moves the linked card to `Done`.
 
-## Lifecycle lane smoke test
-
-A real Planka card now moves from `Approved To Execute` to `Author Review Ready` when the author agent opens a PR, then to `Merged / Applied` after review approval, and finally to `Done` when Forgejo reports the merged PR.
-
 ## Lifecycle callback verification
 
-The author and review agents call back to the event dispatcher as work progresses, so real Planka cards advance through review lanes before the final Forgejo merge webhook moves them to `Done`.
+The author and review agents call back to the event dispatcher as work
+progresses. Real Planka cards move to `In Progress` while the background agents
+work, then to `Needs Human Review` with labels such as `review:pr` and
+`state:ready-to-merge`. The final Forgejo merge webhook moves the card to
+`Done` and clears transient review/state labels.

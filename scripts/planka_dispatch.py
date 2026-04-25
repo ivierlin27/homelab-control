@@ -64,7 +64,7 @@ def dispatch_payload(
             "action": "author-agent-plan",
         }
 
-    if current_list in {"Approved To Execute", "In Progress"}:
+    if current_list == "Approved To Execute":
         if not isinstance(card.get("execution"), dict):
             raise ValueError("card is missing execution details for Approved To Execute")
         job_path = author_queue / "inbox" / f"card-{cid}-execute.json"
@@ -87,7 +87,7 @@ def dispatch_payload(
             "action": "author-agent-execute",
         }
 
-    if current_list in {"Author Review Ready", "Review Agent"}:
+    if current_list == "Needs Human Review":
         review_context = card.get("review_context_path")
         if not review_context and card.get("pr_url"):
             review_context = artifact_dir / f"card-{cid}.review-context.json"

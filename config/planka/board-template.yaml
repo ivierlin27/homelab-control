@@ -5,11 +5,8 @@ lists:
   - Plan Ready
   - Approved To Execute
   - In Progress
-  - Author Review Ready
-  - Review Agent
   - Needs Human Review
   - Blocked
-  - Merged / Applied
   - Done
   - Rejected
 
@@ -24,6 +21,16 @@ labels:
   - auth-change
   - network-exposure
   - needs-human
+  - review:plan
+  - review:pr
+  - review:changes-requested
+  - state:author-working
+  - state:pr-open
+  - state:review-agent
+  - state:ready-to-merge
+  - type:docs
+  - type:deployment
+  - type:research
 
 automation:
   plan_ready:
@@ -34,10 +41,6 @@ automation:
     trigger: move-to-list
     target: Approved To Execute
     action: author-agent-execute
-  author_review_ready:
-    trigger: move-to-list
-    target: Author Review Ready
-    action: review-agent-start
   needs_human_review:
     trigger: move-to-list
     target: Needs Human Review

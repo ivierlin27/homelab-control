@@ -23,11 +23,32 @@ from planka_dispatch import dispatch_payload  # noqa: E402
 LISTS_BY_ID = {
     os.environ.get("PLANKA_PLAN_READY_LIST_ID", ""): "Plan Ready",
     os.environ.get("PLANKA_APPROVED_LIST_ID", ""): "Approved To Execute",
-    os.environ.get("PLANKA_AUTHOR_REVIEW_LIST_ID", ""): "Author Review Ready",
-    os.environ.get("PLANKA_REVIEW_LIST_ID", ""): "Review Agent",
+    os.environ.get("PLANKA_IN_PROGRESS_LIST_ID", ""): "In Progress",
     os.environ.get("PLANKA_NEEDS_HUMAN_LIST_ID", ""): "Needs Human Review",
     os.environ.get("PLANKA_DONE_LIST_ID", ""): "Done",
-    os.environ.get("PLANKA_MERGED_LIST_ID", ""): "Merged / Applied",
+}
+
+LABEL_COLORS = {
+    "review:plan": "antique-blue",
+    "review:pr": "lagoon-blue",
+    "review:changes-requested": "pumpkin-orange",
+    "state:author-working": "morning-sky",
+    "state:pr-open": "summer-sky",
+    "state:review-agent": "lilac-eyes",
+    "state:ready-to-merge": "bright-moss",
+    "type:docs": "fresh-salad",
+    "type:deployment": "orange-peel",
+    "type:research": "turquoise-sea",
+}
+
+STATE_LABELS = {
+    "review:plan",
+    "review:pr",
+    "review:changes-requested",
+    "state:author-working",
+    "state:pr-open",
+    "state:review-agent",
+    "state:ready-to-merge",
 }
 
 
@@ -184,14 +205,78 @@ def move_planka_card(card_id: str, list_id: str) -> dict[str, Any]:
     return {"moved": True, "card": planka_request(f"cards/{card_id}", method="PATCH", payload={"listId": list_id, "position": 65536})}
 
 
+def board_id() -> str:
+    return os.environ.get("PLANKA_BOARD_ID", "")
+
+
+def board_labels() -> dict[str, str]:
+    board = board_id()
+    if not board:
+        return {}
+    payload = planka_request(f"boards/{board}")
+    labels = payload.get("included", {}).get("labels", [])
+    return {label["name"]: label["id"] for label in labels if label.get("name")}
+
+
+def ensure_label(label_name: str) -> str | None:
+    labels = board_labels()
+    if label_name in labels:
+        return labels[label_name]
+    board = board_id()
+    if not board:
+        return None
+    payload = {
+        "name": label_name,
+        "color": LABEL_COLORS.get(label_name, "dark-granite"),
+        "position": 65536 * (len(labels) + 1),
+    }
+    created = planka_request(f"boards/{board}/labels", method="POST", payload=payload)
+    return created.get("item", {}).get("id")
+
+
+def card_label_ids(card_id: str) -> set[str]:
+    payload = planka_request(f"cards/{card_id}")
+    return {str(item.get("labelId")) for item in payload.get("included", {}).get("cardLabels", []) if item.get("labelId")}
+
+
+def add_card_label(card_id: str, label_name: str) -> None:
+    label_id = ensure_label(label_name)
+    if not label_id:
+        return
+    if label_id in card_label_ids(card_id):
+        return
+    try:
+        planka_request(f"cards/{card_id}/card-labels", method="POST", payload={"labelId": label_id})
+    except error.HTTPError as exc:
+        if exc.code != 409:
+            raise
+
+
+def remove_card_label(card_id: str, label_name: str) -> None:
+    label_id = board_labels().get(label_name)
+    if not label_id:
+        return
+    if label_id not in card_label_ids(card_id):
+        return
+    planka_request(f"cards/{card_id}/labels/{label_id}", method="DELETE")
+
+
+def set_card_state_labels(card_id: str, labels: list[str]) -> dict[str, Any]:
+    if not card_id:
+        return {"labels_updated": False, "reason": "missing card id"}
+    for label in STATE_LABELS:
+        remove_card_label(card_id, label)
+    for label in labels:
+        add_card_label(card_id, label)
+    return {"labels_updated": True, "labels": labels}
+
+
 def list_id_for_name(name: str) -> str:
     env_key = {
         "Approved To Execute": "PLANKA_APPROVED_LIST_ID",
-        "Author Review Ready": "PLANKA_AUTHOR_REVIEW_LIST_ID",
-        "Review Agent": "PLANKA_REVIEW_LIST_ID",
+        "In Progress": "PLANKA_IN_PROGRESS_LIST_ID",
         "Needs Human Review": "PLANKA_NEEDS_HUMAN_LIST_ID",
         "Done": "PLANKA_DONE_LIST_ID",
-        "Merged / Applied": "PLANKA_MERGED_LIST_ID",
     }.get(name, "")
     return os.environ.get(env_key, "") if env_key else ""
 
@@ -200,25 +285,41 @@ def handle_agent_lifecycle_event(payload: dict[str, Any]) -> dict[str, Any]:
     event = payload.get("event", "")
     card_id = str(payload.get("card_id", "")).strip()
     if event == "author-pr-opened":
-        target = "Author Review Ready"
+        target = "In Progress"
+        labels = ["state:pr-open", "state:review-agent"]
     elif event == "review-completed":
         decision = payload.get("decision", "")
+        target = "Needs Human Review"
         if decision == "needs_human_review":
-            target = "Needs Human Review"
+            labels = ["review:pr"]
         elif decision == "request_changes":
-            target = "Approved To Execute"
+            labels = ["review:changes-requested"]
         elif decision == "approve_and_merge":
-            target = "Merged / Applied"
+            labels = ["review:pr", "state:ready-to-merge"]
+        elif payload.get("merged"):
+            target = "Done"
+            labels = []
         else:
             target = ""
+            labels = []
     else:
         target = ""
+        labels = []
 
     if not target:
         return {"ok": True, "handled": "noop", "reason": f"unhandled lifecycle event: {event}"}
     target_list_id = list_id_for_name(target)
+    label_result = set_card_state_labels(card_id, labels) if card_id else {"labels_updated": False, "reason": "missing card id"}
     move_result = move_planka_card(card_id, target_list_id) if card_id else {"moved": False, "reason": "missing card id"}
-    return {"ok": True, "handled": "agent-lifecycle", "event": event, "card_id": card_id, "target_list": target, **move_result}
+    return {
+        "ok": True,
+        "handled": "agent-lifecycle",
+        "event": event,
+        "card_id": card_id,
+        "target_list": target,
+        **label_result,
+        **move_result,
+    }
 
 
 def parse_card_id_from_text(value: str) -> str:
@@ -254,8 +355,9 @@ def handle_forgejo_pr_event(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "handled": "noop", "reason": "pull request is not merged"}
     card_id = parse_card_id_from_text(pr.get("body", "")) or parse_card_id_from_text(pr.get("head", {}).get("ref", ""))
     target_name, target_list_id = next_list_for_merged_pr(pr)
+    label_result = set_card_state_labels(card_id, []) if card_id else {"labels_updated": False, "reason": "missing card id"}
     move_result = move_planka_card(card_id, target_list_id) if card_id else {"moved": False, "reason": "missing card id"}
-    return {"ok": True, "handled": "merged-pr", "card_id": card_id, "target_list": target_name, **move_result}
+    return {"ok": True, "handled": "merged-pr", "card_id": card_id, "target_list": target_name, **label_result, **move_result}
 
 
 class DispatchHandler(BaseHTTPRequestHandler):
