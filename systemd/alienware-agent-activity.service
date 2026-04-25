@@ -1,0 +1,14 @@
+[Unit]
+Description=Homelab agent activity dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/homelab-control/agent-activity.env
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/git/homelab-control}" && exec python3 scripts/agent_activity_server.py --state-dir %h/.local/state/homelab-control'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -69,21 +69,33 @@ EOF
   chmod 600 "${CONFIG_DIR}/agent-dispatcher.env"
 fi
 
+if [[ ! -f "${CONFIG_DIR}/agent-activity.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-activity.env" <<'EOF'
+AGENT_ACTIVITY_HOST=0.0.0.0
+AGENT_ACTIVITY_PORT=8766
+AGENT_ACTIVITY_TOKEN=replace-me
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-activity.env"
+fi
+
 cp "${ROOT_DIR}/systemd/alienware-author-agent.service" "${SYSTEMD_USER_DIR}/alienware-author-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-review-agent.service" "${SYSTEMD_USER_DIR}/alienware-review-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.timer" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-event-dispatcher.service" "${SYSTEMD_USER_DIR}/alienware-agent-event-dispatcher.service"
+cp "${ROOT_DIR}/systemd/alienware-agent-activity.service" "${SYSTEMD_USER_DIR}/alienware-agent-activity.service"
 
 systemctl --user daemon-reload
 systemctl --user enable --now alienware-author-agent.service
 systemctl --user enable --now alienware-review-agent.service
 systemctl --user enable --now alienware-agent-platform-report.timer
 systemctl --user enable --now alienware-agent-event-dispatcher.service
+systemctl --user enable --now alienware-agent-activity.service
 systemctl --user start alienware-agent-platform-report.service
 
 systemctl --user status alienware-author-agent.service --no-pager
 systemctl --user status alienware-review-agent.service --no-pager
 systemctl --user status alienware-agent-event-dispatcher.service --no-pager
+systemctl --user status alienware-agent-activity.service --no-pager
 systemctl --user status alienware-agent-platform-report.service --no-pager || true
 systemctl --user status alienware-agent-platform-report.timer --no-pager
