@@ -48,6 +48,41 @@ class PlankaDispatchTests(unittest.TestCase):
             self.assertEqual("author-agent-plan", payload["action"])
             self.assertEqual("create-execution-job", job["action"])
 
+    def test_approved_to_execute_dispatch_includes_card_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            card = tmp / "card.json"
+            card.write_text(
+                json.dumps(
+                    {
+                        "id": "43",
+                        "title": "Update docs",
+                        "list_name": "Approved To Execute",
+                        "execution": {"allowed_paths": ["docs"], "operations": {"write_files": []}},
+                    }
+                )
+            )
+
+            subprocess.run(
+                [
+                    "python3",
+                    str(ROOT / "scripts" / "planka_dispatch.py"),
+                    "--card",
+                    str(card),
+                    "--author-queue",
+                    str(tmp / "author"),
+                    "--review-queue",
+                    str(tmp / "review"),
+                    "--artifact-dir",
+                    str(tmp / "artifacts"),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            job = json.loads((tmp / "author" / "inbox" / "card-43-execute.json").read_text())
+            self.assertEqual("43", job["card_id"])
+
     def test_author_review_ready_dispatches_review_job(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)

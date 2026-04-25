@@ -75,6 +75,7 @@ def dispatch_payload(
             "labels": card.get("labels", [card.get("risk", "safe-update")]),
             "plan_link": card.get("plan_link") or card.get("url", ""),
             "planka_card": card.get("planka_card") or card.get("url", ""),
+            "card_id": cid,
             **card["execution"],
         }
         write_json(job_path, execution)
