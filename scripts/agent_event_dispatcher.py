@@ -149,6 +149,8 @@ def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review
         return {"ok": True, "handled": "noop", "reason": "unmapped list", "card_id": card["id"]}
     if card["list_name"] == "Plan Ready":
         return handle_plan_ready_card(card)
+    if card["list_name"] == "Approved To Execute" and not execution_is_actionable(card.get("execution", {})):
+        return handle_missing_execution_details(card)
     if isinstance(card.get("execution"), dict):
         port = os.environ.get("AGENT_DISPATCH_PORT", "8765")
         card["execution"].setdefault("lifecycle_callback_url", f"http://127.0.0.1:{port}/agent/lifecycle")
@@ -329,6 +331,18 @@ def build_plan_draft(card: dict[str, Any]) -> str:
     )
 
 
+def execution_is_actionable(execution: Any) -> bool:
+    if not isinstance(execution, dict):
+        return False
+    operations = execution.get("operations")
+    if not isinstance(operations, dict):
+        return False
+    for key in ("replacements", "append_text", "write_files", "delete_files"):
+        if operations.get(key):
+            return True
+    return False
+
+
 def handle_plan_ready_card(card: dict[str, Any]) -> dict[str, Any]:
     card_id = card.get("id", "")
     description = build_plan_draft(card)
@@ -338,6 +352,32 @@ def handle_plan_ready_card(card: dict[str, Any]) -> dict[str, Any]:
     return {
         "ok": True,
         "handled": "plan-ready",
+        "card_id": card_id,
+        "target_list": "Needs Human Review",
+        **update_result,
+        **label_result,
+        **move_result,
+    }
+
+
+def handle_missing_execution_details(card: dict[str, Any]) -> dict[str, Any]:
+    card_id = card.get("id", "")
+    description = card.get("description", "").rstrip()
+    note = (
+        "\n\n## Execution Details Needed\n\n"
+        "This card was moved to `Approved To Execute`, but it does not yet contain an actionable "
+        "`agent-execution` block with file operations. Add the concrete operations to perform, "
+        "or move the card back to `Plan Ready` for another planning pass.\n"
+    )
+    if "## Execution Details Needed" not in description:
+        update_result = update_planka_card_description(card_id, description + note)
+    else:
+        update_result = {"updated": False, "reason": "execution details note already present"}
+    label_result = set_card_state_labels(card_id, ["review:changes-requested"])
+    move_result = move_planka_card(card_id, list_id_for_name("Needs Human Review"))
+    return {
+        "ok": True,
+        "handled": "missing-execution-details",
         "card_id": card_id,
         "target_list": "Needs Human Review",
         **update_result,

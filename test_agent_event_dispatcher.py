@@ -91,6 +91,31 @@ class AgentEventDispatcherTests(unittest.TestCase):
         labels.assert_called_once_with("123", ["review:plan"])
         move.assert_called_once_with("123", "human-review")
 
+    def test_approved_without_actionable_execution_returns_to_human_review(self) -> None:
+        card = {
+            "id": "123",
+            "title": "Plan a thing",
+            "description": "Plan exists but no executable operations.",
+            "list_name": "Approved To Execute",
+            "execution": {},
+        }
+        with mock.patch.dict(os.environ, {"PLANKA_NEEDS_HUMAN_LIST_ID": "human-review"}, clear=False):
+            with mock.patch("scripts.agent_event_dispatcher.update_planka_card_description", return_value={"updated": True}) as update:
+                with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}) as labels:
+                    with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                        result = dispatcher.handle_missing_execution_details(card)
+
+        self.assertEqual("missing-execution-details", result["handled"])
+        self.assertEqual("Needs Human Review", result["target_list"])
+        update.assert_called_once()
+        labels.assert_called_once_with("123", ["review:changes-requested"])
+        move.assert_called_once_with("123", "human-review")
+
+    def test_execution_is_actionable_requires_file_operations(self) -> None:
+        self.assertFalse(dispatcher.execution_is_actionable({}))
+        self.assertFalse(dispatcher.execution_is_actionable({"operations": {}}))
+        self.assertTrue(dispatcher.execution_is_actionable({"operations": {"append_text": [{"path": "docs/x.md"}]}}))
+
     def test_merged_pr_defaults_card_to_done(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_DONE_LIST_ID": "done-list"}, clear=False):
             with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}):
