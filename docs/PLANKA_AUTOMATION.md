@@ -103,3 +103,7 @@ This supports both flows:
 ## Live smoke test
 
 A real Planka card can be moved to `Approved To Execute` to enqueue an author-agent job through n8n and the Alienware dispatcher. The matching Forgejo merge webhook moves the linked card to `Done`.
+
+## Lifecycle lane smoke test
+
+A real Planka card now moves from `Approved To Execute` to `Author Review Ready` when the author agent opens a PR, then to `Merged / Applied` after review approval, and finally to `Done` when Forgejo reports the merged PR.
