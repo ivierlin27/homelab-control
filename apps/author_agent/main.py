@@ -14,6 +14,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib import request
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -121,6 +122,22 @@ def ensure_success(result: dict[str, Any]) -> None:
         raise RuntimeError(
             f"command failed: {result['command']}\nstdout:\n{result['stdout']}\nstderr:\n{result['stderr']}"
         )
+
+
+def post_lifecycle_callback(job: dict[str, Any], payload: dict[str, Any]) -> str | None:
+    url = job.get("lifecycle_callback_url", "")
+    if not url:
+        return None
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    token = job.get("lifecycle_callback_token", "")
+    if token:
+        headers["X-Agent-Dispatch-Token"] = token
+    req = request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    try:
+        with request.urlopen(req, timeout=20) as response:
+            return response.read().decode("utf-8")
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)})
 
 
 def apply_operations(operations: dict[str, Any], *, worktree: Path, allowed_paths: list[str]) -> list[str]:
@@ -267,6 +284,7 @@ def build_review_context(
     return {
         "pr_url": pr_url,
         "pr_number": pr_number,
+        "card_id": job.get("card_id", ""),
         "repo": job.get("repo_name", repo_name_from_path(repo_root_from_job(job))),
         "labels": job.get("labels", []),
         "checks_passed": all(result["returncode"] == 0 for result in checks),
@@ -277,6 +295,8 @@ def build_review_context(
         "changed_files": changed_files,
         "commit_sha": commit_sha,
         "branch_name": branch_name,
+        "lifecycle_callback_url": job.get("lifecycle_callback_url", ""),
+        "lifecycle_callback_token": job.get("lifecycle_callback_token", ""),
     }
 
 
@@ -393,6 +413,19 @@ def execute_task(job: dict[str, Any], *, job_path: Path, queue_dir: Path, done_d
         write_json(target, {"action": "review-pr", "input": str(review_context_path)})
         review_job_path = str(target)
 
+    lifecycle_callback_response = post_lifecycle_callback(
+        job,
+        {
+            "event": "author-pr-opened",
+            "card_id": job.get("card_id", ""),
+            "pr_url": pr_url,
+            "pr_number": pr_number,
+            "branch_name": branch_name,
+            "review_context_path": str(review_context_path),
+            "review_job_path": review_job_path,
+        },
+    )
+
     result = {
         "action": "execute-task",
         "job_file": str(job_path),
@@ -407,6 +440,7 @@ def execute_task(job: dict[str, Any], *, job_path: Path, queue_dir: Path, done_d
         "pr_number": pr_number,
         "review_context_path": str(review_context_path),
         "review_job_path": review_job_path,
+        "lifecycle_callback_response": lifecycle_callback_response,
         "completed_at": utc_now(),
     }
     summary_path = Path(job.get("output_path", default_output_path(done_dir, job_path, ".summary.json")))

@@ -126,6 +126,10 @@ def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review
     card = build_card_export(payload)
     if not card["list_name"]:
         return {"ok": True, "handled": "noop", "reason": "unmapped list", "card_id": card["id"]}
+    if isinstance(card.get("execution"), dict):
+        port = os.environ.get("AGENT_DISPATCH_PORT", "8765")
+        card["execution"].setdefault("lifecycle_callback_url", f"http://127.0.0.1:{port}/agent/lifecycle")
+        card["execution"].setdefault("lifecycle_callback_token", os.environ.get("AGENT_DISPATCH_TOKEN", ""))
     card_path = artifact_dir / f"card-{card['id']}.json"
     card["source_path"] = str(card_path)
     card_path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,6 +182,43 @@ def move_planka_card(card_id: str, list_id: str) -> dict[str, Any]:
     if not card_id or not list_id:
         return {"moved": False, "reason": "missing card_id or list_id"}
     return {"moved": True, "card": planka_request(f"cards/{card_id}", method="PATCH", payload={"listId": list_id, "position": 65536})}
+
+
+def list_id_for_name(name: str) -> str:
+    env_key = {
+        "Approved To Execute": "PLANKA_APPROVED_LIST_ID",
+        "Author Review Ready": "PLANKA_AUTHOR_REVIEW_LIST_ID",
+        "Review Agent": "PLANKA_REVIEW_LIST_ID",
+        "Needs Human Review": "PLANKA_NEEDS_HUMAN_LIST_ID",
+        "Done": "PLANKA_DONE_LIST_ID",
+        "Merged / Applied": "PLANKA_MERGED_LIST_ID",
+    }.get(name, "")
+    return os.environ.get(env_key, "") if env_key else ""
+
+
+def handle_agent_lifecycle_event(payload: dict[str, Any]) -> dict[str, Any]:
+    event = payload.get("event", "")
+    card_id = str(payload.get("card_id", "")).strip()
+    if event == "author-pr-opened":
+        target = "Author Review Ready"
+    elif event == "review-completed":
+        decision = payload.get("decision", "")
+        if decision == "needs_human_review":
+            target = "Needs Human Review"
+        elif decision == "request_changes":
+            target = "Approved To Execute"
+        elif decision == "approve_and_merge":
+            target = "Merged / Applied"
+        else:
+            target = ""
+    else:
+        target = ""
+
+    if not target:
+        return {"ok": True, "handled": "noop", "reason": f"unhandled lifecycle event: {event}"}
+    target_list_id = list_id_for_name(target)
+    move_result = move_planka_card(card_id, target_list_id) if card_id else {"moved": False, "reason": "missing card id"}
+    return {"ok": True, "handled": "agent-lifecycle", "event": event, "card_id": card_id, "target_list": target, **move_result}
 
 
 def parse_card_id_from_text(value: str) -> str:
@@ -243,6 +284,8 @@ class DispatchHandler(BaseHTTPRequestHandler):
                 )
             elif self.path in {"/forgejo/pull-request", "/forgejo/pr-event"}:
                 result = handle_forgejo_pr_event(payload)
+            elif self.path in {"/agent/lifecycle", "/agent/status"}:
+                result = handle_agent_lifecycle_event(payload)
             else:
                 self._json_response(404, {"ok": False, "error": f"unknown path: {self.path}"})
                 return

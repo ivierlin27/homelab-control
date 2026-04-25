@@ -69,7 +69,8 @@ class AgentEventDispatcherTests(unittest.TestCase):
                 artifact_dir=tmp / "artifacts",
             )
             self.assertEqual("author-agent-execute", result["action"])
-            self.assertTrue((tmp / "author" / "inbox" / "card-123-execute.json").exists())
+            job = json.loads((tmp / "author" / "inbox" / "card-123-execute.json").read_text())
+            self.assertTrue(job["lifecycle_callback_url"].endswith("/agent/lifecycle"))
 
     def test_merged_pr_defaults_card_to_done(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_DONE_LIST_ID": "done-list"}, clear=False):
@@ -105,6 +106,34 @@ class AgentEventDispatcherTests(unittest.TestCase):
 
         self.assertEqual("Approved To Execute", result["target_list"])
         move.assert_called_once_with("abc123", "approved-list")
+
+    def test_author_lifecycle_moves_card_to_author_review_ready(self) -> None:
+        with mock.patch.dict(os.environ, {"PLANKA_AUTHOR_REVIEW_LIST_ID": "review-ready"}, clear=False):
+            with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                result = dispatcher.handle_agent_lifecycle_event({"event": "author-pr-opened", "card_id": "abc123"})
+
+        self.assertEqual("Author Review Ready", result["target_list"])
+        move.assert_called_once_with("abc123", "review-ready")
+
+    def test_review_lifecycle_moves_human_review_decision(self) -> None:
+        with mock.patch.dict(os.environ, {"PLANKA_NEEDS_HUMAN_LIST_ID": "human-review"}, clear=False):
+            with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                result = dispatcher.handle_agent_lifecycle_event(
+                    {"event": "review-completed", "card_id": "abc123", "decision": "needs_human_review"}
+                )
+
+        self.assertEqual("Needs Human Review", result["target_list"])
+        move.assert_called_once_with("abc123", "human-review")
+
+    def test_review_lifecycle_moves_approved_decision_to_merged_applied(self) -> None:
+        with mock.patch.dict(os.environ, {"PLANKA_MERGED_LIST_ID": "merged-applied"}, clear=False):
+            with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                result = dispatcher.handle_agent_lifecycle_event(
+                    {"event": "review-completed", "card_id": "abc123", "decision": "approve_and_merge"}
+                )
+
+        self.assertEqual("Merged / Applied", result["target_list"])
+        move.assert_called_once_with("abc123", "merged-applied")
 
 
 if __name__ == "__main__":

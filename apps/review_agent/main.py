@@ -13,6 +13,7 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib import request
 
 import yaml
 
@@ -226,6 +227,32 @@ def merge_pull_request(pr: dict[str, Any], decision: dict[str, Any]) -> bool:
     return True
 
 
+def post_lifecycle_callback(pr: dict[str, Any], decision: dict[str, Any]) -> str | None:
+    url = pr.get("lifecycle_callback_url", "")
+    if not url:
+        return None
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    token = pr.get("lifecycle_callback_token", "")
+    if token:
+        headers["X-Agent-Dispatch-Token"] = token
+    payload = {
+        "event": "review-completed",
+        "card_id": pr.get("card_id", ""),
+        "pr_url": decision.get("pr_url", ""),
+        "pr_number": decision.get("pr_number"),
+        "decision": decision["decision"],
+        "reasons": decision["reasons"],
+        "comment_url": decision.get("comment_url"),
+        "merged": decision.get("merged", False),
+    }
+    req = request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    try:
+        with request.urlopen(req, timeout=20) as response:
+            return response.read().decode("utf-8")
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)})
+
+
 def build_result(job: dict[str, Any], job_path: Path, done_dir: Path) -> dict[str, Any]:
     action = normalize_action(job["action"])
     if action not in {"evaluate", "evaluate-review", "review-pr"}:
@@ -244,6 +271,7 @@ def build_result(job: dict[str, Any], job_path: Path, done_dir: Path) -> dict[st
     decision["pr_number"] = pr.get("pr_number")
     decision["comment_url"] = post_review_comment(pr, decision)
     decision["merged"] = merge_pull_request(pr, decision)
+    decision["lifecycle_callback_response"] = post_lifecycle_callback(pr, decision)
     output_path = Path(job.get("output_path", default_output_path(done_dir, job_path)))
     write_json(output_path, decision)
     return {
