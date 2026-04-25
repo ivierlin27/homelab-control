@@ -123,3 +123,7 @@ progresses. Real Planka cards move to `In Progress` while the background agents
 work, then to `Needs Human Review` with labels such as `review:pr` and
 `state:ready-to-merge`. The final Forgejo merge webhook moves the card to
 `Done` and clears transient review/state labels.
+
+## Simplified board verification
+
+The board now uses columns as triggers and labels as state metadata. Internal author/review lanes were removed from the human-facing board.
