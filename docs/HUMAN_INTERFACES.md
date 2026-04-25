@@ -33,39 +33,58 @@ Examples:
 
 ### What using the board feels like
 
-You create or open a card, read the short plan, and move it forward when you
-want work to start.
+You create or open a card, add what you want, and move it forward when you want
+the system to do the next step.
 
 Simple example:
 
 1. Create a card called `Fix Plex buffering`.
 2. Add a short note like: `Videos pause at night. Please investigate.`
-3. The system makes a plan.
-4. If the plan looks right, move the card to `Approved To Execute`.
-5. Later, if the work is risky or important, the card may move to
-   `Needs Human Review`.
-6. When approved and finished, the card ends up in `Done`.
+3. Move it to `Plan Ready` when you want the agent to draft a plan.
+4. The card moves to `Needs Human Review` when it needs a person to decide.
+5. If the plan looks right, move the card to `Approved To Execute`.
+6. The agent does the work and opens a review page.
+7. The card moves back to `Needs Human Review` if you need to approve the change.
+8. When approved and merged, the card ends up in `Done`.
+
+Labels explain what is happening. Moving cards starts work; changing labels does
+not start work.
+
+Common labels:
+
+- `review:plan`: review the plan before work starts
+- `review:pr`: review the change before it is merged
+- `state:pr-open`: a review page exists
+- `state:review-agent`: the review agent is checking it
+- `state:ready-to-merge`: the review agent thinks it is ready
+- `type:docs`, `type:deployment`, `type:research`: what kind of task this is
 
 ### Board diagram
 
 ```mermaid
 flowchart LR
-    A[You create a card] --> B[System makes a plan]
-    B --> C{Looks good?}
-    C -->|Yes| D[Move card to Approved To Execute]
-    C -->|No| E[Edit the card or ask for changes]
-    D --> F[Agent does the work]
-    F --> G{Needs human review?}
-    G -->|No| H[Work is merged and applied]
-    G -->|Yes| I[Card moves to Needs Human Review]
-    I --> J[You review and approve or reject]
-    J --> H
-    H --> K[Card moves to Done]
+    A[Inbox: new request] -->|Move when ready| B[Plan Ready]
+    B --> C[Agent drafts plan]
+    C --> D[Needs Human Review + review:plan]
+    D -->|Approve plan| E[Approved To Execute]
+    D -->|Needs changes| B
+    E --> F[In Progress + state labels]
+    F --> G[Agent opens review page]
+    G --> H[Needs Human Review + review:pr]
+    H -->|Approve / merge| I[Done]
+    H -->|Request changes| E
+    A -->|Already has execution details| E
 ```
+
+The only moves that start work are:
+
+- move to `Plan Ready` to ask for a plan
+- move to `Approved To Execute` to ask the agent to do approved work
 
 ## 2. Review page
 
-This is the interface for approving important changes before they go live.
+This is the page in Forgejo where you approve important changes before they go
+live.
 
 You do not need to use it for every little thing. It is mainly for:
 
@@ -112,13 +131,15 @@ sequenceDiagram
     participant Review as Review Agent
     participant PR as Review Page
 
-    Human->>Board: Approve task to start
+    Human->>Board: Move card to Approved To Execute
     Board->>Author: Do the work
     Author->>PR: Open change for review
+    Author->>Board: Move card to In Progress
     Review->>PR: Check risk and summarize
-    PR->>Human: Ask for approval if needed
+    Review->>Board: Move card to Needs Human Review if needed
+    PR->>Human: Ask for approval
     Human->>PR: Approve or request changes
-    PR->>Board: Mark outcome
+    PR->>Board: Merge moves card to Done
 ```
 
 ## 3. Password vault
@@ -160,27 +181,29 @@ technical details.
 ### Example: "Set up better backups for family photos"
 
 1. Create a card on the task board.
-2. The system writes a simple plan.
-3. You check the plan and approve it.
-4. The agent prepares the change.
-5. If it is important, you get a review page with a summary.
-6. You approve it.
-7. The task is marked done.
-8. If the new setup needs a shared password, that password is stored in the
+2. Move it to `Plan Ready`.
+3. The system writes a simple plan.
+4. You review the plan in `Needs Human Review`.
+5. You move it to `Approved To Execute`.
+6. The agent prepares the change.
+7. If it is important, you get a review page with a summary.
+8. You approve it.
+9. The task is marked `Done`.
+10. If the new setup needs a shared password, that password is stored in the
    password vault.
 
 ```mermaid
 flowchart TD
-    A[Create photo backup request] --> B[System writes plan]
-    B --> C[You approve plan]
-    C --> D[Agent prepares change]
-    D --> E{Human approval needed?}
-    E -->|Yes| F[You review summary page]
-    E -->|No| G[Apply change]
-    F --> H[Approve]
-    H --> G
-    G --> I[Task marked done]
-    I --> J[Shared passwords saved in vault if needed]
+    A[Create photo backup request] --> B[Move to Plan Ready]
+    B --> C[System writes plan]
+    C --> D[Needs Human Review]
+    D --> E[You approve plan]
+    E --> F[Move to Approved To Execute]
+    F --> G[Agent prepares change]
+    G --> H[Needs Human Review if approval is needed]
+    H --> I[You approve review page]
+    I --> J[Task marked Done]
+    J --> K[Shared passwords saved in vault if needed]
 ```
 
 ## What most people should remember

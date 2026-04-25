@@ -48,10 +48,14 @@ Examples:
 
 ## Review flow
 
-- author agent opens PR/MR
+- every task starts as a Planka card
+- moving a card to `Plan Ready` asks the agent for a plan
+- moving a card to `Approved To Execute` starts agent execution
+- labels explain state and risk; label changes do not start work
+- author agent opens a PR/MR
 - review agent evaluates diff + checks + risk policy
-- if clean and low risk, review agent merges
-- if sensitive, novel, or ambiguous, review agent moves the task to human review
+- if human approval is needed, the card moves to `Needs Human Review`
+- merging the PR moves the card to `Done`
 
 See:
 

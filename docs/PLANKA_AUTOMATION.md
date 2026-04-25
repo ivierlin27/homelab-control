@@ -26,7 +26,18 @@ Planka is the control plane. Cards are the durable work items that tie together:
 Columns trigger work. Labels explain state, type, risk, and why human review is
 needed. Manual label changes should not enqueue work.
 
-Recommended review/state labels:
+Current human-facing columns:
+
+- `Inbox`: raw requests and ideas
+- `Plan Ready`: request is ready for agent planning
+- `Approved To Execute`: plan or execution block is approved for agent work
+- `In Progress`: background agent work is underway
+- `Needs Human Review`: Kevin needs to approve, reject, or request changes
+- `Blocked`: work cannot proceed
+- `Done`: complete
+- `Rejected`: intentionally declined
+
+Review/state labels:
 
 - `review:plan`
 - `review:pr`
@@ -35,6 +46,35 @@ Recommended review/state labels:
 - `state:pr-open`
 - `state:review-agent`
 - `state:ready-to-merge`
+
+Type labels:
+
+- `type:docs`
+- `type:deployment`
+- `type:research`
+
+Risk labels such as `sensitive`, `new_capability`, `auth-change`, and
+`network-exposure` affect review policy but do not start work by themselves.
+
+## Flow diagram
+
+```mermaid
+flowchart LR
+    Inbox[Inbox] -->|Human moves card| Plan[Plan Ready]
+    Plan -->|Planning agent drafts plan| ReviewPlan[Needs Human Review<br/>review:plan]
+    ReviewPlan -->|Human approves plan| Execute[Approved To Execute]
+    ReviewPlan -->|Human requests plan changes| Plan
+    Inbox -->|Card already has agent-execution| Execute
+    Execute -->|n8n + dispatcher enqueue author job| Progress[In Progress<br/>state:pr-open<br/>state:review-agent]
+    Progress -->|Review agent completes| ReviewPR[Needs Human Review<br/>review:pr]
+    ReviewPR -->|Agent says ready| Ready[Needs Human Review<br/>state:ready-to-merge]
+    ReviewPR -->|Changes requested| Execute
+    Ready -->|Human merges PR| Done[Done]
+    ReviewPR -->|Human rejects| Rejected[Rejected]
+```
+
+The board is intentionally human-oriented. Internal queue states live in the
+agent platform status report, not as extra Planka columns.
 
 ## Queue dispatch
 
@@ -116,13 +156,21 @@ This supports both flows:
 
 A real Planka card can be moved to `Approved To Execute` to enqueue an author-agent job through n8n and the Alienware dispatcher. The matching Forgejo merge webhook moves the linked card to `Done`.
 
-## Lifecycle callback verification
+## Lifecycle callbacks
 
 The author and review agents call back to the event dispatcher as work
-progresses. Real Planka cards move to `In Progress` while the background agents
-work, then to `Needs Human Review` with labels such as `review:pr` and
-`state:ready-to-merge`. The final Forgejo merge webhook moves the card to
-`Done` and clears transient review/state labels.
+progresses:
+
+- author opens PR -> card moves to `In Progress` and gets `state:pr-open` +
+  `state:review-agent`
+- review requests human approval -> card moves to `Needs Human Review` with
+  `review:pr`
+- review says it is merge-ready -> card stays in `Needs Human Review` and gets
+  `review:pr` + `state:ready-to-merge`
+- review requests changes -> card moves to `Needs Human Review` with
+  `review:changes-requested`
+- Forgejo reports merged PR -> card moves to `Done` and transient state/review
+  labels are cleared
 
 ## Simplified board verification
 

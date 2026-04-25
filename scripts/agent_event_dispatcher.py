@@ -147,6 +147,8 @@ def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review
     card = build_card_export(payload)
     if not card["list_name"]:
         return {"ok": True, "handled": "noop", "reason": "unmapped list", "card_id": card["id"]}
+    if card["list_name"] == "Plan Ready":
+        return handle_plan_ready_card(card)
     if isinstance(card.get("execution"), dict):
         port = os.environ.get("AGENT_DISPATCH_PORT", "8765")
         card["execution"].setdefault("lifecycle_callback_url", f"http://127.0.0.1:{port}/agent/lifecycle")
@@ -203,6 +205,15 @@ def move_planka_card(card_id: str, list_id: str) -> dict[str, Any]:
     if not card_id or not list_id:
         return {"moved": False, "reason": "missing card_id or list_id"}
     return {"moved": True, "card": planka_request(f"cards/{card_id}", method="PATCH", payload={"listId": list_id, "position": 65536})}
+
+
+def update_planka_card_description(card_id: str, description: str) -> dict[str, Any]:
+    if not card_id:
+        return {"updated": False, "reason": "missing card id"}
+    return {
+        "updated": True,
+        "card": planka_request(f"cards/{card_id}", method="PATCH", payload={"description": description}),
+    }
 
 
 def board_id() -> str:
@@ -269,6 +280,70 @@ def set_card_state_labels(card_id: str, labels: list[str]) -> dict[str, Any]:
     for label in labels:
         add_card_label(card_id, label)
     return {"labels_updated": True, "labels": labels}
+
+
+def build_plan_draft(card: dict[str, Any]) -> str:
+    description = card.get("description", "").rstrip()
+    if "## Agent Plan Draft" in description:
+        return description + "\n"
+
+    title = card.get("title", "Untitled task")
+    summary = card.get("summary") or "No separate summary was provided."
+    original = description or "No original details were provided."
+    prefix = f"{description}\n\n" if description else ""
+    return prefix + "\n".join(
+        [
+            "## Agent Plan Draft",
+            "",
+            "_Drafted automatically from the current card. Review and edit this before moving the card to `Approved To Execute`._",
+            "",
+            "### Goal",
+            "",
+            f"- {title}",
+            f"- Summary: {summary}",
+            "",
+            "### Source Notes",
+            "",
+            original,
+            "",
+            "### Proposed Approach",
+            "",
+            "1. Confirm the desired outcome and any missing constraints.",
+            "2. Identify the repo files, services, workflows, or documentation that should change.",
+            "3. Keep the first implementation small enough to review safely.",
+            "4. Add or update tests, smoke checks, or operator verification steps.",
+            "5. Open a PR and let the review agent decide whether human approval is required.",
+            "",
+            "### Human Review Checklist",
+            "",
+            "- [ ] The goal is correct.",
+            "- [ ] The risk level and labels are correct.",
+            "- [ ] The proposed first slice is small enough.",
+            "- [ ] Any missing execution details are added before approval.",
+            "",
+            "### Next Step",
+            "",
+            "If this plan looks right, add or refine an `agent-execution` block on this card and move it to `Approved To Execute`.",
+            "",
+        ]
+    )
+
+
+def handle_plan_ready_card(card: dict[str, Any]) -> dict[str, Any]:
+    card_id = card.get("id", "")
+    description = build_plan_draft(card)
+    update_result = update_planka_card_description(card_id, description)
+    label_result = set_card_state_labels(card_id, ["review:plan"])
+    move_result = move_planka_card(card_id, list_id_for_name("Needs Human Review"))
+    return {
+        "ok": True,
+        "handled": "plan-ready",
+        "card_id": card_id,
+        "target_list": "Needs Human Review",
+        **update_result,
+        **label_result,
+        **move_result,
+    }
 
 
 def list_id_for_name(name: str) -> str:

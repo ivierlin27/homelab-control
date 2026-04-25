@@ -72,6 +72,25 @@ class AgentEventDispatcherTests(unittest.TestCase):
             job = json.loads((tmp / "author" / "inbox" / "card-123-execute.json").read_text())
             self.assertTrue(job["lifecycle_callback_url"].endswith("/agent/lifecycle"))
 
+    def test_plan_ready_updates_card_and_moves_to_human_review(self) -> None:
+        card = {
+            "id": "123",
+            "title": "Plan a thing",
+            "description": "Please plan this.",
+            "list_name": "Plan Ready",
+        }
+        with mock.patch.dict(os.environ, {"PLANKA_NEEDS_HUMAN_LIST_ID": "human-review"}, clear=False):
+            with mock.patch("scripts.agent_event_dispatcher.update_planka_card_description", return_value={"updated": True}) as update:
+                with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}) as labels:
+                    with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                        result = dispatcher.handle_plan_ready_card(card)
+
+        self.assertEqual("Needs Human Review", result["target_list"])
+        update.assert_called_once()
+        self.assertIn("## Agent Plan Draft", update.call_args.args[1])
+        labels.assert_called_once_with("123", ["review:plan"])
+        move.assert_called_once_with("123", "human-review")
+
     def test_merged_pr_defaults_card_to_done(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_DONE_LIST_ID": "done-list"}, clear=False):
             with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}):

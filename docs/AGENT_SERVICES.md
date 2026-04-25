@@ -20,8 +20,10 @@ This creates:
 
 - `~/.config/systemd/user/alienware-author-agent.service`
 - `~/.config/systemd/user/alienware-review-agent.service`
+- `~/.config/systemd/user/alienware-agent-event-dispatcher.service`
 - `~/.config/homelab-control/agent-homelab.env`
 - `~/.config/homelab-control/agent-review.env`
+- `~/.config/homelab-control/agent-dispatcher.env`
 - queue directories under `~/.local/state/homelab-control/`
 
 The env files are the editable source of truth for:
@@ -30,10 +32,29 @@ The env files are the editable source of truth for:
 - Forgejo base URL, repo owner, repo name, and API token
 - the preferred git remote for author branches
 - whether the review agent may auto-merge low-risk PRs
+- Planka board/list IDs used by the event dispatcher
 
 The author env should point `HOMELAB_CONTROL_ROOT` at the clean checkout and
 define a working `forgejo` push path through `AGENT_GIT_REMOTE` plus
 `AGENT_GIT_SSH_COMMAND`.
+
+## Planka lifecycle
+
+Planka columns are the trigger surface:
+
+- `Plan Ready` asks the agent to draft/refresh a plan
+- `Approved To Execute` starts execution
+- `Needs Human Review` waits for a person
+- `Done` means complete
+
+Labels are state and metadata only. Manual label changes do not enqueue work.
+
+The event dispatcher moves cards as the agents report progress:
+
+- PR opened -> `In Progress` with `state:pr-open` and `state:review-agent`
+- review needs approval -> `Needs Human Review` with `review:pr`
+- review says ready -> `Needs Human Review` with `state:ready-to-merge`
+- PR merged -> `Done`
 
 ## Queues
 
