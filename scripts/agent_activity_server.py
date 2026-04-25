@@ -258,6 +258,9 @@ class ActivityHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = parse.urlparse(self.path).path
+        if not self._authorized():
+            self._send(403, "Forbidden\n", "text/plain")
+            return
         snapshot = build_snapshot(self.state_dir)
         if path == "/api/status":
             self._send(200, json.dumps(snapshot, indent=2) + "\n", "application/json")

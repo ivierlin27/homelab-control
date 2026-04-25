@@ -65,6 +65,19 @@ class AgentActivityServerTests(unittest.TestCase):
         self.assertEqual("alienware-author-agent.service", result["unit"])
         run.assert_called_once()
 
+    def test_dashboard_requires_token_when_configured(self) -> None:
+        from scripts.agent_activity_server import ActivityHandler
+
+        handler = mock.Mock()
+        handler.token = "secret"
+        handler.headers = {}
+        handler.path = "/"
+
+        self.assertFalse(ActivityHandler._authorized(handler))
+
+        handler.path = "/?token=secret"
+        self.assertTrue(ActivityHandler._authorized(handler))
+
 
 if __name__ == "__main__":
     unittest.main()
