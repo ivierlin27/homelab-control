@@ -85,6 +85,21 @@ class AuthorAgentTests(unittest.TestCase):
         self.assertTrue(context["has_planka_card"])
         self.assertEqual(["safe-update"], context["labels"])
 
+    def test_build_pr_body_includes_next_planka_list_marker(self) -> None:
+        body = author_main.build_pr_body(
+            {
+                "summary_lines": ["Create plan"],
+                "labels": ["docs-only"],
+                "plan_link": "https://planka.dev-path.org/cards/123",
+                "planka_card": "https://planka.dev-path.org/cards/123",
+                "next_planka_list": "Approved To Execute",
+            },
+            ["docs/example.md"],
+            [{"command": "git diff --check", "returncode": 0}],
+        )
+
+        self.assertIn("Next Planka list: Approved To Execute", body)
+
 
 if __name__ == "__main__":
     unittest.main()

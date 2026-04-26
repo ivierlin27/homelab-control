@@ -269,6 +269,7 @@ def build_pr_body(job: dict[str, Any], changed_files: list[str], checks: list[di
     labels = ", ".join(job.get("labels", [])) or "(none)"
     plan_link = job.get("plan_link", "")
     planka_card = job.get("planka_card", "")
+    next_planka_list = job.get("next_planka_list", "")
 
     body = [
         "## Summary",
@@ -284,6 +285,7 @@ def build_pr_body(job: dict[str, Any], changed_files: list[str], checks: list[di
         f"- Risk labels: {labels}",
         f"- Plan: {plan_link or '(none)'}",
         f"- Planka card: {planka_card or '(none)'}",
+        *(["", f"Next Planka list: {next_planka_list}"] if next_planka_list else []),
     ]
     return "\n".join(body).strip() + "\n"
 

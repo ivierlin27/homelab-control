@@ -117,6 +117,11 @@ class AgentEventDispatcherTests(unittest.TestCase):
         self.assertFalse(dispatcher.execution_is_actionable({"operations": {}}))
         self.assertTrue(dispatcher.execution_is_actionable({"operations": {"append_text": [{"path": "docs/x.md"}]}}))
 
+    def test_fallback_plan_sets_next_list_to_approved_execute(self) -> None:
+        payload = dispatcher.fallback_execution_payload({"title": "Proposal: make SearXNG useful", "description": "Search docs"})
+
+        self.assertEqual("Approved To Execute", payload["execution"]["next_planka_list"])
+
     def test_merged_pr_defaults_card_to_done(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_DONE_LIST_ID": "done-list"}, clear=False):
             with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}):

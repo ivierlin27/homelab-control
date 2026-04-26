@@ -392,6 +392,7 @@ def fallback_execution_payload(card: dict[str, Any]) -> dict[str, Any]:
             "allowed_paths": ["docs"],
             "checks": ["git diff --check"],
             "summary_lines": [f"Create a concrete {kind} proposal for human review."],
+            "next_planka_list": "Approved To Execute",
             "operations": {"write_files": [{"path": path, "content": content}]},
         },
     }
@@ -455,6 +456,7 @@ def build_plan_draft(card: dict[str, Any]) -> str:
     summary = plan_payload.get("summary") or card.get("summary") or "No separate summary was provided."
     labels = plan_payload.get("labels") or ["safe-update"]
     execution = plan_payload.get("execution", {})
+    execution.setdefault("next_planka_list", "Approved To Execute")
     prefix = f"{original}\n\n" if original else ""
     return prefix + "\n".join(
         [
