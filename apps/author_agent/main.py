@@ -224,7 +224,22 @@ def create_worktree(job: dict[str, Any], queue_dir: Path, job_path: Path) -> tup
     worktree = (queue_dir / "worktrees" / job_path.stem).resolve()
 
     if worktree.exists():
-        shutil.rmtree(worktree)
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(worktree)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=git_env(),
+        )
+        if worktree.exists():
+            shutil.rmtree(worktree)
+    subprocess.run(
+        ["git", "-C", str(repo_root), "worktree", "prune"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=git_env(),
+    )
 
     refs = set(git_lines(repo_root, "for-each-ref", "--format=%(refname:short)"))
     base_ref = f"{remote_name}/{base_branch}" if f"{remote_name}/{base_branch}" in refs else base_branch
