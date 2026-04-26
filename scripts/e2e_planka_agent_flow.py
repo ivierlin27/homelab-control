@@ -51,6 +51,13 @@ def card_lane(base_url: str, token: str, card_id: str) -> tuple[str, list[str]]:
         for item in payload.get("included", {}).get("labels", [])
         if item.get("id") in card_labels and item.get("name")
     ]
+    if not labels and card_labels:
+        board = http_json(f"{base_url.rstrip('/')}/api/boards/{card['boardId']}", headers=planka_headers(token))
+        labels = [
+            item["name"]
+            for item in board.get("included", {}).get("labels", [])
+            if item.get("id") in card_labels and item.get("name")
+        ]
     return card["listId"], sorted(labels)
 
 
