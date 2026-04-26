@@ -71,6 +71,7 @@ class AgentEventDispatcherTests(unittest.TestCase):
             self.assertEqual("author-agent-execute", result["action"])
             job = json.loads((tmp / "author" / "inbox" / "card-123-execute.json").read_text())
             self.assertTrue(job["lifecycle_callback_url"].endswith("/agent/lifecycle"))
+            self.assertTrue(job["review_queue_dir"].endswith("agent-review"))
 
     def test_plan_ready_updates_card_and_moves_to_human_review(self) -> None:
         card = {

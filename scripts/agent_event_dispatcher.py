@@ -181,6 +181,10 @@ def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review
         port = os.environ.get("AGENT_DISPATCH_PORT", "8765")
         card["execution"].setdefault("lifecycle_callback_url", f"http://127.0.0.1:{port}/agent/lifecycle")
         card["execution"].setdefault("lifecycle_callback_token", os.environ.get("AGENT_DISPATCH_TOKEN", ""))
+        card["execution"].setdefault(
+            "review_queue_dir",
+            str(Path.home() / ".local/state/homelab-control/agent-review"),
+        )
     card_path = artifact_dir / f"card-{card['id']}.json"
     card["source_path"] = str(card_path)
     card_path.parent.mkdir(parents=True, exist_ok=True)
