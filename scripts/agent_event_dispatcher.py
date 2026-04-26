@@ -98,6 +98,11 @@ def extract_agent_payload(description: str) -> dict[str, Any]:
     return {}
 
 
+def slugify(value: str, *, default: str = "task") -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug or default
+
+
 def extract_execution(description: str) -> dict[str, Any]:
     """Extract the execution object from a fenced JSON block in a Planka card."""
     data = extract_agent_payload(description)
@@ -141,6 +146,27 @@ def build_card_export(payload: dict[str, Any]) -> dict[str, Any]:
         "planka_card": body.get("url") or planka_card_url(card_id),
         "execution": execution,
     }
+
+
+def enrich_card_from_planka(card: dict[str, Any]) -> dict[str, Any]:
+    card_id = card.get("id", "")
+    if not card_id:
+        return card
+    try:
+        payload = planka_request(f"cards/{card_id}")
+    except Exception:
+        return card
+    item = payload.get("item", {})
+    comments = [
+        str(comment.get("text", ""))
+        for comment in payload.get("included", {}).get("comments", [])
+        if comment.get("text")
+    ]
+    enriched = {**card}
+    enriched["description"] = item.get("description") or card.get("description", "")
+    enriched["title"] = item.get("name") or card.get("title", "")
+    enriched["comments"] = comments
+    return enriched
 
 
 def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review_queue: Path, artifact_dir: Path) -> dict[str, Any]:
@@ -284,15 +310,126 @@ def set_card_state_labels(card_id: str, labels: list[str]) -> dict[str, Any]:
     return {"labels_updated": True, "labels": labels}
 
 
+def strip_generated_plan_sections(description: str) -> str:
+    markers = ["## Agent Plan Draft", "## Execution Details Needed"]
+    cut = len(description)
+    for marker in markers:
+        idx = description.find(marker)
+        if idx >= 0:
+            cut = min(cut, idx)
+    return description[:cut].rstrip()
+
+
+def fallback_execution_payload(card: dict[str, Any]) -> dict[str, Any]:
+    title = card.get("title", "Untitled task")
+    description = strip_generated_plan_sections(card.get("description", ""))
+    comments = "\n".join(f"- {comment}" for comment in card.get("comments", [])) or "- No comments."
+    slug = slugify(title)
+
+    if "youtube" in title.lower():
+        path = "docs/LINK_INTAKE_WORKFLOW.md"
+        kind = "YouTube link intake"
+    elif "searx" in title.lower():
+        path = "docs/SEARXNG_AGENT_SEARCH.md"
+        kind = "SearXNG agent search"
+    else:
+        path = f"docs/proposals/{slug}.md"
+        kind = "agent proposal"
+
+    content = "\n".join(
+        [
+            f"# {title}",
+            "",
+            "## Goal",
+            "",
+            description or "No card description was provided.",
+            "",
+            "## Human Feedback",
+            "",
+            comments,
+            "",
+            "## Executable First Slice",
+            "",
+            f"Create or update this {kind} document as the first reviewable slice.",
+            "After this lands, the next card should implement the concrete workflow, service, or code changes described here.",
+            "",
+            "## Review Gate",
+            "",
+            "Do not write durable memory or deploy runtime changes until the proposal has been reviewed.",
+            "",
+        ]
+    )
+    return {
+        "summary": f"Create a concrete {kind} proposal for review.",
+        "labels": ["docs-only", "type:docs"],
+        "execution": {
+            "allowed_paths": ["docs"],
+            "checks": ["git diff --check"],
+            "summary_lines": [f"Create a concrete {kind} proposal for human review."],
+            "operations": {"write_files": [{"path": path, "content": content}]},
+        },
+    }
+
+
+def call_planning_model(card: dict[str, Any]) -> dict[str, Any] | None:
+    base_url = os.environ.get("MODEL_GATEWAY_BASE_URL", "").rstrip("/")
+    api_key = os.environ.get("MODEL_GATEWAY_API_KEY", "")
+    model = os.environ.get("AGENT_PLANNING_MODEL", "homelab-strong")
+    if not base_url or not api_key:
+        return None
+
+    description = strip_generated_plan_sections(card.get("description", ""))
+    comments = "\n".join(f"- {comment}" for comment in card.get("comments", [])) or "- No comments."
+    prompt = {
+        "role": "user",
+        "content": (
+            "Draft a concrete, reviewable plan for a homelab-control Planka card. "
+            "Return ONLY JSON with keys summary, labels, and execution. "
+            "The execution object must be suitable for the author agent and include allowed_paths, checks, summary_lines, and operations. "
+            "operations must contain at least one of replacements, append_text, write_files, delete_files. "
+            "Prefer a small documentation/proposal first slice unless the card specifies exact code or workflow file edits. "
+            "Use only repository-relative paths. Do not include secrets.\n\n"
+            f"Title: {card.get('title', '')}\n\nDescription:\n{description}\n\nComments:\n{comments}\n"
+        ),
+    }
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "system", "content": "You are a careful senior engineer planning safe GitOps changes."}, prompt],
+            "temperature": 0.2,
+        }
+    ).encode("utf-8")
+    req = request.Request(
+        f"{base_url}/chat/completions",
+        data=body,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=60) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        content = data["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+        payload = json.loads(content)
+        if execution_is_actionable(payload.get("execution", {})):
+            return payload
+    except Exception:
+        return None
+    return None
+
+
 def build_plan_draft(card: dict[str, Any]) -> str:
     description = card.get("description", "").rstrip()
-    if "## Agent Plan Draft" in description:
-        return description + "\n"
+    original = strip_generated_plan_sections(description)
+    plan_payload = call_planning_model(card) or fallback_execution_payload(card)
 
     title = card.get("title", "Untitled task")
-    summary = card.get("summary") or "No separate summary was provided."
-    original = description or "No original details were provided."
-    prefix = f"{description}\n\n" if description else ""
+    summary = plan_payload.get("summary") or card.get("summary") or "No separate summary was provided."
+    labels = plan_payload.get("labels") or ["safe-update"]
+    execution = plan_payload.get("execution", {})
+    prefix = f"{original}\n\n" if original else ""
     return prefix + "\n".join(
         [
             "## Agent Plan Draft",
@@ -304,29 +441,30 @@ def build_plan_draft(card: dict[str, Any]) -> str:
             f"- {title}",
             f"- Summary: {summary}",
             "",
-            "### Source Notes",
-            "",
-            original,
-            "",
             "### Proposed Approach",
             "",
-            "1. Confirm the desired outcome and any missing constraints.",
-            "2. Identify the repo files, services, workflows, or documentation that should change.",
-            "3. Keep the first implementation small enough to review safely.",
-            "4. Add or update tests, smoke checks, or operator verification steps.",
-            "5. Open a PR and let the review agent decide whether human approval is required.",
+            *[f"- {line}" for line in execution.get("summary_lines", [])],
             "",
             "### Human Review Checklist",
             "",
             "- [ ] The goal is correct.",
             "- [ ] The risk level and labels are correct.",
             "- [ ] The proposed first slice is small enough.",
-            "- [ ] Any missing execution details are added before approval.",
+            "- [ ] The `agent-execution` block below matches what should happen next.",
+            "",
+            "### Proposed Labels",
+            "",
+            *[f"- `{label}`" for label in labels],
+            "",
+            "### Executable Proposal",
+            "",
+            "```agent-execution",
+            json.dumps({"summary": summary, "labels": labels, "execution": execution}, indent=2),
+            "```",
             "",
             "### Next Step",
             "",
-            "If this plan looks right, add or refine an `agent-execution` block on this card and move it to `Approved To Execute`.",
-            "",
+            "If this looks right, move this card to `Approved To Execute`.",
         ]
     )
 
@@ -344,6 +482,7 @@ def execution_is_actionable(execution: Any) -> bool:
 
 
 def handle_plan_ready_card(card: dict[str, Any]) -> dict[str, Any]:
+    card = enrich_card_from_planka(card)
     card_id = card.get("id", "")
     description = build_plan_draft(card)
     update_result = update_planka_card_description(card_id, description)
