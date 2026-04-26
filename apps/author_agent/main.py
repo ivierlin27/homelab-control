@@ -242,6 +242,8 @@ def create_worktree(job: dict[str, Any], queue_dir: Path, job_path: Path) -> tup
     )
 
     refs = set(git_lines(repo_root, "for-each-ref", "--format=%(refname:short)"))
+    if branch_name in refs or f"{remote_name}/{branch_name}" in refs:
+        branch_name = f"{branch_name}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     base_ref = f"{remote_name}/{base_branch}" if f"{remote_name}/{base_branch}" in refs else base_branch
     completed = subprocess.run(
         ["git", "-C", str(repo_root), "worktree", "add", "-B", branch_name, str(worktree), base_ref],

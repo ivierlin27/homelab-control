@@ -100,6 +100,25 @@ class AuthorAgentTests(unittest.TestCase):
 
         self.assertIn("Next Planka list: Approved To Execute", body)
 
+    def test_create_worktree_suffixes_existing_agent_branch(self) -> None:
+        job = {"title": "Demo", "branch_name": "agent/demo"}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue_dir = Path(tmpdir)
+            job_path = queue_dir / "inbox" / "job.json"
+            job_path.parent.mkdir()
+            job_path.write_text("{}")
+            with mock.patch.object(author_main, "repo_root_from_job", return_value=Path("/repo")):
+                with mock.patch.object(author_main, "repo_name_from_path", return_value="homelab-control"):
+                    with mock.patch.object(author_main, "git_lines", return_value=["agent/demo", "forgejo/main"]):
+                        with mock.patch.object(author_main.subprocess, "run") as run:
+                            run.return_value.returncode = 0
+                            run.return_value.stdout = ""
+                            run.return_value.stderr = ""
+
+                            _, branch, _ = author_main.create_worktree(job, queue_dir, job_path)
+
+        self.assertRegex(branch, r"agent/demo-\d{14}")
+
 
 if __name__ == "__main__":
     unittest.main()
