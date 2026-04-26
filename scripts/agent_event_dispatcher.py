@@ -248,6 +248,28 @@ def update_planka_card_description(card_id: str, description: str) -> dict[str, 
     }
 
 
+def add_pr_link_to_card(card_id: str, pr_url: str) -> dict[str, Any]:
+    if not card_id or not pr_url:
+        return {"pr_link_updated": False, "reason": "missing card id or pr url"}
+    payload = planka_request(f"cards/{card_id}")
+    item = payload.get("item", {})
+    description = item.get("description") or ""
+    if pr_url in description:
+        return {"pr_link_updated": False, "reason": "pr url already present"}
+    marker = "## Pull Request"
+    if marker in description:
+        updated = re.sub(
+            r"## Pull Request\n\n.*?(?=\n## |\Z)",
+            f"## Pull Request\n\n- {pr_url}\n",
+            description,
+            flags=re.DOTALL,
+        )
+    else:
+        updated = description.rstrip() + f"\n\n## Pull Request\n\n- {pr_url}\n"
+    update_planka_card_description(card_id, updated)
+    return {"pr_link_updated": True, "pr_url": pr_url}
+
+
 def board_id() -> str:
     return os.environ.get("PLANKA_BOARD_ID", "")
 
@@ -545,9 +567,11 @@ def handle_agent_lifecycle_event(payload: dict[str, Any]) -> dict[str, Any]:
     if event == "author-pr-opened":
         target = "In Progress"
         labels = ["state:pr-open", "state:review-agent"]
+        pr_link_result = add_pr_link_to_card(card_id, str(payload.get("pr_url", "")))
     elif event == "review-completed":
         decision = payload.get("decision", "")
         target = "Needs Human Review"
+        pr_link_result = {"pr_link_updated": False, "reason": "not an author event"}
         if decision == "needs_human_review":
             labels = ["review:pr"]
         elif decision == "request_changes":
@@ -563,6 +587,7 @@ def handle_agent_lifecycle_event(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         target = ""
         labels = []
+        pr_link_result = {"pr_link_updated": False, "reason": "unhandled lifecycle event"}
 
     if not target:
         return {"ok": True, "handled": "noop", "reason": f"unhandled lifecycle event: {event}"}
@@ -575,6 +600,7 @@ def handle_agent_lifecycle_event(payload: dict[str, Any]) -> dict[str, Any]:
         "event": event,
         "card_id": card_id,
         "target_list": target,
+        **pr_link_result,
         **label_result,
         **move_result,
     }

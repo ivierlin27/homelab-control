@@ -156,13 +156,29 @@ class AgentEventDispatcherTests(unittest.TestCase):
 
     def test_author_lifecycle_moves_card_to_author_review_ready(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_IN_PROGRESS_LIST_ID": "in-progress"}, clear=False):
-            with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}) as labels:
-                with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
-                    result = dispatcher.handle_agent_lifecycle_event({"event": "author-pr-opened", "card_id": "abc123"})
+            with mock.patch("scripts.agent_event_dispatcher.add_pr_link_to_card", return_value={"pr_link_updated": True}) as pr_link:
+                with mock.patch("scripts.agent_event_dispatcher.set_card_state_labels", return_value={"labels_updated": True}) as labels:
+                    with mock.patch("scripts.agent_event_dispatcher.move_planka_card", return_value={"moved": True}) as move:
+                        result = dispatcher.handle_agent_lifecycle_event(
+                            {"event": "author-pr-opened", "card_id": "abc123", "pr_url": "https://forgejo/pulls/1"}
+                        )
 
         self.assertEqual("In Progress", result["target_list"])
+        pr_link.assert_called_once_with("abc123", "https://forgejo/pulls/1")
         labels.assert_called_once_with("abc123", ["state:pr-open", "state:review-agent"])
         move.assert_called_once_with("abc123", "in-progress")
+
+    def test_add_pr_link_appends_pull_request_section(self) -> None:
+        with mock.patch("scripts.agent_event_dispatcher.planka_request") as planka:
+            planka.side_effect = [
+                {"item": {"description": "hello"}},
+                {"item": {}},
+            ]
+            result = dispatcher.add_pr_link_to_card("abc123", "https://forgejo/pulls/1")
+
+        self.assertTrue(result["pr_link_updated"])
+        self.assertIn("## Pull Request", planka.call_args_list[1].kwargs["payload"]["description"])
+        self.assertIn("https://forgejo/pulls/1", planka.call_args_list[1].kwargs["payload"]["description"])
 
     def test_review_lifecycle_moves_human_review_decision(self) -> None:
         with mock.patch.dict(os.environ, {"PLANKA_NEEDS_HUMAN_LIST_ID": "human-review"}, clear=False):
