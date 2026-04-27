@@ -70,7 +70,9 @@ avoids spending PCIe bandwidth on a model that already fits comfortably.
 
 The RTX 3090 in the Alienware host still runs in one-model mode. `homelab-fast`
 and `homelab-strong` now both use `vllm`, but only one backend should be active
-at a time.
+at a time. An optional long-context **Qwen3.5-27B-AWQ** lab on port **8002** is
+documented in `docs/VLLM_QWEN35_27B_CTX_SERVICE.md`; it is not started by default
+and is not wired into LiteLLM.
 
 Use the provided mode switcher on Alienware:
 
