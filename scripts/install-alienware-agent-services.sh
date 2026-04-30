@@ -56,7 +56,7 @@ EOF
 fi
 
 if [[ ! -f "${CONFIG_DIR}/agent-executive.env" ]]; then
-  cat > "${CONFIG_DIR}/agent-executive.env" <<'EOF'
+  cat > "${CONFIG_DIR}/agent-executive.env" <<EOF
 HOMELAB_CONTROL_ROOT=${HOME}/git/homelab-control
 MODEL_GATEWAY_BASE_URL=https://model-gateway.dev-path.org/v1
 MODEL_GATEWAY_API_KEY=replace-me
