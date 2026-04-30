@@ -21,6 +21,16 @@ principals:
     planka_project: homelab
     role: review-gate
 
+  - id: agent:executive
+    kind: agent
+    domains: [homelab, learning, products, finance]
+    git_user: agent-executive
+    readable_domains: [homelab, learning, products, finance]
+    writable_domains: []
+    planka_project: homelab
+    role: executive-coordinator
+    delegation_domains: [homelab, learning, products]
+
   - id: agent:chinese
     kind: agent
     domains: [learning]

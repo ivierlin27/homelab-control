@@ -1,12 +1,13 @@
 # Human Interfaces Guide
 
 This system has a lot of moving parts behind the scenes, but most people only
-need to know four human-facing places:
+need to know a few human-facing places:
 
 1. the task board
 2. the review page (Forgejo)
 3. the password vault (Vaultwarden)
 4. memory and chat (Khoj)
+5. executive assistant (operator-facing)
 
 Think of it like this:
 
@@ -15,6 +16,8 @@ Think of it like this:
 - the password vault is where you store and share human passwords safely
 - Khoj is where you search what the system remembers and chat with an assistant
   that can use that context
+- the executive assistant is where an operator can ask for coordinated work
+  across memory, Planka, and the agent platform
 
 ## 1. Task board
 
@@ -219,7 +222,24 @@ Ingesting brand-new links (YouTube, random web pages) into memory with a formal
 “propose then approve” flow is still evolving; the task board is the right place
 to ask for that kind of improvement.
 
-## 5. If something looks stuck (optional)
+## 5. Executive assistant (operator-facing)
+
+The executive assistant is for operators who want to ask for coordinated work
+without bypassing the safety rails.
+
+Use it for:
+
+- turning a request into a Planka card with the right labels
+- asking for low-risk planning work to start
+- checking weekly trends in agent activity and trust
+- seeing when the assistant blocked or escalated something
+
+The first interface is intentionally narrow: an authenticated CLI or local
+endpoint that can later be wrapped by chat, mobile, or a Pi plugin. The
+assistant acts as `agent:executive`, not as Kevin, and it cannot approve
+sensitive execution on its own.
+
+## 6. If something looks stuck (optional)
 
 Household **operators** can check whether agent queues and timers are healthy.
 That usually means a small **Agent Activity** page on the home network (URL and

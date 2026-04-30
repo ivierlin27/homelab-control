@@ -1,0 +1,15 @@
+[Unit]
+Description=Homelab executive-assistant queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/agent-executive.env
+ExecStartPre=/usr/bin/bash -lc 'mkdir -p %h/.local/state/homelab-control/agent-executive/{inbox,processing,done,failed}'
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/git/homelab-control}" && exec python3 apps/executive_agent/main.py worker --queue-dir %h/.local/state/homelab-control/agent-executive --heartbeat %h/.local/state/homelab-control/agent-executive/heartbeat.json'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

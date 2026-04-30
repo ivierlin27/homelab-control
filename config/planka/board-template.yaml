@@ -15,6 +15,9 @@ labels:
   - docs-only
   - observability-docs
   - inventory-refresh
+  - assistant-created
+  - shield-blocked
+  - trust-escalation
   - sensitive
   - new_capability
   - finance

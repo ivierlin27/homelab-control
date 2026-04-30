@@ -1,0 +1,76 @@
+principal: agent:executive
+
+defaults:
+  unknown_domain: escalate
+  unknown_action: block
+  prompt_injection: block
+  secret_detected: block
+  max_request_chars: 12000
+
+shield:
+  prompt_injection_patterns:
+    - ignore previous instructions
+    - disregard previous instructions
+    - reveal your system prompt
+    - print your hidden prompt
+    - exfiltrate
+    - jailbreak
+    - developer mode
+  secret_patterns:
+    - aws_access_key_id
+    - aws_secret_access_key
+    - private key
+    - bearer
+    - api_key
+    - token=
+    - password=
+    - sk-
+
+domains:
+  homelab:
+    trust_level: 2
+    allowed_task_types: [docs, research, observability, inventory]
+    plan_ready_allowed_labels: [safe-update, docs-only, observability-docs, inventory-refresh, type:docs, type:research]
+    blocked_labels: [sensitive, auth-change, network-exposure, finance, new_capability]
+    can_create_cards: true
+    can_move_to_plan_ready: true
+    can_approve_execution: false
+
+  learning:
+    trust_level: 1
+    allowed_task_types: [docs, research]
+    plan_ready_allowed_labels: [docs-only, type:docs, type:research]
+    blocked_labels: [sensitive, finance, auth-change, network-exposure, new_capability]
+    can_create_cards: true
+    can_move_to_plan_ready: false
+    can_approve_execution: false
+
+  products:
+    trust_level: 1
+    allowed_task_types: [docs, research]
+    plan_ready_allowed_labels: [docs-only, type:docs, type:research]
+    blocked_labels: [sensitive, finance, auth-change, network-exposure, new_capability]
+    can_create_cards: true
+    can_move_to_plan_ready: false
+    can_approve_execution: false
+
+  finance:
+    trust_level: 0
+    allowed_task_types: [research]
+    plan_ready_allowed_labels: []
+    blocked_labels: [sensitive, finance, auth-change, network-exposure, new_capability]
+    can_create_cards: false
+    can_move_to_plan_ready: false
+    can_approve_execution: false
+
+actions:
+  create_card:
+    record_trust_event: true
+  move_to_plan_ready:
+    record_trust_event: true
+    require_all_labels_allowed: true
+  memory_write:
+    record_trust_event: true
+    durable_claims_need_review: true
+  weekly_review:
+    record_trust_event: false

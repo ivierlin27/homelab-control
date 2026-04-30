@@ -16,10 +16,11 @@ from typing import Any
 from urllib import parse
 
 
-QUEUE_NAMES = {"author": "agent-homelab", "review": "agent-review"}
+QUEUE_NAMES = {"author": "agent-homelab", "review": "agent-review", "executive": "agent-executive"}
 SERVICE_NAMES = {
     "author": "alienware-author-agent.service",
     "review": "alienware-review-agent.service",
+    "executive": "alienware-executive-agent.service",
     "dispatcher": "alienware-agent-event-dispatcher.service",
     "report": "alienware-agent-platform-report.service",
 }
@@ -78,7 +79,18 @@ def build_snapshot(state_dir: Path) -> dict[str, Any]:
             "failed": queue_files(root, "failed"),
             "recent_done": queue_files(root, "done")[:10],
         }
-    return {"generated_at": utc_now(), "platform_status": platform_status, "queues": queues}
+    executive_root = queue_root(state_dir, "executive")
+    weekly_review = load_json(executive_root / "weekly-review.json")
+    trust_events = read_jsonl(executive_root / "trust-ledger.jsonl")
+    return {
+        "generated_at": utc_now(),
+        "platform_status": platform_status,
+        "queues": queues,
+        "executive": {
+            "weekly_review": weekly_review,
+            "trust_summary": summarize_trust_events(trust_events),
+        },
+    }
 
 
 def service_action(service: str, action: str) -> dict[str, Any]:
@@ -128,11 +140,43 @@ def cancel_queued_job(state_dir: Path, queue: str, name: str) -> dict[str, Any]:
     return {"cancelled": str(target)}
 
 
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text().splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def summarize_trust_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    decisions: dict[str, int] = {}
+    domains: dict[str, int] = {}
+    for event in events[-200:]:
+        decision = event.get("decision", "unknown")
+        domain = event.get("domain", "unknown")
+        decisions[decision] = decisions.get(decision, 0) + 1
+        domains[domain] = domains.get(domain, 0) + 1
+    return {
+        "recent_event_count": len(events[-200:]),
+        "decisions": decisions,
+        "domains": domains,
+    }
+
+
 def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str = "") -> str:
     status = snapshot.get("platform_status", {})
     healthy = status.get("healthy")
     badge = "healthy" if healthy else "attention needed"
     token_hint = "<p><strong>Actions require token.</strong> Add <code>?token=...</code> to the URL.</p>" if token_required else ""
+    executive = snapshot.get("executive", {})
+    weekly = executive.get("weekly_review", {})
+    trust = executive.get("trust_summary", {})
+    weekly_lines = "".join(f"<li>{html.escape(str(item))}</li>" for item in weekly.get("summary", []))
+    trust_decisions = ", ".join(
+        f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in trust.get("decisions", {}).items()
+    )
     sections = []
     for queue_name, queue in snapshot["queues"].items():
         heartbeat = queue.get("heartbeat", {})
@@ -190,6 +234,12 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
   <section>
     <h2>Services</h2>
     {service_forms(token_value)}
+  </section>
+  <section>
+    <h2>Executive Assistant Review</h2>
+    <p>Weekly review generated: {html.escape(str(weekly.get('generated_at', 'missing')))}</p>
+    <ul>{weekly_lines or '<li>No weekly review has been generated yet.</li>'}</ul>
+    <p>Recent trust decisions: {trust_decisions or 'none recorded'}</p>
   </section>
   {''.join(sections)}
 </body>

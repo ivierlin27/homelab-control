@@ -14,7 +14,11 @@ mkdir -p "${SYSTEMD_USER_DIR}" "${CONFIG_DIR}" \
   "${STATE_DIR}/agent-review/inbox" \
   "${STATE_DIR}/agent-review/processing" \
   "${STATE_DIR}/agent-review/done" \
-  "${STATE_DIR}/agent-review/failed"
+  "${STATE_DIR}/agent-review/failed" \
+  "${STATE_DIR}/agent-executive/inbox" \
+  "${STATE_DIR}/agent-executive/processing" \
+  "${STATE_DIR}/agent-executive/done" \
+  "${STATE_DIR}/agent-executive/failed"
 
 if [[ ! -f "${CONFIG_DIR}/agent-homelab.env" ]]; then
   cat > "${CONFIG_DIR}/agent-homelab.env" <<'EOF'
@@ -51,6 +55,23 @@ EOF
   chmod 600 "${CONFIG_DIR}/agent-review.env"
 fi
 
+if [[ ! -f "${CONFIG_DIR}/agent-executive.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-executive.env" <<'EOF'
+HOMELAB_CONTROL_ROOT=${HOME}/git/homelab-control
+MODEL_GATEWAY_BASE_URL=https://model-gateway.dev-path.org/v1
+MODEL_GATEWAY_API_KEY=replace-me
+PLANKA_BASE_URL=https://planka.dev-path.org
+PLANKA_API_TOKEN=replace-me
+PLANKA_BOARD_ID=replace-me
+PLANKA_INBOX_LIST_ID=replace-me
+PLANKA_PLAN_READY_LIST_ID=replace-me
+MEMORY_ENGINE_INGEST_URL=https://n8n.dev-path.org/webhook/ingest
+MEMORY_ENGINE_SEARCH_URL=
+AGENT_PRINCIPAL=agent:executive
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-executive.env"
+fi
+
 if [[ ! -f "${CONFIG_DIR}/agent-dispatcher.env" ]]; then
   cat > "${CONFIG_DIR}/agent-dispatcher.env" <<'EOF'
 AGENT_DISPATCH_HOST=0.0.0.0
@@ -80,6 +101,9 @@ fi
 
 cp "${ROOT_DIR}/systemd/alienware-author-agent.service" "${SYSTEMD_USER_DIR}/alienware-author-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-review-agent.service" "${SYSTEMD_USER_DIR}/alienware-review-agent.service"
+cp "${ROOT_DIR}/systemd/alienware-executive-agent.service" "${SYSTEMD_USER_DIR}/alienware-executive-agent.service"
+cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.service" "${SYSTEMD_USER_DIR}/alienware-executive-weekly-review.service"
+cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.timer" "${SYSTEMD_USER_DIR}/alienware-executive-weekly-review.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.timer" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-event-dispatcher.service" "${SYSTEMD_USER_DIR}/alienware-agent-event-dispatcher.service"
@@ -88,6 +112,8 @@ cp "${ROOT_DIR}/systemd/alienware-agent-activity.service" "${SYSTEMD_USER_DIR}/a
 systemctl --user daemon-reload
 systemctl --user enable --now alienware-author-agent.service
 systemctl --user enable --now alienware-review-agent.service
+systemctl --user enable --now alienware-executive-agent.service
+systemctl --user enable --now alienware-executive-weekly-review.timer
 systemctl --user enable --now alienware-agent-platform-report.timer
 systemctl --user enable --now alienware-agent-event-dispatcher.service
 systemctl --user enable --now alienware-agent-activity.service
@@ -95,6 +121,8 @@ systemctl --user start alienware-agent-platform-report.service
 
 systemctl --user status alienware-author-agent.service --no-pager
 systemctl --user status alienware-review-agent.service --no-pager
+systemctl --user status alienware-executive-agent.service --no-pager
+systemctl --user status alienware-executive-weekly-review.timer --no-pager
 systemctl --user status alienware-agent-event-dispatcher.service --no-pager
 systemctl --user status alienware-agent-activity.service --no-pager
 systemctl --user status alienware-agent-platform-report.service --no-pager || true

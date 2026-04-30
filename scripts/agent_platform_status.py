@@ -95,33 +95,41 @@ def review_backlog(base_url: str, repo_owner: str, repo_name: str, token: str) -
 def build_status(args: argparse.Namespace) -> dict[str, Any]:
     author_queue = Path(args.author_queue).expanduser()
     review_queue = Path(args.review_queue).expanduser()
+    executive_queue = Path(args.executive_queue).expanduser()
     author_heartbeat = heartbeat_snapshot(Path(args.author_heartbeat).expanduser())
     review_heartbeat = heartbeat_snapshot(Path(args.review_heartbeat).expanduser())
+    executive_heartbeat = heartbeat_snapshot(Path(args.executive_heartbeat).expanduser())
     backlog = review_backlog(args.forgejo_base_url, args.repo_owner, args.repo_name, args.forgejo_api_token)
     stale_threshold = float(args.stale_after_seconds)
 
     stale_heartbeats = [
         item["path"]
-        for item in (author_heartbeat, review_heartbeat)
+        for item in (author_heartbeat, review_heartbeat, executive_heartbeat)
         if item.get("present") and item.get("age_seconds") is not None and item["age_seconds"] > stale_threshold
     ]
     failed_jobs = {
         "author": queue_snapshot(author_queue)["failed_jobs"],
         "review": queue_snapshot(review_queue)["failed_jobs"],
+        "executive": queue_snapshot(executive_queue)["failed_jobs"],
     }
     status = {
         "generated_at": utc_now().isoformat(),
         "queues": {
             "author": queue_snapshot(author_queue),
             "review": queue_snapshot(review_queue),
+            "executive": queue_snapshot(executive_queue),
         },
         "heartbeats": {
             "author": author_heartbeat,
             "review": review_heartbeat,
+            "executive": executive_heartbeat,
         },
         "review_backlog": backlog,
         "stale_heartbeats": stale_heartbeats,
-        "healthy": not stale_heartbeats and not failed_jobs["author"] and not failed_jobs["review"],
+        "healthy": not stale_heartbeats
+        and not failed_jobs["author"]
+        and not failed_jobs["review"]
+        and not failed_jobs["executive"],
     }
     return status
 
@@ -130,8 +138,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--author-queue", required=True)
     parser.add_argument("--review-queue", required=True)
+    parser.add_argument(
+        "--executive-queue",
+        default=str(Path.home() / ".local/state/homelab-control/agent-executive"),
+    )
     parser.add_argument("--author-heartbeat", required=True)
     parser.add_argument("--review-heartbeat", required=True)
+    parser.add_argument(
+        "--executive-heartbeat",
+        default=str(Path.home() / ".local/state/homelab-control/agent-executive/heartbeat.json"),
+    )
     parser.add_argument("--forgejo-base-url", default=os.environ.get("FORGEJO_BASE_URL", ""))
     parser.add_argument("--repo-owner", default=os.environ.get("FORGEJO_REPO_OWNER", ""))
     parser.add_argument("--repo-name", default=os.environ.get("FORGEJO_REPO_NAME", ""))

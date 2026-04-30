@@ -20,9 +20,12 @@ This creates:
 
 - `~/.config/systemd/user/alienware-author-agent.service`
 - `~/.config/systemd/user/alienware-review-agent.service`
+- `~/.config/systemd/user/alienware-executive-agent.service`
+- `~/.config/systemd/user/alienware-executive-weekly-review.timer`
 - `~/.config/systemd/user/alienware-agent-event-dispatcher.service`
 - `~/.config/homelab-control/agent-homelab.env`
 - `~/.config/homelab-control/agent-review.env`
+- `~/.config/homelab-control/agent-executive.env`
 - `~/.config/homelab-control/agent-dispatcher.env`
 - queue directories under `~/.local/state/homelab-control/`
 
@@ -72,6 +75,13 @@ Review queue:
 - `~/.local/state/homelab-control/agent-review/done`
 - `~/.local/state/homelab-control/agent-review/failed`
 
+Executive queue:
+
+- `~/.local/state/homelab-control/agent-executive/inbox`
+- `~/.local/state/homelab-control/agent-executive/processing`
+- `~/.local/state/homelab-control/agent-executive/done`
+- `~/.local/state/homelab-control/agent-executive/failed`
+
 Each worker writes a `heartbeat.json` file beside its queue root.
 
 The author queue also keeps git worktrees under:
@@ -107,6 +117,23 @@ Review decision:
   "action": "review-pr",
   "input": "/path/to/pr-context.json",
   "output_path": "/path/to/review-decision.json"
+}
+```
+
+Executive assistant intake:
+
+```json
+{
+  "action": "handle-request",
+  "request": "Research better family calendar options",
+  "domain": "homelab",
+  "task_type": "research",
+  "labels": [
+    "type:research"
+  ],
+  "search_memory": true,
+  "plan_ready": true,
+  "write_memory": true
 }
 ```
 
@@ -148,6 +175,8 @@ Check service status:
 ```bash
 systemctl --user status alienware-author-agent.service
 systemctl --user status alienware-review-agent.service
+systemctl --user status alienware-executive-agent.service
+systemctl --user status alienware-executive-weekly-review.timer
 ```
 
 Tail logs:
@@ -155,6 +184,7 @@ Tail logs:
 ```bash
 journalctl --user -u alienware-author-agent.service -f
 journalctl --user -u alienware-review-agent.service -f
+journalctl --user -u alienware-executive-agent.service -f
 ```
 
 Inspect queue state:
@@ -162,4 +192,6 @@ Inspect queue state:
 ```bash
 python3 apps/author_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-homelab
 python3 apps/review_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-review
+python3 apps/executive_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-executive
+python3 apps/executive_agent/main.py weekly-review --state-dir ~/.local/state/homelab-control/agent-executive
 ```
