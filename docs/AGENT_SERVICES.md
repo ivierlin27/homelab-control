@@ -11,6 +11,15 @@ On the Alienware host:
 ./scripts/install-alienware-agent-services.sh
 ```
 
+When deploying from another machine, SSH to the host-specific address:
+
+```bash
+ssh kenns@192.168.1.45
+```
+
+Do not use service DNS names that terminate at the nginx/reverse-proxy host
+(`192.168.1.42`) unless Pi-hole has a host-specific override for SSH.
+
 The workers should run from a clean git-backed checkout, not a hand-rsynced or
 dirty runtime tree. The recommended root is:
 
