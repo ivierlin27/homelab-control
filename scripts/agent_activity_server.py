@@ -21,6 +21,8 @@ SERVICE_NAMES = {
     "author": "alienware-author-agent.service",
     "review": "alienware-review-agent.service",
     "executive": "alienware-executive-agent.service",
+    "executive-chat": "alienware-executive-chat.service",
+    "executive-discord": "alienware-executive-discord.service",
     "dispatcher": "alienware-agent-event-dispatcher.service",
     "report": "alienware-agent-platform-report.service",
 }
@@ -153,15 +155,19 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def summarize_trust_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     decisions: dict[str, int] = {}
     domains: dict[str, int] = {}
+    sources: dict[str, int] = {}
     for event in events[-200:]:
         decision = event.get("decision", "unknown")
         domain = event.get("domain", "unknown")
+        source = event.get("source", "unknown")
         decisions[decision] = decisions.get(decision, 0) + 1
         domains[domain] = domains.get(domain, 0) + 1
+        sources[source] = sources.get(source, 0) + 1
     return {
         "recent_event_count": len(events[-200:]),
         "decisions": decisions,
         "domains": domains,
+        "sources": sources,
     }
 
 
@@ -176,6 +182,9 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
     weekly_lines = "".join(f"<li>{html.escape(str(item))}</li>" for item in weekly.get("summary", []))
     trust_decisions = ", ".join(
         f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in trust.get("decisions", {}).items()
+    )
+    trust_sources = ", ".join(
+        f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in trust.get("sources", {}).items()
     )
     sections = []
     for queue_name, queue in snapshot["queues"].items():
@@ -240,6 +249,7 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
     <p>Weekly review generated: {html.escape(str(weekly.get('generated_at', 'missing')))}</p>
     <ul>{weekly_lines or '<li>No weekly review has been generated yet.</li>'}</ul>
     <p>Recent trust decisions: {trust_decisions or 'none recorded'}</p>
+    <p>Recent interaction sources: {trust_sources or 'none recorded'}</p>
   </section>
   {''.join(sections)}
 </body>

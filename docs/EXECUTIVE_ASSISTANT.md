@@ -66,9 +66,9 @@ Every assistant action runs behind a Shield-style gate:
 
 This is deliberately deterministic and conservative in the first slice.
 
-## First Interaction Surface
+## Interaction Surfaces
 
-The first direct interface is a local CLI:
+The lowest-level interface is a local CLI:
 
 ```bash
 python3 apps/executive_agent/main.py handle-request \
@@ -76,9 +76,62 @@ python3 apps/executive_agent/main.py handle-request \
   --dry-run
 ```
 
-The CLI produces the same structured decision that a future Pi plugin, local
-HTTP endpoint, mobile shortcut, or chat bridge can call. This keeps the first
-slice testable without coupling the core safety model to a specific chat UI.
+The CLI produces the same structured decision that the local chat UI, Discord
+bridge, future Pi plugin, mobile shortcut, or other channel adapter can call.
+
+### Local Web Chat
+
+The local-network chat UI runs as `alienware-executive-chat.service` and stores
+named conversations in:
+
+`~/.local/state/homelab-control/agent-executive/conversations.sqlite3`
+
+Open it from the home network at:
+
+`http://192.168.1.45:8767/?token=<executive-chat-token>`
+
+Get the token on Alienware:
+
+```bash
+grep EXECUTIVE_CHAT_TOKEN ~/.config/homelab-control/agent-executive-chat.env
+```
+
+Each conversation has domain, task type, memory, and Plan Ready defaults. Every
+turn is still evaluated through Shield and trust policy before action tools run.
+
+### Discord Bridge
+
+The Discord bridge runs as `alienware-executive-discord.service` after a bot
+token and allowed user/server/channel IDs are configured. Direct messages map to
+private conversations. Server channels map to conversations by guild and channel
+ID. Discord never gets stronger authority than `agent:executive`.
+
+Configure it on Alienware:
+
+```bash
+python3 -m pip install --user -r apps/executive_agent/requirements.txt
+${EDITOR:-vi} ~/.config/homelab-control/agent-executive-discord.env
+systemctl --user enable --now alienware-executive-discord.service
+```
+
+Required configuration:
+
+- `DISCORD_BOT_TOKEN`: Discord bot token
+- `DISCORD_ALLOWED_USER_IDS`: comma-separated Discord user IDs allowed to talk to the bot
+- `DISCORD_ALLOWED_GUILD_IDS`: optional comma-separated server IDs
+- `DISCORD_ALLOWED_CHANNEL_IDS`: optional comma-separated channel IDs
+
+The policy file must also enable `discord-dm` or `discord-channel` before the
+bridge will allow those sources.
+
+### Agent Dashboard
+
+Open the dashboard at:
+
+`https://agents.dev-path.org/?token=<agent-activity-token>`
+
+It shows executive assistant weekly review output, recent trust decisions, and
+recent interaction sources once the latest dashboard service has been deployed.
 
 ## Memory Behavior
 

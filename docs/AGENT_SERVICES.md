@@ -30,11 +30,15 @@ This creates:
 - `~/.config/systemd/user/alienware-author-agent.service`
 - `~/.config/systemd/user/alienware-review-agent.service`
 - `~/.config/systemd/user/alienware-executive-agent.service`
+- `~/.config/systemd/user/alienware-executive-chat.service`
+- `~/.config/systemd/user/alienware-executive-discord.service`
 - `~/.config/systemd/user/alienware-executive-weekly-review.timer`
 - `~/.config/systemd/user/alienware-agent-event-dispatcher.service`
 - `~/.config/homelab-control/agent-homelab.env`
 - `~/.config/homelab-control/agent-review.env`
 - `~/.config/homelab-control/agent-executive.env`
+- `~/.config/homelab-control/agent-executive-chat.env`
+- `~/.config/homelab-control/agent-executive-discord.env`
 - `~/.config/homelab-control/agent-dispatcher.env`
 - queue directories under `~/.local/state/homelab-control/`
 
@@ -90,6 +94,12 @@ Executive queue:
 - `~/.local/state/homelab-control/agent-executive/processing`
 - `~/.local/state/homelab-control/agent-executive/done`
 - `~/.local/state/homelab-control/agent-executive/failed`
+
+Executive chat state:
+
+- `~/.local/state/homelab-control/agent-executive/conversations.sqlite3`
+- `~/.local/state/homelab-control/agent-executive/trust-ledger.jsonl`
+- `~/.local/state/homelab-control/agent-executive/lifecycle-events.jsonl`
 
 Each worker writes a `heartbeat.json` file beside its queue root.
 
@@ -185,6 +195,7 @@ Check service status:
 systemctl --user status alienware-author-agent.service
 systemctl --user status alienware-review-agent.service
 systemctl --user status alienware-executive-agent.service
+systemctl --user status alienware-executive-chat.service
 systemctl --user status alienware-executive-weekly-review.timer
 ```
 
@@ -194,6 +205,7 @@ Tail logs:
 journalctl --user -u alienware-author-agent.service -f
 journalctl --user -u alienware-review-agent.service -f
 journalctl --user -u alienware-executive-agent.service -f
+journalctl --user -u alienware-executive-chat.service -f
 ```
 
 Inspect queue state:
@@ -203,4 +215,26 @@ python3 apps/author_agent/main.py queue-status --queue-dir ~/.local/state/homela
 python3 apps/review_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-review
 python3 apps/executive_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-executive
 python3 apps/executive_agent/main.py weekly-review --state-dir ~/.local/state/homelab-control/agent-executive
+```
+
+Local executive chat UI:
+
+```bash
+grep EXECUTIVE_CHAT_TOKEN ~/.config/homelab-control/agent-executive-chat.env
+# http://192.168.1.45:8767/?token=<token>
+```
+
+Dashboard:
+
+```bash
+grep AGENT_ACTIVITY_TOKEN ~/.config/homelab-control/agent-activity.env
+# https://agents.dev-path.org/?token=<token>
+```
+
+Discord bridge:
+
+```bash
+python3 -m pip install --user -r apps/executive_agent/requirements.txt
+${EDITOR:-vi} ~/.config/homelab-control/agent-executive-discord.env
+systemctl --user enable --now alienware-executive-discord.service
 ```

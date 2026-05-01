@@ -1,0 +1,15 @@
+[Unit]
+Description=Homelab executive-assistant Discord bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/agent-executive.env
+EnvironmentFile=%h/.config/homelab-control/agent-executive-discord.env
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/git/homelab-control}" && exec python3 apps/executive_agent/discord_bot.py --state-dir %h/.local/state/homelab-control/agent-executive'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

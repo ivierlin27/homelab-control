@@ -19,9 +19,29 @@ Think of it like this:
 - the executive assistant is where an operator can ask for coordinated work
   across memory, Planka, and the agent platform
 
+## Quick links
+
+Use these from the home network:
+
+- Task board: `https://planka.dev-path.org`
+- Review page: `https://forgejo.dev-path.org`
+- Password vault: `https://vaultwarden.dev-path.org`
+- Memory and chat: `https://khoj.dev-path.org`
+- Agent dashboard: `https://agents.dev-path.org/?token=<agent-activity-token>`
+- Executive assistant chat: `http://192.168.1.45:8767/?token=<executive-chat-token>`
+
+The dashboard is currently exposed through the reverse proxy. The executive
+assistant chat runs directly on the Alienware host until a reverse-proxy route is
+added. Do not use `https://...:8767`; the first chat service is plain HTTP on
+the home network.
+
 ## 1. Task board
 
 This is the main everyday interface.
+
+Open it at:
+
+`https://planka.dev-path.org`
 
 Use it for:
 
@@ -109,6 +129,10 @@ This is the page in Forgejo (self-hosted Git) where you approve important change
 before they go live. Your maintainer sets the exact URL; you sign in with the
 Forgejo user and password you were given.
 
+Open it at:
+
+`https://forgejo.dev-path.org`
+
 You do not need to use it for every little thing. It is mainly for:
 
 - changes that could break something
@@ -169,6 +193,10 @@ sequenceDiagram
 
 This is where human passwords live.
 
+Open it at:
+
+`https://vaultwarden.dev-path.org`
+
 Use it for:
 
 - personal passwords
@@ -199,6 +227,10 @@ flowchart TD
 ## 4. Memory and chat (Khoj)
 
 Khoj is the friendliest place to **explore what the system already knows**.
+
+Open it at:
+
+`https://khoj.dev-path.org`
 
 Use it for:
 
@@ -234,18 +266,58 @@ Use it for:
 - checking weekly trends in agent activity and trust
 - seeing when the assistant blocked or escalated something
 
-The first interface is intentionally narrow: an authenticated CLI or local
-endpoint that can later be wrapped by chat, mobile, or a Pi plugin. The
-assistant acts as `agent:executive`, not as Kevin, and it cannot approve
+The first conversational interfaces are:
+
+- a local-network web chat on the Alienware host
+- an optional Discord bot bridge for direct messages and server channels
+
+Open the local chat at:
+
+`http://192.168.1.45:8767/?token=<executive-chat-token>`
+
+Get the token on the Alienware host:
+
+```bash
+ssh kenns@192.168.1.45 \
+  'grep EXECUTIVE_CHAT_TOKEN ~/.config/homelab-control/agent-executive-chat.env'
+```
+
+The Discord bridge is configured by editing:
+
+`~/.config/homelab-control/agent-executive-discord.env`
+
+Then start it with:
+
+```bash
+ssh kenns@192.168.1.45 \
+  'cd ~/git/homelab-control && python3 -m pip install --user -r apps/executive_agent/requirements.txt && systemctl --user enable --now alienware-executive-discord.service'
+```
+
+The assistant acts as `agent:executive`, not as Kevin, and it cannot approve
 sensitive execution on its own.
 
 ## 6. If something looks stuck (optional)
 
 Household **operators** can check whether agent queues and timers are healthy.
-That usually means a small **Agent Activity** page on the home network (URL and
-access token are set up by the maintainer) plus a status file on the agent
-machine described in `docs/AGENT_PLATFORM_OBSERVABILITY.md`. You do not need
-this for day-to-day use.
+That usually means the **Agent Activity** dashboard plus a status file on the
+agent machine described in `docs/AGENT_PLATFORM_OBSERVABILITY.md`. You do not
+need this for day-to-day use.
+
+Open it at:
+
+`https://agents.dev-path.org/?token=<agent-activity-token>`
+
+Get the token on the Alienware host:
+
+```bash
+ssh kenns@192.168.1.45 \
+  'grep AGENT_ACTIVITY_TOKEN ~/.config/homelab-control/agent-activity.env'
+```
+
+The dashboard shows queue health, service controls, weekly executive-assistant
+review output, recent trust decisions, and recent interaction sources. If trust
+information is missing, the deployed dashboard service likely needs to be pulled
+and restarted from the latest `homelab-control` checkout.
 
 ## A simple household example
 

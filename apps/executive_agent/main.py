@@ -376,6 +376,10 @@ def build_memory_payload(
     request_text: str,
     decision: dict[str, Any],
     card_url: str = "",
+    source: str = "cli",
+    source_ref: str = "",
+    source_user: str = "",
+    conversation_id: str = "",
 ) -> dict[str, Any]:
     content = "\n".join(
         [
@@ -400,6 +404,10 @@ def build_memory_payload(
             "record_type": "executive_assistant_decision",
             "decision": decision["decision"],
             "shield_category": decision.get("shield", {}).get("category", ""),
+            "source": source,
+            "source_ref": source_ref,
+            "source_user": source_user,
+            "conversation_id": conversation_id,
         },
     }
 
@@ -412,6 +420,10 @@ def card_url(card_id: str) -> str:
 def handle_request(args: argparse.Namespace) -> dict[str, Any]:
     policy = load_yaml(Path(args.policy))
     labels = classify_labels(args.task_type, args.label or [])
+    source = getattr(args, "source", "cli")
+    source_ref = getattr(args, "source_ref", "")
+    source_user = getattr(args, "source_user", "")
+    conversation_id = getattr(args, "conversation_id", "")
     decision = evaluate_request(
         policy,
         text=args.request,
@@ -437,6 +449,10 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
         "labels": decision["labels"],
         "dry_run": args.dry_run,
         "memory_context_count": len(memory_context.get("items", [])),
+        "source": source,
+        "source_ref": source_ref,
+        "source_user": source_user,
+        "conversation_id": conversation_id,
     }
 
     card_result: dict[str, Any] = {"created": False}
@@ -458,7 +474,16 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
     memory_result = {"posted": False, "reason": "memory logging skipped"}
     if args.write_memory and not args.dry_run:
         memory_result = post_memory(
-            build_memory_payload(title=title, request_text=args.request, decision=decision, card_url=card_result.get("url", ""))
+            build_memory_payload(
+                title=title,
+                request_text=args.request,
+                decision=decision,
+                card_url=card_result.get("url", ""),
+                source=source,
+                source_ref=source_ref,
+                source_user=source_user,
+                conversation_id=conversation_id,
+            )
         )
 
     return {
@@ -544,6 +569,10 @@ def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
             write_memory=bool(job.get("write_memory", True)),
             policy=job.get("policy", str(DEFAULT_POLICY)),
             state_dir=job.get("state_dir", str(queue_dir)),
+            source=job.get("source", "queue"),
+            source_ref=job.get("source_ref", str(job_path)),
+            source_user=job.get("source_user", ""),
+            conversation_id=job.get("conversation_id", ""),
         )
         result = handle_request(ns)
         write_json(dirs["done"] / f"{processing_path.stem}.receipt.json", result)
@@ -620,6 +649,10 @@ def main() -> int:
     handle.add_argument("--write-memory", action="store_true")
     handle.add_argument("--policy", default=str(DEFAULT_POLICY))
     handle.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    handle.add_argument("--source", default="cli")
+    handle.add_argument("--source-ref", default="")
+    handle.add_argument("--source-user", default="")
+    handle.add_argument("--conversation-id", default="")
 
     review = subparsers.add_parser("weekly-review")
     review.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))

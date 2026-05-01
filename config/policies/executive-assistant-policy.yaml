@@ -74,3 +74,18 @@ actions:
     durable_claims_need_review: true
   weekly_review:
     record_trust_event: false
+
+interaction_sources:
+  local-web:
+    enabled: true
+    requires_token: true
+
+  discord-dm:
+    enabled: false
+    allowed_user_ids: []
+
+  discord-channel:
+    enabled: false
+    allowed_user_ids: []
+    allowed_guild_ids: []
+    allowed_channel_ids: []

@@ -99,9 +99,38 @@ EOF
   chmod 600 "${CONFIG_DIR}/agent-activity.env"
 fi
 
+if [[ ! -f "${CONFIG_DIR}/agent-executive-chat.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-executive-chat.env" <<'EOF'
+EXECUTIVE_CHAT_HOST=0.0.0.0
+EXECUTIVE_CHAT_PORT=8767
+EXECUTIVE_CHAT_TOKEN=replace-me
+EXECUTIVE_CHAT_DB=
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-executive-chat.env"
+fi
+
+if [[ ! -f "${CONFIG_DIR}/agent-executive-discord.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-executive-discord.env" <<'EOF'
+DISCORD_BOT_TOKEN=replace-me
+DISCORD_ALLOWED_USER_IDS=
+DISCORD_ALLOWED_GUILD_IDS=
+DISCORD_ALLOWED_CHANNEL_IDS=
+DISCORD_COMMAND_PREFIX=!assistant
+DISCORD_DEFAULT_DOMAIN=homelab
+DISCORD_DEFAULT_TASK_TYPE=research
+DISCORD_SEARCH_MEMORY=true
+DISCORD_WRITE_MEMORY=false
+DISCORD_PLAN_READY=false
+DISCORD_DRY_RUN=true
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-executive-discord.env"
+fi
+
 cp "${ROOT_DIR}/systemd/alienware-author-agent.service" "${SYSTEMD_USER_DIR}/alienware-author-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-review-agent.service" "${SYSTEMD_USER_DIR}/alienware-review-agent.service"
 cp "${ROOT_DIR}/systemd/alienware-executive-agent.service" "${SYSTEMD_USER_DIR}/alienware-executive-agent.service"
+cp "${ROOT_DIR}/systemd/alienware-executive-chat.service" "${SYSTEMD_USER_DIR}/alienware-executive-chat.service"
+cp "${ROOT_DIR}/systemd/alienware-executive-discord.service" "${SYSTEMD_USER_DIR}/alienware-executive-discord.service"
 cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.service" "${SYSTEMD_USER_DIR}/alienware-executive-weekly-review.service"
 cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.timer" "${SYSTEMD_USER_DIR}/alienware-executive-weekly-review.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
@@ -113,6 +142,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now alienware-author-agent.service
 systemctl --user enable --now alienware-review-agent.service
 systemctl --user enable --now alienware-executive-agent.service
+systemctl --user enable --now alienware-executive-chat.service
 systemctl --user enable --now alienware-executive-weekly-review.timer
 systemctl --user enable --now alienware-agent-platform-report.timer
 systemctl --user enable --now alienware-agent-event-dispatcher.service
@@ -122,8 +152,14 @@ systemctl --user start alienware-agent-platform-report.service
 systemctl --user status alienware-author-agent.service --no-pager
 systemctl --user status alienware-review-agent.service --no-pager
 systemctl --user status alienware-executive-agent.service --no-pager
+systemctl --user status alienware-executive-chat.service --no-pager
 systemctl --user status alienware-executive-weekly-review.timer --no-pager
 systemctl --user status alienware-agent-event-dispatcher.service --no-pager
 systemctl --user status alienware-agent-activity.service --no-pager
 systemctl --user status alienware-agent-platform-report.service --no-pager || true
 systemctl --user status alienware-agent-platform-report.timer --no-pager
+
+echo "Discord bridge unit installed but not enabled by default."
+echo "Install dependencies with: python3 -m pip install --user -r apps/executive_agent/requirements.txt"
+echo "Then configure ${CONFIG_DIR}/agent-executive-discord.env and run:"
+echo "  systemctl --user enable --now alienware-executive-discord.service"
