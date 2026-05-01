@@ -100,10 +100,15 @@ EOF
 fi
 
 if [[ ! -f "${CONFIG_DIR}/agent-executive-chat.env" ]]; then
-  cat > "${CONFIG_DIR}/agent-executive-chat.env" <<'EOF'
+  EXECUTIVE_CHAT_TOKEN_VALUE="$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+)"
+  cat > "${CONFIG_DIR}/agent-executive-chat.env" <<EOF
 EXECUTIVE_CHAT_HOST=0.0.0.0
 EXECUTIVE_CHAT_PORT=8767
-EXECUTIVE_CHAT_TOKEN=replace-me
+EXECUTIVE_CHAT_TOKEN=${EXECUTIVE_CHAT_TOKEN_VALUE}
 EXECUTIVE_CHAT_DB=
 EOF
   chmod 600 "${CONFIG_DIR}/agent-executive-chat.env"
@@ -147,6 +152,8 @@ systemctl --user enable --now alienware-executive-weekly-review.timer
 systemctl --user enable --now alienware-agent-platform-report.timer
 systemctl --user enable --now alienware-agent-event-dispatcher.service
 systemctl --user enable --now alienware-agent-activity.service
+systemctl --user restart alienware-executive-chat.service
+systemctl --user restart alienware-agent-activity.service
 systemctl --user start alienware-agent-platform-report.service
 
 systemctl --user status alienware-author-agent.service --no-pager
