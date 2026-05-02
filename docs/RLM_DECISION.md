@@ -8,15 +8,17 @@ spike. The spike's contract lives in
 
 ## Decision
 
-**Partial integration, gated on a live measurement step.**
+**Partial integration, gated on a live measurement step with the strong
+route enabled.**
 
 Adopt the RLM harness as a substrate for two specific task classes
-(`long_context_synthesis`, `tool_output_sandbox`), but only after we close the
-live-measurement gap below. Until then, project agents continue to use the
-existing direct + RAG routes added by the routing-system plan.
+(`long_context_synthesis`, `tool_output_sandbox`), but only after we validate
+live runs with the `homelab-strong` route. Until then, project agents
+continue to use the existing direct + RAG routes added by the
+routing-system plan.
 
 This is intentionally not "integrate now" or "don't integrate." The
-architectural argument is strong; the live evidence is not yet sufficient.
+architectural argument is strong; the live evidence is still incomplete.
 
 ## Why partial, not full
 
@@ -34,8 +36,9 @@ not as the default:
    overhead, and more parsing failure surface.
 3. The synthetic comparison cannot tell us about *quality* differences,
    because the scripted transport returns the same prose regardless of which
-   probes the harness ran. We need live evidence before promoting any task
-   class to RLM by default.
+   probes the harness ran. Live runs now exist, but only with the
+   `homelab-fast` route; we still need evidence on the strong route before
+   promoting any task class to RLM by default.
 
 Using RLM for explicitly long-context or tool-output-heavy workloads, while
 leaving the rest on direct/RAG paths, is the safe shape.
@@ -77,16 +80,47 @@ What the synthetic numbers do **not** tell us:
 - end-to-end wall time on real GPU under contention
 - whether the planner-as-root pattern works for the homelab-fast model
 
-## What blocked the live run
+## What we measured (live)
 
-The Alienware LiteLLM gateway returned `400 No connected db` for every
-chat-completion request during the spike. The gateway proxy is enforcing a
-DB requirement that is not currently configured. This is a pre-existing
-infra issue independent of the harness.
+Captured on the Alienware host via `python3 -m
+_shared.rlm.benchmarks.runner --mode live --output-dir
+~/.local/state/homelab-control/rlm-spike-live` with the local LiteLLM
+gateway (`http://127.0.0.1:4000/v1`) and **all calls forced to
+`homelab-fast`** because the `homelab-strong` service is currently inactive.
 
-Until the gateway is healthy, the harness's `--mode live` path cannot
-produce real numbers, and any decision about default-routing RLM is
-premature. The harness is ready; the gateway is not.
+| Workflow | Variant | Root tokens | Tokens in | Tokens out | Sub-calls | Latency (ms) | Keyword coverage | Confidence |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| incident_postmortem | direct | 3919 | 7262 | 414 | 1 | 9856 | 0.6 | medium |
+| incident_postmortem | rag | 7 | 7297 | 282 | 1 | 7161 | 0.6 | medium |
+| incident_postmortem | rlm | 409 | 1095 | 470 | 4 | 9518 | 0.6 | medium |
+| weekly_review | direct | 10384 | 15756 | 308 | 1 | 10117 | 0.6 | medium |
+| weekly_review | rag | 7 | 13107 | 178 | 1 | 6675 | 0.6 | high |
+| weekly_review | rlm | 400 | 1059 | 399 | 4 | 8054 | 0.8 | high |
+
+Key takeaways from the live run:
+
+- RLM still keeps the root context well under 1K tokens.
+- RLM's total tokens are materially lower than direct, but higher than
+  synthetic because the real model generates longer summaries.
+- RLM latency is higher than direct for these workflows, mostly due to the
+  extra sub-calls, but still in the 8–10s range for a 200-line post-mortem
+  and a 120-event weekly review.
+
+## What blocked full live coverage
+
+The original `No connected db` errors came from the external
+`model-gateway.dev-path.org` endpoint combined with placeholder API keys in
+the agent env files. Pointing the agents and benchmarks to the **local**
+gateway (`http://127.0.0.1:4000/v1`) with the `LITELLM_MASTER_KEY` resolved
+that issue.
+
+The remaining gap is the `homelab-strong` route: its vLLM service is
+inactive, so the live run above forced all intents to `homelab-fast`.
+Live evidence for the strong route is still missing.
+
+Until the strong route is healthy, any decision about default-routing RLM
+is still premature. The harness and local gateway are healthy; the strong
+backend is not.
 
 ## What to fold into the active routing-system plan
 
@@ -122,8 +156,8 @@ changes to add **after the live-measurement step succeeds**, not now:
    per-orchestration RLM metrics: probes, sub-calls, root tokens,
    `aborted_reason`. The audit log already emits everything required.
 
-None of these edits should land before the live measurement step records
-real numbers in `docs/RLM_DECISION.md`.
+None of these edits should land before the strong-route measurement step
+records real numbers in `docs/RLM_DECISION.md`.
 
 ## Pre-conditions for default adoption
 
@@ -161,10 +195,10 @@ RLM as a default.
 
 ## Next concrete actions
 
-1. Fix the LiteLLM gateway (`No connected db`). This is the blocker for
-   real measurement and unrelated to the harness.
-2. Re-run the benchmarks with `--mode live` on the Alienware host and update
-   the table above with real numbers and rubric scores.
+1. Bring up `alienware-vllm-strong.service` (or switch model mode to
+   `strong`) so the strong route is available.
+2. Re-run the benchmarks with `--mode live` using `homelab-strong` and
+   update the table above with those numbers.
 3. If the pre-conditions above hold, land the policy + adapter edits listed
    in "What to fold into the active routing-system plan."
 4. If they don't, leave the harness in place as an opt-in tool and move on;
