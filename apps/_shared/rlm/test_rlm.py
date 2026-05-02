@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import sys
 import tempfile
@@ -13,23 +12,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
-
-def _load_rlm_module(name: str):
-    spec = importlib.util.spec_from_file_location(
-        f"_test_rlm_{name}",
-        Path(__file__).resolve().parent / f"{name}.py",
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-# Importing as a sibling package keeps the relative imports inside the modules
-# valid; these helpers are only used to make the test runnable without a
-# package install.
-sandbox_module = importlib.import_module("_shared.rlm.sandbox") if False else None
-del sandbox_module
 
 from _shared.rlm.audit import AuditLog
 from _shared.rlm.harness import Budget, BudgetExhausted, Harness, ScriptedRoot
