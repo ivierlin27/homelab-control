@@ -45,10 +45,16 @@ def source_allowed(policy: dict[str, Any], *, source: str, metadata: dict[str, A
 
 def render_assistant_reply(result: dict[str, Any]) -> str:
     decision = result.get("decision", {})
+    task_class = result.get("task_class", {})
+    routing = result.get("routing", {})
     lines = [
         f"Decision: {decision.get('decision', 'unknown')}",
         f"Reason: {decision.get('reason', 'unknown')}",
     ]
+    if task_class:
+        lines.append(f"Task class: {task_class.get('task_class', 'unknown')}")
+    if routing:
+        lines.append(f"Route: {routing.get('route', 'unknown')} ({routing.get('model_tier', 'unknown')})")
     card = result.get("card", {})
     if card.get("created"):
         lines.append(f"Planka card: {card.get('url') or card.get('card_id')}")

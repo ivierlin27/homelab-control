@@ -25,11 +25,14 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
 from agentlib import load_json, slugify, write_json  # noqa: E402
+import project_agents  # noqa: E402
 
 
 DEFAULT_POLICY = ROOT / "config" / "policies" / "executive-assistant-policy.yaml"
 DEFAULT_STATE_DIR = Path.home() / ".local" / "state" / "homelab-control" / "agent-executive"
 DEFAULT_PRINCIPAL = "agent:executive"
+DEFAULT_STATE_ROOT = DEFAULT_STATE_DIR.parent
+DEFAULT_INTAKE_RETENTION_DAYS = 14
 
 
 def utc_now() -> str:
@@ -108,6 +111,38 @@ def ensure_queue_dirs(queue_dir: Path) -> dict[str, Path]:
     for path in dirs.values():
         path.mkdir(parents=True, exist_ok=True)
     return dirs
+
+
+def ensure_intake_dirs(state_dir: Path) -> dict[str, Path]:
+    intake_root = state_dir / "intake"
+    dirs = {
+        "root": intake_root,
+        "raw": intake_root / "raw",
+        "scratch": intake_root / "scratch",
+        "projects": intake_root / "projects",
+        "routed": intake_root / "routed",
+        "project_proposals": intake_root / "project-proposals",
+    }
+    for path in dirs.values():
+        path.mkdir(parents=True, exist_ok=True)
+    return dirs
+
+
+def locate_intake_record(state_dir: Path, intake_id: str) -> Path:
+    dirs = ensure_intake_dirs(state_dir)
+    for key in ("raw", "scratch", "projects", "routed"):
+        candidate = dirs[key] / f"{intake_id}.json"
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"intake record not found: {intake_id}")
+
+
+def enqueue_json(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
+    inbox = queue_dir / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    path = inbox / name
+    write_json(path, payload)
+    return path
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -280,6 +315,10 @@ def list_id_for_decision(decision: dict[str, Any]) -> str:
     return os.environ.get("PLANKA_INBOX_LIST_ID", "")
 
 
+def intake_list_id() -> str:
+    return os.environ.get("PLANKA_INTAKE_LIST_ID", "") or os.environ.get("PLANKA_INBOX_LIST_ID", "")
+
+
 def render_card_description(request_text: str, decision: dict[str, Any], domain: str, task_type: str) -> str:
     return "\n".join(
         [
@@ -301,10 +340,62 @@ def render_card_description(request_text: str, decision: dict[str, Any], domain:
     )
 
 
+def render_intake_description(record: dict[str, Any]) -> str:
+    candidate = record.get("project_match", {}).get("candidate") or {}
+    routing = record.get("routing", {})
+    task_class = record.get("task_class", {})
+    lines = [
+        record.get("content", "").strip(),
+        "",
+        "## Intake Classification",
+        "",
+        f"- intake_id: {record['intake_id']}",
+        f"- source_kind: {record.get('source_kind', '')}",
+        f"- classification: {record.get('classification', '')}",
+        f"- task_class: {task_class.get('task_class', '')}",
+        f"- symbolic_intent: {task_class.get('symbolic_intent', '')}",
+    ]
+    if record.get("hint"):
+        lines.append(f"- hint: {record['hint']}")
+    if candidate:
+        lines.append(f"- matched_project: {candidate.get('project', '')}")
+        lines.append(f"- matched_domain: {candidate.get('domain', '')}")
+        lines.append(f"- match_terms: {', '.join(candidate.get('matches', []))}")
+    if routing:
+        lines.append(f"- route: {routing.get('route', '')}")
+        lines.append(f"- model_tier: {routing.get('model_tier', '')}")
+        lines.append(f"- route_reason: {routing.get('reason', '')}")
+    lines.extend(
+        [
+            "",
+            "## Review Gate",
+            "",
+            "Discovery intake is advisory. Promotion into a new project or delegated execution still requires policy and human review.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def create_planka_card(title: str, description: str, labels: list[str], decision: dict[str, Any]) -> dict[str, Any]:
     list_id = list_id_for_decision(decision)
     if not list_id:
         raise ValueError("PLANKA_INBOX_LIST_ID or PLANKA_PLAN_READY_LIST_ID is required")
+    payload = {"name": title, "description": description, "position": 65536}
+    created = planka_request(f"lists/{list_id}/cards", method="POST", payload=payload)
+    card = created.get("item", created)
+    card_id = str(card.get("id", ""))
+    for label in labels:
+        try:
+            add_card_label(card_id, label)
+        except Exception:
+            continue
+    return {"card": card, "list_id": list_id}
+
+
+def create_intake_card(title: str, description: str, labels: list[str]) -> dict[str, Any]:
+    list_id = intake_list_id()
+    if not list_id:
+        raise ValueError("PLANKA_INTAKE_LIST_ID or PLANKA_INBOX_LIST_ID is required")
     payload = {"name": title, "description": description, "position": 65536}
     created = planka_request(f"lists/{list_id}/cards", method="POST", payload=payload)
     card = created.get("item", created)
@@ -370,6 +461,18 @@ def search_memory(query: str, *, principal: str) -> dict[str, Any]:
     return {"searched": True, "items": items[:5], "response": data}
 
 
+def classify_task_and_route(policy: dict[str, Any], *, domain: str, text: str, hint: str = "") -> tuple[dict[str, Any], dict[str, Any]]:
+    project = project_agents.project_for_domain(policy, domain)
+    task_class = project_agents.classify_task_class(policy, text, hint=hint)
+    routing = project_agents.resolve_route(
+        policy,
+        project=project,
+        task_class=task_class["task_class"],
+        symbolic_intent=task_class["symbolic_intent"],
+    )
+    return task_class, routing
+
+
 def build_memory_payload(
     *,
     title: str,
@@ -380,6 +483,8 @@ def build_memory_payload(
     source_ref: str = "",
     source_user: str = "",
     conversation_id: str = "",
+    task_class: dict[str, Any] | None = None,
+    routing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     content = "\n".join(
         [
@@ -408,6 +513,48 @@ def build_memory_payload(
             "source_ref": source_ref,
             "source_user": source_user,
             "conversation_id": conversation_id,
+            "task_class": (task_class or {}).get("task_class", ""),
+            "symbolic_intent": (task_class or {}).get("symbolic_intent", ""),
+            "route": (routing or {}).get("route", ""),
+            "model_tier": (routing or {}).get("model_tier", ""),
+        },
+    }
+
+
+def build_intake_memory_payload(record: dict[str, Any], *, artifact_url: str = "") -> dict[str, Any]:
+    task_class = record.get("task_class", {})
+    routing = record.get("routing", {})
+    content = "\n".join(
+        [
+            f"Executive assistant intake: {record.get('title', record.get('intake_id', ''))}",
+            "",
+            record.get("content", "").strip(),
+            "",
+            f"- intake_id: {record.get('intake_id', '')}",
+            f"- classification: {record.get('classification', '')}",
+            f"- task_class: {task_class.get('task_class', '')}",
+            f"- symbolic_intent: {task_class.get('symbolic_intent', '')}",
+            f"- route: {routing.get('route', '')}",
+            f"- matched_project: {(record.get('project_match', {}).get('candidate') or {}).get('project', '')}",
+        ]
+    )
+    return {
+        "type": "text",
+        "content": content,
+        "source": "executive-assistant",
+        "principal": os.environ.get("AGENT_PRINCIPAL", DEFAULT_PRINCIPAL),
+        "command_or_api": "executive_agent:intake-raw",
+        "artifact_url": artifact_url,
+        "metadata": {
+            "record_type": "executive_intake_record",
+            "record_key": f"intake.{record.get('classification', 'unknown')}.{record.get('intake_id', '')}",
+            "classification": record.get("classification", ""),
+            "task_class": task_class.get("task_class", ""),
+            "symbolic_intent": task_class.get("symbolic_intent", ""),
+            "route": routing.get("route", ""),
+            "project": (record.get("project_match", {}).get("candidate") or {}).get("project", ""),
+            "expires_at": record.get("expires_at", ""),
+            "intake_id": record.get("intake_id", ""),
         },
     }
 
@@ -417,6 +564,184 @@ def card_url(card_id: str) -> str:
     return f"{base_url}/cards/{card_id}" if base_url and card_id else ""
 
 
+def intake_raw(args: argparse.Namespace) -> dict[str, Any]:
+    policy = load_yaml(Path(args.policy))
+    state_dir = Path(args.state_dir).expanduser()
+    state_root = state_dir if state_dir.name != "agent-executive" else state_dir.parent
+    dirs = ensure_intake_dirs(state_dir)
+    intake_id = args.intake_id or f"intake-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{slugify(args.title or args.hint or args.source_kind)}"
+    task_class = project_agents.classify_task_class(policy, args.content, hint=args.hint)
+    project_match = project_agents.match_project_for_intake(policy, args.content, hint=args.hint)
+    routing: dict[str, Any] = {}
+    expires_at = ""
+    if project_match["classification"] == "existing_project":
+        candidate = project_match["candidate"]
+        routing = project_agents.resolve_route(
+            policy,
+            project=candidate["project"],
+            task_class=task_class["task_class"],
+            symbolic_intent=task_class["symbolic_intent"],
+        )
+    elif project_match["classification"] == "scratch":
+        expires_at = (datetime.now(UTC) + timedelta(days=getattr(args, "ttl_days", DEFAULT_INTAKE_RETENTION_DAYS))).isoformat()
+
+    record = {
+        "intake_id": intake_id,
+        "title": args.title or args.hint or f"Intake {args.source_kind}",
+        "source_kind": args.source_kind,
+        "content": args.content,
+        "source_ref": args.source_ref,
+        "hint": args.hint,
+        "created_at": utc_now(),
+        "classification": project_match["classification"],
+        "task_class": task_class,
+        "routing": routing,
+        "project_match": project_match,
+        "expires_at": expires_at,
+        "status": "classified",
+    }
+
+    target_key = "raw"
+    queue_result = {"enqueued": False}
+    card_result: dict[str, Any] = {"created": False}
+    if record["classification"] == "existing_project":
+        target_key = "routed"
+        queue_dir = project_agents.queue_dir_for_project(policy, state_root, project_match["candidate"]["project"])
+        queue_payload = {
+            "action": "triage-intake",
+            "intake_id": intake_id,
+            "title": record["title"],
+            "content": args.content,
+            "source_kind": args.source_kind,
+            "source_ref": args.source_ref,
+            "hint": args.hint,
+            "task_class": task_class["task_class"],
+            "symbolic_intent": task_class["symbolic_intent"],
+            "routing": routing,
+            "state_dir": str(queue_dir),
+        }
+        if not args.dry_run:
+            job_path = enqueue_json(queue_dir, f"{intake_id}.json", queue_payload)
+            queue_result = {"enqueued": True, "queue_dir": str(queue_dir), "job_path": str(job_path)}
+        else:
+            queue_result = {"enqueued": False, "queue_dir": str(queue_dir), "dry_run": True}
+    elif record["classification"] == "new_project_candidate":
+        target_key = "projects"
+        if getattr(args, "create_card", True) and not args.dry_run:
+            created = create_intake_card(record["title"], render_intake_description(record), ["assistant-created", "type:intake", "trust-escalation"])
+            card = created["card"]
+            card_result = {
+                "created": True,
+                "card_id": str(card.get("id", "")),
+                "url": card_url(str(card.get("id", ""))),
+                "list_id": created["list_id"],
+            }
+    elif record["classification"] == "scratch":
+        target_key = "scratch"
+
+    record_path = dirs[target_key] / f"{intake_id}.json"
+    write_json(record_path, record)
+    if target_key != "raw":
+        write_json(dirs["raw"] / f"{intake_id}.json", record)
+
+    event = {
+        "event": "intake-classified",
+        "occurred_at": utc_now(),
+        "principal": os.environ.get("AGENT_PRINCIPAL", DEFAULT_PRINCIPAL),
+        "intake_id": intake_id,
+        "title": record["title"],
+        "classification": record["classification"],
+        "task_class": task_class["task_class"],
+        "symbolic_intent": task_class["symbolic_intent"],
+        "route": routing.get("route", ""),
+        "model_tier": routing.get("model_tier", ""),
+        "project": (project_match.get("candidate") or {}).get("project", ""),
+        "source_kind": args.source_kind,
+        "source_ref": args.source_ref,
+        "dry_run": args.dry_run,
+        "queue": queue_result,
+        "card": card_result,
+    }
+    append_jsonl(state_dir / "trust-ledger.jsonl", event)
+    append_jsonl(state_dir / "lifecycle-events.jsonl", {**event, "event": "intake-stored", "record_path": str(record_path)})
+
+    memory_result = {"posted": False, "reason": "memory logging skipped"}
+    if getattr(args, "write_memory", False) and not args.dry_run:
+        memory_result = post_memory(build_intake_memory_payload(record, artifact_url=card_result.get("url", "")))
+
+    return {
+        "ok": True,
+        "intake": record,
+        "record_path": str(record_path),
+        "queue": queue_result,
+        "card": card_result,
+        "memory": memory_result,
+    }
+
+
+def promote_project(args: argparse.Namespace) -> dict[str, Any]:
+    policy = load_yaml(Path(args.policy))
+    state_dir = Path(args.state_dir).expanduser()
+    dirs = ensure_intake_dirs(state_dir)
+    record_path = locate_intake_record(state_dir, args.intake_id)
+    record = load_json(record_path)
+    slug = args.project_slug or slugify(args.title or record.get("hint") or record.get("title") or args.intake_id)
+    display_name = args.title or record.get("title") or slug.replace("-", " ").title()
+    namespace = args.namespace or slug.replace("-", ".")
+    proposal = {
+        "project_slug": slug,
+        "display_name": display_name,
+        "promoted_from_intake_id": args.intake_id,
+        "created_at": utc_now(),
+        "principal": f"agent:{slug}",
+        "memory_namespace": f"{namespace}.*",
+        "intake_match_hints": sorted(
+            set(
+                [slug, record.get("hint", "")]
+                + (record.get("project_match", {}).get("candidate") or {}).get("matches", [])
+            )
+            - {""}
+        ),
+        "routing_policy": {
+            "local_only": ["private_memory_update"],
+            "local_preferred": ["classify", "summarize"],
+            "cloud_allowed": [],
+            "cloud_required_review": True,
+            "route_overrides": {},
+        },
+        "tool_grants": {
+            "memory": {"read": True, "write": True},
+            "queue": {"enqueue_targets": []},
+            "planka": {"enabled": True},
+            "shell": {"allowed_commands": []},
+            "network": {"allowed_hosts": []},
+        },
+        "status": "draft",
+    }
+    proposal_path = dirs["project_proposals"] / f"{slug}.json"
+    if not args.dry_run:
+        write_json(proposal_path, proposal)
+
+    event = {
+        "event": "intake-promoted-to-project",
+        "occurred_at": utc_now(),
+        "principal": os.environ.get("AGENT_PRINCIPAL", DEFAULT_PRINCIPAL),
+        "intake_id": args.intake_id,
+        "project_slug": slug,
+        "proposal_path": str(proposal_path),
+        "dry_run": args.dry_run,
+    }
+    append_jsonl(state_dir / "trust-ledger.jsonl", event)
+    append_jsonl(state_dir / "lifecycle-events.jsonl", event)
+
+    return {
+        "ok": True,
+        "intake_id": args.intake_id,
+        "proposal": proposal,
+        "proposal_path": str(proposal_path),
+    }
+
+
 def handle_request(args: argparse.Namespace) -> dict[str, Any]:
     policy = load_yaml(Path(args.policy))
     labels = classify_labels(args.task_type, args.label or [])
@@ -424,6 +749,12 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
     source_ref = getattr(args, "source_ref", "")
     source_user = getattr(args, "source_user", "")
     conversation_id = getattr(args, "conversation_id", "")
+    task_class, routing = classify_task_and_route(
+        policy,
+        domain=args.domain,
+        text=args.request,
+        hint=getattr(args, "routing_hint", ""),
+    )
     decision = evaluate_request(
         policy,
         text=args.request,
@@ -449,6 +780,12 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
         "labels": decision["labels"],
         "dry_run": args.dry_run,
         "memory_context_count": len(memory_context.get("items", [])),
+        "task_class": task_class["task_class"],
+        "symbolic_intent": task_class["symbolic_intent"],
+        "route": routing["route"],
+        "model_tier": routing["model_tier"],
+        "route_reason": routing["reason"],
+        "route_requires_review": routing["requires_review"],
         "source": source,
         "source_ref": source_ref,
         "source_user": source_user,
@@ -483,6 +820,8 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
                 source_ref=source_ref,
                 source_user=source_user,
                 conversation_id=conversation_id,
+                task_class=task_class,
+                routing=routing,
             )
         )
 
@@ -493,6 +832,8 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
         "card": card_result,
         "memory_context": memory_context,
         "memory": memory_result,
+        "task_class": task_class,
+        "routing": routing,
     }
 
 
@@ -555,26 +896,55 @@ def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
     try:
         job = load_json(processing_path)
         action = str(job.get("action", "")).strip().lower().replace("_", "-")
-        if action != "handle-request":
+        if action == "handle-request":
+            ns = argparse.Namespace(
+                request=job["request"],
+                title=job.get("title", ""),
+                domain=job.get("domain", "homelab"),
+                task_type=job.get("task_type", "research"),
+                label=job.get("labels", []),
+                plan_ready=bool(job.get("plan_ready", False)),
+                dry_run=bool(job.get("dry_run", False)),
+                search_memory=bool(job.get("search_memory", True)),
+                write_memory=bool(job.get("write_memory", True)),
+                policy=job.get("policy", str(DEFAULT_POLICY)),
+                state_dir=job.get("state_dir", str(queue_dir)),
+                source=job.get("source", "queue"),
+                source_ref=job.get("source_ref", str(job_path)),
+                source_user=job.get("source_user", ""),
+                conversation_id=job.get("conversation_id", ""),
+                routing_hint=job.get("routing_hint", ""),
+            )
+            result = handle_request(ns)
+        elif action == "intake-raw":
+            ns = argparse.Namespace(
+                intake_id=job.get("intake_id", ""),
+                title=job.get("title", ""),
+                source_kind=job.get("source_kind", "text"),
+                source_ref=job.get("source_ref", str(job_path)),
+                content=job.get("content", ""),
+                hint=job.get("hint", ""),
+                dry_run=bool(job.get("dry_run", False)),
+                create_card=bool(job.get("create_card", True)),
+                write_memory=bool(job.get("write_memory", True)),
+                ttl_days=int(job.get("ttl_days", DEFAULT_INTAKE_RETENTION_DAYS)),
+                policy=job.get("policy", str(DEFAULT_POLICY)),
+                state_dir=job.get("state_dir", str(queue_dir)),
+            )
+            result = intake_raw(ns)
+        elif action == "promote-project":
+            ns = argparse.Namespace(
+                intake_id=job["intake_id"],
+                project_slug=job.get("project_slug", ""),
+                title=job.get("title", ""),
+                namespace=job.get("namespace", ""),
+                dry_run=bool(job.get("dry_run", False)),
+                policy=job.get("policy", str(DEFAULT_POLICY)),
+                state_dir=job.get("state_dir", str(queue_dir)),
+            )
+            result = promote_project(ns)
+        else:
             raise ValueError(f"unsupported executive-agent action: {action}")
-        ns = argparse.Namespace(
-            request=job["request"],
-            title=job.get("title", ""),
-            domain=job.get("domain", "homelab"),
-            task_type=job.get("task_type", "research"),
-            label=job.get("labels", []),
-            plan_ready=bool(job.get("plan_ready", False)),
-            dry_run=bool(job.get("dry_run", False)),
-            search_memory=bool(job.get("search_memory", True)),
-            write_memory=bool(job.get("write_memory", True)),
-            policy=job.get("policy", str(DEFAULT_POLICY)),
-            state_dir=job.get("state_dir", str(queue_dir)),
-            source=job.get("source", "queue"),
-            source_ref=job.get("source_ref", str(job_path)),
-            source_user=job.get("source_user", ""),
-            conversation_id=job.get("conversation_id", ""),
-        )
-        result = handle_request(ns)
         write_json(dirs["done"] / f"{processing_path.stem}.receipt.json", result)
         shutil.move(str(processing_path), dirs["done"] / processing_path.name)
         return result
@@ -653,6 +1023,30 @@ def main() -> int:
     handle.add_argument("--source-ref", default="")
     handle.add_argument("--source-user", default="")
     handle.add_argument("--conversation-id", default="")
+    handle.add_argument("--routing-hint", default="")
+
+    intake = subparsers.add_parser("intake-raw")
+    intake.add_argument("--intake-id", default="")
+    intake.add_argument("--title", default="")
+    intake.add_argument("--source-kind", choices=["url", "text", "voice", "screenshot", "file"], default="text")
+    intake.add_argument("--source-ref", default="")
+    intake.add_argument("--content", required=True)
+    intake.add_argument("--hint", default="")
+    intake.add_argument("--dry-run", action="store_true")
+    intake.add_argument("--create-card", action="store_true")
+    intake.add_argument("--write-memory", action="store_true")
+    intake.add_argument("--ttl-days", type=int, default=DEFAULT_INTAKE_RETENTION_DAYS)
+    intake.add_argument("--policy", default=str(DEFAULT_POLICY))
+    intake.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    promote = subparsers.add_parser("promote-project")
+    promote.add_argument("--intake-id", required=True)
+    promote.add_argument("--project-slug", default="")
+    promote.add_argument("--title", default="")
+    promote.add_argument("--namespace", default="")
+    promote.add_argument("--dry-run", action="store_true")
+    promote.add_argument("--policy", default=str(DEFAULT_POLICY))
+    promote.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
     review = subparsers.add_parser("weekly-review")
     review.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
@@ -674,6 +1068,12 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "handle-request":
         print(json.dumps(handle_request(args), indent=2))
+        return 0
+    if args.command == "intake-raw":
+        print(json.dumps(intake_raw(args), indent=2))
+        return 0
+    if args.command == "promote-project":
+        print(json.dumps(promote_project(args), indent=2))
         return 0
     if args.command == "weekly-review":
         payload = weekly_review(Path(args.state_dir).expanduser(), args.days)

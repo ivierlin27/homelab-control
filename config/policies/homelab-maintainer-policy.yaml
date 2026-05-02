@@ -1,0 +1,49 @@
+principal: agent:homelab-maintainer
+
+project:
+  domain: homelab
+  display_name: Homelab Maintainer
+
+data_scope:
+  memory:
+    read_prefixes: [homelab.*]
+    write_prefixes: [homelab.*]
+  files:
+    allowed_roots: [docs, inventory, compose]
+    blocked_roots: [finance, secrets]
+
+tool_grants:
+  planka:
+    enabled: true
+  memory:
+    read: true
+    write: true
+  queue:
+    enqueue_targets: [agent-homelab, agent-review]
+  shell:
+    allowed_commands: []
+  network:
+    allowed_hosts: [planka.dev-path.org, n8n.dev-path.org, forgejo.dev-path.org]
+
+routing_policy:
+  local_only: [secrets, private_memory_update]
+  local_preferred: [summarize, classify, inventory_refresh, code_review_small]
+  cloud_allowed: [architecture_synthesis, migration_planning]
+  cloud_required_review: true
+  route_overrides:
+    summarize: local-fast
+    classify: local-fast
+    inventory_refresh: local-strong
+    code_review_small: local-strong
+    architecture_synthesis: cloud-frontier
+    migration_planning: cloud-frontier
+
+trust:
+  autonomy_mode: propose_only
+  auto_memory_write: true
+  human_review_triggers:
+    labels: [sensitive, auth-change, network-exposure]
+    paths: [compose, inventory]
+
+delegate:
+  author_allowed_paths: [docs, inventory, compose]

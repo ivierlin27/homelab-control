@@ -8,6 +8,7 @@ GitOps home for the Proxmox-based control plane around:
 - routed model gateway (`LiteLLM`)
 - Planka orchestration
 - homelab author / review agents
+- project-scoped maintainers such as `agent:homelab-maintainer`
 - future specialized agents
 
 ## Design rules
@@ -68,6 +69,7 @@ See:
 - `docs/STRONG_MODEL_STRATEGY.md`
 - `docs/MODEL_OPTIMIZER_AGENT.md`
 - `docs/EXECUTIVE_ASSISTANT.md`
+- `docs/PROJECT_AGENTS.md`
 - `docs/INVENTORY_MEMORY_SYNC.md`
 - `docs/IMMICH_ON_PROXMOX.md`
 - `docs/HUMAN_INTERFACES.md`

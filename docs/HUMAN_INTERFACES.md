@@ -17,7 +17,7 @@ Think of it like this:
 - Khoj is where you search what the system remembers and chat with an assistant
   that can use that context
 - the executive assistant is where an operator can ask for coordinated work
-  across memory, Planka, and the agent platform
+  across memory, Planka, and the project-agent platform
 
 ## Quick links
 
@@ -295,6 +295,11 @@ ssh kenns@192.168.1.45 \
 
 The assistant acts as `agent:executive`, not as Kevin, and it cannot approve
 sensitive execution on its own.
+
+As the stack grows, the executive assistant is also the router into
+project-scoped agents such as `agent:homelab-maintainer`. Those project agents
+keep domain-specific trust, routing, and memory boundaries instead of giving one
+assistant universal access.
 
 ## 6. If something looks stuck (optional)
 

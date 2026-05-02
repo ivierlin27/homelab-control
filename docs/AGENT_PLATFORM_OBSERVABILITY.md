@@ -39,3 +39,9 @@ status file instead of multiple queue folders and PR comment streams.
 The Agent Activity dashboard also reads the executive assistant trust ledger and
 weekly review file from `~/.local/state/homelab-control/agent-executive/` so the
 assistant can summarize trends without putting every event into chat.
+
+The dashboard now also renders:
+
+- project-level trust posture and route usage from executive + maintainer ledgers
+- the discovery intake funnel (`raw`, `scratch`, `projects`, `routed`, `project-proposals`)
+- the homelab-maintainer queue and heartbeat

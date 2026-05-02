@@ -89,3 +89,93 @@ interaction_sources:
     allowed_user_ids: []
     allowed_guild_ids: []
     allowed_channel_ids: []
+
+symbolic_routes:
+  summarize:
+    default_route: local-fast
+    provider: homelab-fast
+    model_tier: local-fast
+  classify:
+    default_route: local-fast
+    provider: homelab-fast
+    model_tier: local-fast
+  code:
+    default_route: local-strong
+    provider: homelab-strong
+    model_tier: local-strong
+  plan:
+    default_route: local-strong
+    provider: homelab-strong
+    model_tier: local-strong
+  cloud-frontier:
+    default_route: cloud-frontier
+    provider: cloud-frontier
+    model_tier: cloud-frontier
+  local-fast:
+    default_route: local-fast
+    provider: homelab-fast
+    model_tier: local-fast
+  local-strong:
+    default_route: local-strong
+    provider: homelab-strong
+    model_tier: local-strong
+
+task_classes:
+  summarize:
+    symbolic_intent: summarize
+    keywords: [summarize, summary, recap, digest, brief, weekly review]
+  classify:
+    symbolic_intent: classify
+    keywords: [classify, route, tag, triage, organize]
+  inventory_refresh:
+    symbolic_intent: summarize
+    keywords: [inventory, observability, sync, service record, capacity]
+  code_review_small:
+    symbolic_intent: code
+    keywords: [review diff, code review, pull request, pr, small fix]
+  architecture_synthesis:
+    symbolic_intent: plan
+    keywords: [architecture, design, migration, strategy, proposal]
+  migration_planning:
+    symbolic_intent: plan
+    keywords: [migrate, move, cutover, rollout]
+  private_memory_update:
+    symbolic_intent: summarize
+    keywords: [remember, memory, note, save this, write memory]
+  secrets:
+    symbolic_intent: summarize
+    keywords: [secret, token, password, api key, private key]
+
+project_agents:
+  homelab-maintainer:
+    domain: homelab
+    display_name: Homelab Maintainer
+    queue_dir_name: agent-homelab-maintainer
+    intake_match_hints:
+      - homelab
+      - proxmox
+      - forgejo
+      - planka
+      - vaultwarden
+      - pihole
+      - pi-hole
+      - immich
+      - model gateway
+      - litellm
+      - vllm
+      - backup
+      - observability
+      - service
+      - dashboard
+    routing_policy:
+      local_only: [secrets, private_memory_update]
+      local_preferred: [summarize, classify, inventory_refresh, code_review_small]
+      cloud_allowed: [architecture_synthesis, migration_planning]
+      cloud_required_review: true
+      route_overrides:
+        summarize: local-fast
+        classify: local-fast
+        inventory_refresh: local-strong
+        code_review_small: local-strong
+        architecture_synthesis: cloud-frontier
+        migration_planning: cloud-frontier

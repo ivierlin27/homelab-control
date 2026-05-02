@@ -27,6 +27,7 @@ dirty runtime tree. The recommended root is:
 
 This creates:
 
+- `~/.config/systemd/user/alienware-homelab-maintainer-agent.service`
 - `~/.config/systemd/user/alienware-author-agent.service`
 - `~/.config/systemd/user/alienware-review-agent.service`
 - `~/.config/systemd/user/alienware-executive-agent.service`
@@ -35,6 +36,7 @@ This creates:
 - `~/.config/systemd/user/alienware-executive-weekly-review.timer`
 - `~/.config/systemd/user/alienware-agent-event-dispatcher.service`
 - `~/.config/homelab-control/agent-homelab.env`
+- `~/.config/homelab-control/agent-homelab-maintainer.env`
 - `~/.config/homelab-control/agent-review.env`
 - `~/.config/homelab-control/agent-executive.env`
 - `~/.config/homelab-control/agent-executive-chat.env`
@@ -48,6 +50,7 @@ The env files are the editable source of truth for:
 - Forgejo base URL, repo owner, repo name, and API token
 - the preferred git remote for author branches
 - whether the review agent may auto-merge low-risk PRs
+- whether the homelab-maintainer may delegate into author/review queues
 - Planka board/list IDs used by the event dispatcher
 
 The author env should point `HOMELAB_CONTROL_ROOT` at the clean checkout and
@@ -80,6 +83,15 @@ Author queue:
 - `~/.local/state/homelab-control/agent-homelab/processing`
 - `~/.local/state/homelab-control/agent-homelab/done`
 - `~/.local/state/homelab-control/agent-homelab/failed`
+
+Homelab-maintainer queue:
+
+- `~/.local/state/homelab-control/agent-homelab-maintainer/inbox`
+- `~/.local/state/homelab-control/agent-homelab-maintainer/processing`
+- `~/.local/state/homelab-control/agent-homelab-maintainer/done`
+- `~/.local/state/homelab-control/agent-homelab-maintainer/failed`
+- `~/.local/state/homelab-control/agent-homelab-maintainer/trust-ledger.jsonl`
+- `~/.local/state/homelab-control/agent-homelab-maintainer/lifecycle-events.jsonl`
 
 Review queue:
 
@@ -156,6 +168,24 @@ Executive assistant intake:
 }
 ```
 
+Homelab-maintainer intake triage:
+
+```json
+{
+  "action": "triage-intake",
+  "intake_id": "intake-20260501-homelab-router",
+  "title": "Model gateway cleanup idea",
+  "content": "Clean up old LiteLLM routes and document current defaults.",
+  "source_kind": "text",
+  "task_class": "architecture_synthesis",
+  "symbolic_intent": "plan",
+  "routing": {
+    "route": "cloud-frontier",
+    "model_tier": "cloud-frontier"
+  }
+}
+```
+
 Author execution job:
 
 ```json
@@ -195,6 +225,7 @@ Check service status:
 systemctl --user status alienware-author-agent.service
 systemctl --user status alienware-review-agent.service
 systemctl --user status alienware-executive-agent.service
+systemctl --user status alienware-homelab-maintainer-agent.service
 systemctl --user status alienware-executive-chat.service
 systemctl --user status alienware-executive-weekly-review.timer
 ```
@@ -205,6 +236,7 @@ Tail logs:
 journalctl --user -u alienware-author-agent.service -f
 journalctl --user -u alienware-review-agent.service -f
 journalctl --user -u alienware-executive-agent.service -f
+journalctl --user -u alienware-homelab-maintainer-agent.service -f
 journalctl --user -u alienware-executive-chat.service -f
 ```
 
@@ -214,6 +246,7 @@ Inspect queue state:
 python3 apps/author_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-homelab
 python3 apps/review_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-review
 python3 apps/executive_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-executive
+python3 apps/homelab_maintainer_agent/main.py queue-status --queue-dir ~/.local/state/homelab-control/agent-homelab-maintainer
 python3 apps/executive_agent/main.py weekly-review --state-dir ~/.local/state/homelab-control/agent-executive
 ```
 

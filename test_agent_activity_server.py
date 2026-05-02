@@ -11,18 +11,28 @@ class AgentActivityServerTests(unittest.TestCase):
     def test_build_snapshot_reads_queue_and_heartbeat(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = Path(tmpdir)
+            maintainer = state / "agent-homelab-maintainer"
             author = state / "agent-homelab"
             review = state / "agent-review"
-            for root in (author, review):
+            executive = state / "agent-executive"
+            for root in (maintainer, author, review, executive):
                 for folder in ("inbox", "processing", "done", "failed"):
                     (root / folder).mkdir(parents=True)
                 (root / "heartbeat.json").write_text(json.dumps({"updated_at": "now", "current_job": None}))
             (author / "inbox" / "job.json").write_text(json.dumps({"action": "execute-task", "title": "Test"}))
+            (executive / "trust-ledger.jsonl").write_text(
+                json.dumps({"project": "homelab", "decision": "plan_ready", "route": "local-fast"}) + "\n"
+            )
+            for folder in ("raw", "scratch", "projects", "routed", "project-proposals"):
+                (executive / "intake" / folder).mkdir(parents=True)
+            (executive / "intake" / "scratch" / "idea.json").write_text("{}")
 
             snapshot = build_snapshot(state)
 
             self.assertEqual("execute-task", snapshot["queues"]["author"]["inbox"][0]["action"])
             self.assertEqual("now", snapshot["queues"]["review"]["heartbeat"]["updated_at"])
+            self.assertEqual(1, snapshot["intake_funnel"]["scratch"])
+            self.assertIn("homelab", snapshot["projects"])
 
     def test_retry_failed_job_moves_job_to_inbox_and_archives_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -1,0 +1,15 @@
+[Unit]
+Description=Homelab maintainer project-agent queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/agent-homelab-maintainer.env
+ExecStartPre=/usr/bin/bash -lc 'mkdir -p %h/.local/state/homelab-control/agent-homelab-maintainer/{inbox,processing,done,failed}'
+ExecStart=/usr/bin/bash -lc 'cd "${HOMELAB_CONTROL_ROOT:-%h/git/homelab-control}" && exec python3 apps/homelab_maintainer_agent/main.py worker --queue-dir %h/.local/state/homelab-control/agent-homelab-maintainer --heartbeat %h/.local/state/homelab-control/agent-homelab-maintainer/heartbeat.json'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

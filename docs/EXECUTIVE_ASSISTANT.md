@@ -10,8 +10,10 @@ instead of replacing them.
 The assistant helps Kevin turn intent into safe, traceable work:
 
 - understand requests using relevant memory context
+- intake raw discoveries such as URLs, notes, screenshots, or voice transcripts
 - create Planka cards with clear metadata, risk labels, and provenance
 - move low-risk planning work to `Plan Ready` when policy allows
+- route matched work into project-scoped agents such as `agent:homelab-maintainer`
 - summarize current agent activity, trust levels, and weekly trends
 - escalate anything sensitive, ambiguous, novel, or outside policy
 
@@ -41,6 +43,8 @@ It may:
 - create Planka cards in approved domains
 - add labels and structured descriptions
 - move low-risk work to `Plan Ready`
+- classify raw intake into existing projects, new-project candidates, or scratch
+- create draft project proposals from promoted intake artifacts
 - write assistant decisions and summaries to memory with provenance
 - record trust, Shield, and lifecycle events for audit
 
@@ -76,6 +80,26 @@ python3 apps/executive_agent/main.py handle-request \
   --dry-run
 ```
 
+Discovery intake uses the same service:
+
+```bash
+python3 apps/executive_agent/main.py intake-raw \
+  --source-kind url \
+  --content "https://example.com/interesting-homelab-idea" \
+  --hint "backup idea" \
+  --dry-run
+```
+
+Promote a stored intake artifact into a draft project stub:
+
+```bash
+python3 apps/executive_agent/main.py promote-project \
+  --intake-id intake-20260501-backup-idea \
+  --project-slug backup-lab \
+  --title "Backup Lab" \
+  --dry-run
+```
+
 The CLI produces the same structured decision that the local chat UI, Discord
 bridge, future Pi plugin, mobile shortcut, or other channel adapter can call.
 
@@ -98,6 +122,8 @@ grep EXECUTIVE_CHAT_TOKEN ~/.config/homelab-control/agent-executive-chat.env
 
 Each conversation has domain, task type, memory, and Plan Ready defaults. Every
 turn is still evaluated through Shield and trust policy before action tools run.
+Discovery intake and project routing are currently CLI/queue-first features; the
+chat layer remains compatible with them through the same backend.
 
 ### Discord Bridge
 

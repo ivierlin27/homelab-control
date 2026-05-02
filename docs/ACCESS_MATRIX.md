@@ -4,6 +4,7 @@
 |-----------|-----------|-----------|------------|-------------|--------------|------------------|
 | `human:kevin` | all | yes | yes | yes | yes | n/a |
 | `agent:executive` | homelab, learning, products, finance | no direct repo writes | no | policy-scoped domains | assistant summaries / proposals only | yes |
+| `agent:homelab-maintainer` | homelab | no direct repo writes | no | homelab only | homelab only | yes |
 | `agent:homelab` | homelab | yes (`homelab/*`) | no | homelab only | homelab only | via review agent |
 | `agent:review` | homelab | no author writes | yes | homelab only | review annotations only | yes |
 | `agent:chinese` | learning | yes (`learning/*`) | no | learning only | learning only | yes |

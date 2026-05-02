@@ -16,8 +16,14 @@ from typing import Any
 from urllib import parse
 
 
-QUEUE_NAMES = {"author": "agent-homelab", "review": "agent-review", "executive": "agent-executive"}
+QUEUE_NAMES = {
+    "maintainer": "agent-homelab-maintainer",
+    "author": "agent-homelab",
+    "review": "agent-review",
+    "executive": "agent-executive",
+}
 SERVICE_NAMES = {
+    "maintainer": "alienware-homelab-maintainer-agent.service",
     "author": "alienware-author-agent.service",
     "review": "alienware-review-agent.service",
     "executive": "alienware-executive-agent.service",
@@ -82,8 +88,10 @@ def build_snapshot(state_dir: Path) -> dict[str, Any]:
             "recent_done": queue_files(root, "done")[:10],
         }
     executive_root = queue_root(state_dir, "executive")
+    maintainer_root = queue_root(state_dir, "maintainer")
     weekly_review = load_json(executive_root / "weekly-review.json")
     trust_events = read_jsonl(executive_root / "trust-ledger.jsonl")
+    maintainer_events = read_jsonl(maintainer_root / "trust-ledger.jsonl")
     return {
         "generated_at": utc_now(),
         "platform_status": platform_status,
@@ -92,6 +100,8 @@ def build_snapshot(state_dir: Path) -> dict[str, Any]:
             "weekly_review": weekly_review,
             "trust_summary": summarize_trust_events(trust_events),
         },
+        "projects": summarize_project_views(trust_events, maintainer_events),
+        "intake_funnel": summarize_intake_funnel(executive_root / "intake"),
     }
 
 
@@ -171,6 +181,57 @@ def summarize_trust_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def summarize_project_views(*event_sets: list[dict[str, Any]]) -> dict[str, Any]:
+    projects: dict[str, dict[str, Any]] = {}
+    for events in event_sets:
+        for event in events[-400:]:
+            project = (
+                event.get("project")
+                or event.get("project_domain")
+                or ("homelab" if event.get("domain") == "homelab" else event.get("domain"))
+                or "unassigned"
+            )
+            summary = projects.setdefault(
+                str(project),
+                {
+                    "recent_event_count": 0,
+                    "decisions": {},
+                    "routes": {},
+                    "blocked_or_escalated": 0,
+                    "shield_events": 0,
+                    "sources": {},
+                },
+            )
+            summary["recent_event_count"] += 1
+            decision = str(event.get("decision", "observed"))
+            route = str(event.get("route", "unrouted"))
+            source = str(event.get("source", event.get("source_kind", "unknown")))
+            summary["decisions"][decision] = summary["decisions"].get(decision, 0) + 1
+            summary["routes"][route] = summary["routes"].get(route, 0) + 1
+            summary["sources"][source] = summary["sources"].get(source, 0) + 1
+            if decision in {"blocked", "escalate"}:
+                summary["blocked_or_escalated"] += 1
+                summary["shield_events"] += 1
+            if event.get("event") == "intake-classified" and event.get("classification") in {"scratch", "new_project_candidate"}:
+                summary["shield_events"] += 1
+
+    for summary in projects.values():
+        summary["trust_posture"] = "attention needed" if summary["blocked_or_escalated"] else "steady"
+    return projects
+
+
+def summarize_intake_funnel(intake_root: Path) -> dict[str, Any]:
+    if not intake_root.exists():
+        return {"raw": 0, "scratch": 0, "projects": 0, "routed": 0, "project_proposals": 0}
+    return {
+        "raw": len(list((intake_root / "raw").glob("*.json"))),
+        "scratch": len(list((intake_root / "scratch").glob("*.json"))),
+        "projects": len(list((intake_root / "projects").glob("*.json"))),
+        "routed": len(list((intake_root / "routed").glob("*.json"))),
+        "project_proposals": len(list((intake_root / "project-proposals").glob("*.json"))),
+    }
+
+
 def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str = "") -> str:
     status = snapshot.get("platform_status", {})
     healthy = status.get("healthy")
@@ -179,6 +240,8 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
     executive = snapshot.get("executive", {})
     weekly = executive.get("weekly_review", {})
     trust = executive.get("trust_summary", {})
+    projects = snapshot.get("projects", {})
+    intake = snapshot.get("intake_funnel", {})
     weekly_lines = "".join(f"<li>{html.escape(str(item))}</li>" for item in weekly.get("summary", []))
     trust_decisions = ", ".join(
         f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in trust.get("decisions", {}).items()
@@ -186,6 +249,18 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
     trust_sources = ", ".join(
         f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in trust.get("sources", {}).items()
     )
+    project_rows = []
+    for project_name, summary in sorted(projects.items()):
+        routes = ", ".join(f"{html.escape(str(key))}: {html.escape(str(value))}" for key, value in summary.get("routes", {}).items())
+        project_rows.append(
+            "<tr>"
+            f"<td>{html.escape(project_name)}</td>"
+            f"<td>{html.escape(summary.get('trust_posture', 'unknown'))}</td>"
+            f"<td>{html.escape(str(summary.get('recent_event_count', 0)))}</td>"
+            f"<td>{html.escape(str(summary.get('blocked_or_escalated', 0)))}</td>"
+            f"<td>{html.escape(routes or 'none')}</td>"
+            "</tr>"
+        )
     sections = []
     for queue_name, queue in snapshot["queues"].items():
         heartbeat = queue.get("heartbeat", {})
@@ -250,6 +325,14 @@ def render_html(snapshot: dict[str, Any], token_required: bool, token_value: str
     <ul>{weekly_lines or '<li>No weekly review has been generated yet.</li>'}</ul>
     <p>Recent trust decisions: {trust_decisions or 'none recorded'}</p>
     <p>Recent interaction sources: {trust_sources or 'none recorded'}</p>
+  </section>
+  <section>
+    <h2>Project Trust And Routing</h2>
+    <table>
+      <thead><tr><th>Project</th><th>Trust posture</th><th>Events</th><th>Blocked / escalated</th><th>Routes</th></tr></thead>
+      <tbody>{''.join(project_rows) or '<tr><td colspan="5">No project events recorded yet.</td></tr>'}</tbody>
+    </table>
+    <p>Intake funnel: raw={html.escape(str(intake.get('raw', 0)))}, scratch={html.escape(str(intake.get('scratch', 0)))}, projects={html.escape(str(intake.get('projects', 0)))}, routed={html.escape(str(intake.get('routed', 0)))}, proposals={html.escape(str(intake.get('project_proposals', 0)))}</p>
   </section>
   {''.join(sections)}
 </body>
