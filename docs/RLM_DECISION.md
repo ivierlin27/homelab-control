@@ -82,11 +82,13 @@ What the synthetic numbers do **not** tell us:
 
 ## What we measured (live)
 
-Captured on the Alienware host via `python3 -m
-_shared.rlm.benchmarks.runner --mode live --output-dir
-~/.local/state/homelab-control/rlm-spike-live` with the local LiteLLM
-gateway (`http://127.0.0.1:4000/v1`) and **all calls forced to
-`homelab-fast`** because the `homelab-strong` service is currently inactive.
+Two live runs were captured on the Alienware host via
+`python3 -m _shared.rlm.benchmarks.runner --mode live` using the local
+LiteLLM gateway (`http://127.0.0.1:4000/v1`).
+
+### Live run (homelab-fast only)
+
+Output: `~/.local/state/homelab-control/rlm-spike-live`
 
 | Workflow | Variant | Root tokens | Tokens in | Tokens out | Sub-calls | Latency (ms) | Keyword coverage | Confidence |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -97,7 +99,27 @@ gateway (`http://127.0.0.1:4000/v1`) and **all calls forced to
 | weekly_review | rag | 7 | 13107 | 178 | 1 | 6675 | 0.6 | high |
 | weekly_review | rlm | 400 | 1059 | 399 | 4 | 8054 | 0.8 | high |
 
-Key takeaways from the live run:
+### Live run (homelab-strong only)
+
+Output: `~/.local/state/homelab-control/rlm-spike-live-strong`
+
+All intents were forced to `homelab-strong` while the fast service was
+stopped to keep the GPU in single-model mode.
+
+| Workflow | Variant | Root tokens | Tokens in | Tokens out | Sub-calls | Latency (ms) | Keyword coverage | Confidence |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| incident_postmortem | direct | 3919 | 7262 | 223 | 1 | 6602 | 0.6 | high |
+| incident_postmortem | rag | 7 | 7297 | 173 | 1 | 5527 | 0.8 | high |
+| incident_postmortem | rlm | 409 | 256 | 175 | 2 | 2925 | 0.0 | low |
+| weekly_review | direct | 10384 | 15756 | 233 | 1 | 11468 | 0.8 | high |
+| weekly_review | rag | 7 | 13107 | 250 | 1 | 10067 | 0.6 | high |
+| weekly_review | rlm | 400 | 1059 | 452 | 4 | 6053 | 0.6 | high |
+
+The incident-postmortem RLM run aborted with
+`aborted_reason=root_probe_error: sub-call schema error: sub-call response
+missing non-empty 'summary'`, leaving the summary empty.
+
+Key takeaways from the live runs:
 
 - RLM still keeps the root context well under 1K tokens.
 - RLM's total tokens are materially lower than direct, but higher than
@@ -105,8 +127,12 @@ Key takeaways from the live run:
 - RLM latency is higher than direct for these workflows, mostly due to the
   extra sub-calls, but still in the 8–10s range for a 200-line post-mortem
   and a 120-event weekly review.
+- The homelab-strong incident-postmortem RLM run aborted with a schema error
+  (`sub-call response missing non-empty 'summary'`), yielding zero keyword
+  coverage and low confidence. This failure must be fixed before adopting
+  RLM defaults.
 
-## What blocked full live coverage
+## Remaining gaps after live runs
 
 The original `No connected db` errors came from the external
 `model-gateway.dev-path.org` endpoint combined with placeholder API keys in
@@ -114,13 +140,17 @@ the agent env files. Pointing the agents and benchmarks to the **local**
 gateway (`http://127.0.0.1:4000/v1`) with the `LITELLM_MASTER_KEY` resolved
 that issue.
 
-The remaining gap is the `homelab-strong` route: its vLLM service is
-inactive, so the live run above forced all intents to `homelab-fast`.
-Live evidence for the strong route is still missing.
+Two gaps remain:
 
-Until the strong route is healthy, any decision about default-routing RLM
-is still premature. The harness and local gateway are healthy; the strong
-backend is not.
+- The incident-postmortem RLM run on `homelab-strong` failed with a schema
+  error, so we need to tighten the sub-call prompt or response handling and
+  re-run that workflow.
+- The strong run forced all intents to `homelab-strong` because the fast
+  route was stopped. A mixed fast+strong run would better reflect the
+  eventual routing posture.
+
+Until the schema failure is resolved, any decision about default-routing RLM
+is still premature.
 
 ## What to fold into the active routing-system plan
 
@@ -157,7 +187,7 @@ changes to add **after the live-measurement step succeeds**, not now:
    `aborted_reason`. The audit log already emits everything required.
 
 None of these edits should land before the strong-route measurement step
-records real numbers in `docs/RLM_DECISION.md`.
+records **healthy** numbers (no schema failures) in `docs/RLM_DECISION.md`.
 
 ## Pre-conditions for default adoption
 
@@ -195,10 +225,12 @@ RLM as a default.
 
 ## Next concrete actions
 
-1. Bring up `alienware-vllm-strong.service` (or switch model mode to
-   `strong`) so the strong route is available.
-2. Re-run the benchmarks with `--mode live` using `homelab-strong` and
-   update the table above with those numbers.
+1. Fix the incident-postmortem schema failure on `homelab-strong`
+   (investigate the sub-call prompt and response parsing; re-run just that
+   workflow until `aborted_reason` is empty).
+2. Run a mixed-mode benchmark (fast + strong) to mirror the intended routing
+   posture, if we plan to let sub-calls use `homelab-fast` while the root
+   stays `homelab-strong`.
 3. If the pre-conditions above hold, land the policy + adapter edits listed
    in "What to fold into the active routing-system plan."
 4. If they don't, leave the harness in place as an opt-in tool and move on;
