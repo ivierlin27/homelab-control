@@ -1,0 +1,27 @@
+{
+  "engine": "llama.cpp b9159-5c0e94683 (mainline, server-cuda)",
+  "model": "bartowski/zai-org_GLM-4.5-Air-GGUF IQ4_XS (60.81 GB on disk; 2 shards, 57 GB total)",
+  "host_total_ram_gb": 46,
+  "host_swap_used_gb": 2.2,
+  "vram_used_gpu0_mib": 4773,
+  "vram_used_gpu1_mib": 4662,
+  "tensor_overrides": [".ffn_.*_exps.=CPU"],
+  "context": 16384,
+  "smoke_request": {
+    "messages": [{"role": "user", "content": "hello /nothink"}],
+    "chat_template_kwargs": {"enable_thinking": false},
+    "completion_tokens": 12,
+    "prompt_tokens": 11,
+    "cached_tokens": 4,
+    "prompt_eval_ms_per_token": 5212.59,
+    "prompt_eval_tok_per_s": 0.19,
+    "decode_ms_per_token": 3513.53,
+    "decode_tok_per_s": 0.28
+  },
+  "comparison_in_vram": {
+    "model": "Qwen3-Coder-30B-A3B-Q4_K_M (18 GB, fits fully in VRAM)",
+    "decode_tok_per_s": 194.4
+  },
+  "speedup_factor_in_vram_vs_offload": 694,
+  "verdict": "Selective MoE expert offload via -ot pattern works correctly but is ~700x slower than an in-VRAM model on this hardware, because expert weights page from SSD on every token. Not usable for any interactive workflow at IQ4_XS on 46 GB RAM. Smaller quants (IQ3_XS 50.84 GB, Q3_K_S 53.42 GB) would still exceed the RAM-headroom budget once OS + KV are accounted for, so they would not change the conclusion materially. The ~256 GB RAM floor noted in the plan stands."
+}

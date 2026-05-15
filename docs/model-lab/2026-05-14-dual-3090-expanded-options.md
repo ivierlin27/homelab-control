@@ -595,5 +595,68 @@ opt-in roles for the others worth keeping in mind:
   agent traffic where 32K context is enough; revisit once the AWQ
   defaults stop needing workarounds.
 
-Filed under "do not switch yet". Phase 5 is up next: constrained MoE
-offload via ik_llama.cpp / ktransformers on GLM-4.5-Air-class candidates.
+Filed under "do not switch yet".
+
+## 2026-05-15 Phase 5 update: constrained MoE offload (negative result)
+
+Goal: answer "given 48 GB VRAM + ~46 GB RAM, is there a `strong-deep`
+route worth running off-VRAM?"
+
+Setup: GLM-4.5-Air at IQ4_XS GGUF (60.81 GB on disk; 2 shards, 57 GB
+total) via mainline `llama.cpp:server-cuda` with the standard selective
+expert offload recipe `-ot ".ffn_.*_exps.=CPU"`. All non-expert tensors
+on the two 3090s, MoE expert FFNs on CPU + mmap'd from /mnt/data SSD.
+
+Resource picture after model load:
+
+- GPU0: 4.8 GB used, GPU1: 4.7 GB used (both well under cap; only the
+  attention/embed/shared layers + 16K KV are GPU-resident).
+- System RAM: 46 GB total, 43 GB in mmap buffer cache, **2.2 GB swap
+  used**. Free RAM at idle: ~370 MB. The expert tensors do not all fit
+  resident.
+
+Smoke test (`hello /nothink`, 12 generated tokens, prompt 11 tokens):
+
+| Phase | ms / token | tok/s |
+|---|---|---|
+| Prompt eval | 5213 | 0.19 |
+| Decode      | 3514 | **0.28** |
+
+Reference: the same hardware running Qwen3-Coder-30B-A3B-Q4_K_M (an
+18 GB GGUF that fits entirely in VRAM) hit **194.4 tok/s** in decode.
+GLM-4.5-Air offload is **~700x slower**. A 500-token agent reply would
+take ~30 minutes.
+
+The bottleneck is unambiguous: 57 GB of expert weights cannot stay
+resident in 46 GB of RAM, so every decode step pages experts off the
+SSD. CPU and GPU utilization stay at 0 % between page faults. Smaller
+quants don't help meaningfully — IQ3_XS at 50.84 GB and Q3_K_S at
+53.42 GB still exceed the RAM-headroom budget once OS + KV cache are
+accounted for, and quality drops below the threshold where this would
+even be interesting.
+
+### Verdict
+
+**No interactive offload route worth promoting** at this hardware
+budget. Selective expert offload works correctly (the model loads,
+generates valid output, and respects the chat template), but the SSD
+becomes the hot path. The plan's stated practical floor of
+**~192-256 GB system RAM** to revisit DeepSeek-V3 / Kimi-K2 / GLM-4.5-Air
+class is confirmed by direct measurement.
+
+If a single 3090 → 5090 (32 GB) upgrade or a RAM bump to 128 GB+ ever
+happens, this phase is worth re-running. Until then:
+
+- Keep **Phase 4 daily route**: vLLM with Qwen3-Coder-30B-A3B-AWQ as
+  the strong-long candidate; this fits in VRAM and decodes 100s of
+  tok/s.
+- For one-off "I really want to try GLM-4.5-Air" moments, the
+  llama.cpp profile lives at
+  [`docs/model-lab/2026-05-15-moe-offload-glm45air/profile.env`](2026-05-15-moe-offload-glm45air/profile.env)
+  with the smoke timings preserved at
+  [`smoke.json`](2026-05-15-moe-offload-glm45air/llamacpp-iq4xs/smoke.json).
+  Useful as a sanity check, not as a route.
+
+This closes the v3 plan. Phase 6 systemd updates and the Phase 4
+engine verdict were already published; the canvas can be refreshed off
+this doc directly.

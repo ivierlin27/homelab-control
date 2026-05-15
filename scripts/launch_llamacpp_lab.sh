@@ -79,7 +79,11 @@ CMD_LINE+=(
   --api-key "${LAB_API_KEY}"
 )
 # shellcheck disable=SC2206
+# Disable glob expansion so regex args like `-ot .ffn_.*_exps.=CPU` are preserved
+# verbatim during word-splitting (the `*` would otherwise be expanded as a glob).
+set -f
 EXTRA=( ${LAB_LLAMACPP_ARGS} )
+set +f
 CMD_LINE+=("${EXTRA[@]}")
 
 echo "+ ${CMD_LINE[*]}"
