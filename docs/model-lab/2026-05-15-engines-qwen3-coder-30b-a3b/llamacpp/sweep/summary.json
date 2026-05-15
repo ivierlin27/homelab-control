@@ -1,0 +1,115 @@
+{
+  "base_url": "http://192.168.1.45:8012/v1",
+  "concurrencies": [
+    1,
+    4,
+    16
+  ],
+  "dataset_size": 4,
+  "finished_at": "2026-05-15T13:10:27-0700",
+  "gpu_after": [],
+  "gpu_before": [],
+  "model": "lab-llamacpp-qwen3-coder-30b-a3b-q4km",
+  "model_key": "llamacpp-qwen3-coder-30b-a3b-q4km",
+  "requests_per_concurrency": 24,
+  "started_at": "2026-05-15T13:09:44-0700",
+  "sweeps": [
+    {
+      "completion_tokens": {
+        "cv": 0.4319,
+        "max": 200.0,
+        "mean": 158.5,
+        "min": 40.0,
+        "n": 24,
+        "p50": 197.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 68.4598
+      },
+      "concurrency": 1,
+      "decode_tok_s_mean": 190.793,
+      "elapsed_s": 19.69,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.4204,
+        "max": 1069,
+        "mean": 818.625,
+        "min": 219,
+        "n": 24,
+        "p50": 1013.0,
+        "p95": 1057.3,
+        "p99": 1066.93,
+        "stdev": 344.1321
+      },
+      "requests_attempted": 24,
+      "requests_ok": 24,
+      "rps_attempted": 1.219,
+      "rps_completed": 1.219
+    },
+    {
+      "completion_tokens": {
+        "cv": 0.4325,
+        "max": 200.0,
+        "mean": 159.3333,
+        "min": 40.0,
+        "n": 24,
+        "p50": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 68.917
+      },
+      "concurrency": 4,
+      "decode_tok_s_mean": 85.586,
+      "elapsed_s": 12.028,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.4291,
+        "max": 2483,
+        "mean": 1847.75,
+        "min": 446,
+        "n": 24,
+        "p50": 2312.5,
+        "p95": 2394.1,
+        "p99": 2462.76,
+        "stdev": 792.9204
+      },
+      "requests_attempted": 24,
+      "requests_ok": 24,
+      "rps_attempted": 1.995,
+      "rps_completed": 1.995
+    },
+    {
+      "completion_tokens": {
+        "cv": 0.4327,
+        "max": 200.0,
+        "mean": 158.9167,
+        "min": 40.0,
+        "n": 24,
+        "p50": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 68.7628
+      },
+      "concurrency": 16,
+      "decode_tok_s_mean": 36.998,
+      "elapsed_s": 10.901,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.3861,
+        "max": 7933,
+        "mean": 5130.25,
+        "min": 2063,
+        "n": 24,
+        "p50": 5497.0,
+        "p95": 7509.1,
+        "p99": 7837.09,
+        "stdev": 1980.644
+      },
+      "requests_attempted": 24,
+      "requests_ok": 24,
+      "rps_attempted": 2.202,
+      "rps_completed": 2.202
+    }
+  ],
+  "vllm_metrics_after": {}
+}

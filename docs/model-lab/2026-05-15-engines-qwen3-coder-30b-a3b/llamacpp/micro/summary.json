@@ -1,0 +1,259 @@
+{
+  "finished_at": "2026-05-15T13:09:29-0700",
+  "gpu_after": [],
+  "meta": {
+    "base_url": "http://192.168.1.45:8012/v1",
+    "gpu_before": [],
+    "kind": "meta",
+    "model": "lab-llamacpp-qwen3-coder-30b-a3b-q4km",
+    "model_key": "llamacpp-qwen3-coder-30b-a3b-q4km",
+    "repeats": 10,
+    "started_at": "2026-05-15T13:08:57-0700",
+    "test_ids": [
+      "short_ops_summary",
+      "code_config_review",
+      "structured_json_contract",
+      "tool_call_contract",
+      "long_context_31k",
+      "long_context_60k"
+    ],
+    "vllm_metrics_before": {},
+    "warmup": 2
+  },
+  "per_test": {
+    "code_config_review": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 300.0,
+        "mean": 300.0,
+        "min": 300.0,
+        "n": 8,
+        "p50": 300.0,
+        "p95": 300.0,
+        "p99": 300.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0046,
+        "max": 195.06,
+        "mean": 194.385,
+        "min": 192.06,
+        "n": 8,
+        "p50": 194.68,
+        "p95": 194.9725,
+        "p99": 195.0425,
+        "stdev": 0.9007
+      },
+      "latency_ms": {
+        "cv": 0.0047,
+        "max": 1562,
+        "mean": 1543.375,
+        "min": 1538,
+        "n": 8,
+        "p50": 1541.0,
+        "p95": 1555.7,
+        "p99": 1560.74,
+        "stdev": 7.21
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 97.0,
+        "mean": 97.0,
+        "min": 97.0,
+        "n": 8,
+        "p50": 97.0,
+        "p95": 97.0,
+        "p99": 97.0,
+        "stdev": 0.0
+      }
+    },
+    "long_context_31k": {
+      "attempts": 8,
+      "completion_tokens": {
+        "n": 0
+      },
+      "decode_tok_s": {
+        "n": 0
+      },
+      "latency_ms": {
+        "n": 0
+      },
+      "ok_count": 0,
+      "ok_rate": 0.0,
+      "prompt_tokens": {
+        "n": 0
+      }
+    },
+    "long_context_60k": {
+      "attempts": 8,
+      "completion_tokens": {
+        "n": 0
+      },
+      "decode_tok_s": {
+        "n": 0
+      },
+      "latency_ms": {
+        "n": 0
+      },
+      "ok_count": 0,
+      "ok_rate": 0.0,
+      "prompt_tokens": {
+        "n": 0
+      }
+    },
+    "short_ops_summary": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.03,
+        "max": 206.0,
+        "mean": 198.375,
+        "min": 188.0,
+        "n": 8,
+        "p50": 200.0,
+        "p95": 205.3,
+        "p99": 205.86,
+        "stdev": 5.9569
+      },
+      "decode_tok_s": {
+        "cv": 0.0061,
+        "max": 195.69,
+        "mean": 194.065,
+        "min": 191.57,
+        "n": 8,
+        "p50": 194.065,
+        "p95": 195.5395,
+        "p99": 195.6599,
+        "stdev": 1.1838
+      },
+      "latency_ms": {
+        "cv": 0.0308,
+        "max": 1055,
+        "mean": 1022.25,
+        "min": 966,
+        "n": 8,
+        "p50": 1033.0,
+        "p95": 1054.65,
+        "p99": 1054.93,
+        "stdev": 31.5149
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 54.0,
+        "mean": 54.0,
+        "min": 54.0,
+        "n": 8,
+        "p50": 54.0,
+        "p95": 54.0,
+        "p99": 54.0,
+        "stdev": 0.0
+      }
+    },
+    "structured_json_contract": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 40.0,
+        "mean": 40.0,
+        "min": 40.0,
+        "n": 8,
+        "p50": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0082,
+        "max": 184.33,
+        "mean": 182.35,
+        "min": 179.37,
+        "n": 8,
+        "p50": 182.65,
+        "p95": 184.036,
+        "p99": 184.2712,
+        "stdev": 1.4867
+      },
+      "json_validity_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0082,
+        "max": 223,
+        "mean": 219.375,
+        "min": 217,
+        "n": 8,
+        "p50": 219.0,
+        "p95": 222.3,
+        "p99": 222.86,
+        "stdev": 1.7984
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 58.0,
+        "mean": 58.0,
+        "min": 58.0,
+        "n": 8,
+        "p50": 58.0,
+        "p95": 58.0,
+        "p99": 58.0,
+        "stdev": 0.0
+      },
+      "schema_pass_rate": 1.0
+    },
+    "tool_call_contract": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 35.0,
+        "mean": 35.0,
+        "min": 35.0,
+        "n": 8,
+        "p50": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.005,
+        "max": 179.49,
+        "mean": 178.92,
+        "min": 176.77,
+        "n": 8,
+        "p50": 179.49,
+        "p95": 179.49,
+        "p99": 179.49,
+        "stdev": 0.9008
+      },
+      "latency_ms": {
+        "cv": 0.0051,
+        "max": 198,
+        "mean": 195.625,
+        "min": 195,
+        "n": 8,
+        "p50": 195.0,
+        "p95": 197.3,
+        "p99": 197.86,
+        "stdev": 0.9922
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 325.0,
+        "mean": 325.0,
+        "min": 325.0,
+        "n": 8,
+        "p50": 325.0,
+        "p95": 325.0,
+        "p99": 325.0,
+        "stdev": 0.0
+      },
+      "tool_call_match_rate": 1.0
+    }
+  },
+  "vllm_metrics_after": {}
+}

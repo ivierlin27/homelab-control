@@ -1,0 +1,85 @@
+{
+  "model": "lab-llamacpp-qwen3-coder-30b-a3b-q4km",
+  "model_key": "llamacpp-qwen3-coder-30b-a3b-q4km",
+  "overall_args_rate": 1.0,
+  "overall_selection_rate": 1.0,
+  "per_case": {
+    "logs_with_since": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0362,
+        "max": 310,
+        "mean": 295.0,
+        "min": 286,
+        "n": 3,
+        "p50": 289.0,
+        "p95": 307.9,
+        "p99": 309.58,
+        "stdev": 10.6771
+      },
+      "selection_rate": 1.0
+    },
+    "no_tool_needed": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0722,
+        "max": 420,
+        "mean": 385.0,
+        "min": 352,
+        "n": 3,
+        "p50": 383.0,
+        "p95": 416.3,
+        "p99": 419.26,
+        "stdev": 27.7969
+      },
+      "selection_rate": 1.0
+    },
+    "search_default_limit": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0403,
+        "max": 210,
+        "mean": 198.6667,
+        "min": 193,
+        "n": 3,
+        "p50": 193.0,
+        "p95": 208.3,
+        "p99": 209.66,
+        "stdev": 8.0139
+      },
+      "selection_rate": 1.0
+    },
+    "simple_gpu_memory": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.3167,
+        "max": 375,
+        "mean": 259.0,
+        "min": 201,
+        "n": 3,
+        "p50": 201.0,
+        "p95": 357.6,
+        "p99": 371.52,
+        "stdev": 82.0244
+      },
+      "selection_rate": 1.0
+    },
+    "simple_restart": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0402,
+        "max": 242,
+        "mean": 229.0,
+        "min": 222,
+        "n": 3,
+        "p50": 223.0,
+        "p95": 240.1,
+        "p99": 241.62,
+        "stdev": 9.2014
+      },
+      "selection_rate": 1.0
+    }
+  },
+  "repeats": 3,
+  "started_at": "2026-05-15T13:10:31-0700"
+}

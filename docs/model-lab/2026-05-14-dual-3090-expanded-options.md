@@ -523,3 +523,77 @@ Tracked in the v3 plan:
 - Phase 6: refresh the canvas + systemd unit GPU pinning + add a
   `strong-long` unit fronted by LiteLLM, plus a `daily-agent` route to the
   new Qwen3-Coder-30B-A3B finalist.
+
+## 2026-05-15 Phase 4 update: vLLM vs SGLang vs llama.cpp
+
+Same model finalist (`Qwen3-Coder-30B-A3B-Instruct`), same hardware, same
+bench harness, ad-hoc lab launchers per engine. Artifacts under
+[`docs/model-lab/2026-05-15-engines-qwen3-coder-30b-a3b/`](2026-05-15-engines-qwen3-coder-30b-a3b/)
+and the original vLLM AWQ baseline at
+[`docs/model-lab/bench-artifacts/2026-05-15-qwen3-coder-30b-a3b-awq/`](bench-artifacts/2026-05-15-qwen3-coder-30b-a3b-awq/).
+
+| Engine | Quant | Image | Max ctx fit | Notes |
+|---|---|---|---|---|
+| vLLM 0.21 | AWQ 4-bit (`compressed-tensors`) | `vllm/vllm-openai:latest` | 131072 (FP8 KV, gpu-mem-util 0.92) | baseline; `--tool-call-parser qwen3_xml` |
+| SGLang 0.5.11 | AWQ 4-bit (same checkpoint) | `lmsysorg/sglang:latest` | 32768 (`mem-fraction-static 0.82`, OOM at 64K) | needed `SGLANG_USE_AITER=0`, `--disable-cuda-graph-padding` |
+| llama.cpp `b9159` | GGUF Q4_K_M (`giladgd/...`) | `ghcr.io/ggml-org/llama.cpp:server-cuda` | 131072 total (32K/slot @ `--parallel 4`) | `-ts 1,1`, `-fa on`, `--jinja`; smaller VRAM footprint (~16 GB/GPU) |
+
+### Micro (single-stream, p50 ms / mean decode tok/s, repeats=10 warmup=2)
+
+| Test | vLLM | SGLang | llama.cpp |
+|---|---|---|---|
+| `code_config_review`         | 1707 / 175.7 | 1640 / 182.7 | **1541 / 194.4** |
+| `short_ops_summary`          | **918** / 175.3 | 1080 / 182.8 | 1033 / **194.1** |
+| `structured_json_contract`   | 238 / 167.9 | 232 / 171.8 | **219 / 182.3** |
+| `tool_call_contract`         | 212 / 165.5 | 211 / 164.4 | **195 / 178.9** |
+| `long_context_31k` (~37k tok) | OK 134.6 tok/s | FAIL (32K cap) | FAIL (per-slot 32K cap) |
+| `long_context_60k` (~73k tok) | OK 111.7 tok/s | FAIL | FAIL |
+
+### Concurrency sweep (24 reqs/concurrency, fixtures dataset, max_tokens=200)
+
+| c | vLLM rps / p50 / tok/s | SGLang rps / p50 / tok/s | llama.cpp rps / p50 / tok/s |
+|---|---|---|---|
+| 1  | 1.15 / 1124 / 175.9 | 1.15 / 1077 / 181.2 | 1.22 / **1013** / **190.8** |
+| 4  | **3.08** / 1538 / **127.2** | 2.92 / 1508 / 123.4 | 2.00 / 2312 /  85.6 |
+| 8  | **4.41** / 1663 / **104.4** | not run | not run |
+| 16 | not run | **6.35** / **2353** / 87.4 | 2.20 / 5497 / 37.0 |
+
+### Tool-call correctness (BFCL-lite, 5 cases x 3 reps)
+
+| Engine | Selection | Args |
+|---|---|---|
+| vLLM (qwen3_xml parser) | **1.0** | **1.0** |
+| SGLang (qwen3_coder parser) | 0.8 | 0.8 (case-folding bug: returned `Summarize_logs` for `summarize_logs`) |
+| llama.cpp (`--jinja`) | **1.0** | **1.0** |
+
+### Verdict
+
+Decision rule from the v3 plan: keep vLLM unless another engine wins by
+>=20 % on TPOT or materially on agent correctness.
+
+- **llama.cpp** is the **single-stream speed winner** by ~8-13 % on every
+  short test, and matches vLLM on tool-call correctness. But:
+  - the win is below the 20 % bar;
+  - it falls off a cliff under concurrency (37 tok/s decode at c=16 vs
+    vLLM ~104 at c=8) because of the fixed `--parallel` slot count;
+  - GGUF Q4_K_M is a different (lower-quality) quant than AWQ 4-bit, so
+    speed comparisons need an accuracy parity check before claiming
+    "free" wins. Not run yet.
+- **SGLang** matches vLLM within noise on short tests, scales well at
+  c=16, but loses 20 pp on BFCL (case-folding) and **cannot fit 64 K
+  context** in the same VRAM budget that vLLM uses for 128 K. AWQ
+  support also still requires the workaround stack (no AITER, disabled
+  CUDA-graph padding).
+
+vLLM stays the **primary engine** for the daily agent route. Two narrow
+opt-in roles for the others worth keeping in mind:
+
+- **llama.cpp / GGUF Q4_K_M** for **single-user, no-concurrency** local
+  use (e.g. a personal IDE chat); needs an accuracy spot-check before
+  promotion.
+- **SGLang** as a **high-concurrency batch** option for short-prompt
+  agent traffic where 32K context is enough; revisit once the AWQ
+  defaults stop needing workarounds.
+
+Filed under "do not switch yet". Phase 5 is up next: constrained MoE
+offload via ik_llama.cpp / ktransformers on GLM-4.5-Air-class candidates.
