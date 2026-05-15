@@ -660,3 +660,44 @@ happens, this phase is worth re-running. Until then:
 This closes the v3 plan. Phase 6 systemd updates and the Phase 4
 engine verdict were already published; the canvas can be refreshed off
 this doc directly.
+
+## 2026-05-15 follow-up: strong-long promoted to daily route
+
+After all five evaluation phases, the per-GPU split (`fast` on
+Qwen2.5-7B + `strong` on Qwen2.5-14B-AWQ) was retired in favor of the
+TP=2 strong-long route. Daily state on the Alienware:
+
+| Service | Port | Binding | Model | Ctx | Enable | Active |
+|---|---|---|---|---|---|---|
+| `alienware-vllm-strong-long` | 8002 | both 3090s, TP=2 | `Qwen3-Coder-30B-A3B-AWQ` | 128K | enabled | yes |
+| `alienware-vllm-fast` | 8000 | GPU0 (pinned) | Qwen2.5-7B | 32K | disabled | no |
+| `alienware-vllm-strong` | 8001 | GPU1 (pinned) | Qwen2.5-14B-AWQ | 32K | disabled | no |
+
+The three units carry mutual `Conflicts=` so they can't fight. The
+`vllm-strong-long.env` placeholder API key was rotated in place to a
+real value during the promotion. To revert without losing the units:
+
+```bash
+systemctl --user stop  alienware-vllm-strong-long.service
+systemctl --user disable alienware-vllm-strong-long.service
+systemctl --user enable --now alienware-vllm-fast.service alienware-vllm-strong.service
+```
+
+### Why now
+
+- Phase 3 micro/RULER/BFCL: the Qwen3-Coder-30B-A3B finalist beats the
+  retired 14B-AWQ on every short test and adds 96K of usable context.
+- Phase 4 engine bake-off: vLLM stays primary, so no engine swap is in
+  flight to hold this back.
+- Phase 5 negative result: there is no big-MoE offload route waiting in
+  the wings to displace this; the strong-long profile is the ceiling on
+  this hardware until RAM/VRAM grows.
+
+### Still open
+
+1. **Accuracy parity check on llama.cpp Q4_K_M vs vLLM AWQ** — see the
+   open-items list at the bottom. This blocks promoting llama.cpp to a
+   single-user IDE chat role.
+2. **SGLang AWQ revisit** once upstream stops needing the
+   `SGLANG_USE_AITER=0 + --disable-cuda-graph-padding` workaround stack
+   for compressed-tensors checkpoints.
