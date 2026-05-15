@@ -1,0 +1,45 @@
+{
+  "model": "homelab-fast-vllm",
+  "model_key": "q25-7b-smoke",
+  "overall_args_rate": 0.2,
+  "overall_selection_rate": 0.2,
+  "per_case": {
+    "logs_with_since": {
+      "args_rate": 0.0,
+      "latency_ms": {
+        "n": 0
+      },
+      "selection_rate": 0.0
+    },
+    "no_tool_needed": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "n": 0
+      },
+      "selection_rate": 1.0
+    },
+    "search_default_limit": {
+      "args_rate": 0.0,
+      "latency_ms": {
+        "n": 0
+      },
+      "selection_rate": 0.0
+    },
+    "simple_gpu_memory": {
+      "args_rate": 0.0,
+      "latency_ms": {
+        "n": 0
+      },
+      "selection_rate": 0.0
+    },
+    "simple_restart": {
+      "args_rate": 0.0,
+      "latency_ms": {
+        "n": 0
+      },
+      "selection_rate": 0.0
+    }
+  },
+  "repeats": 1,
+  "started_at": "2026-05-15T10:06:18-0700"
+}

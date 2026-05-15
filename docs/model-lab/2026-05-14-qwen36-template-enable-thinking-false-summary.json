@@ -1,0 +1,53 @@
+[
+  {
+    "name": "plain_enable_thinking_false",
+    "latency_ms": 1424,
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 51,
+      "total_tokens": 140,
+      "completion_tokens": 89,
+      "prompt_tokens_details": null
+    },
+    "content": "*   When processing documents exceeding 32,768 tokens, such as lengthy legal contracts, technical manuals, or full-length books, to maintain coherence across the entire text.\n*   When performing complex cross-document analysis or summarization tasks that require synthesizing information from multiple large sources simultaneously.\n*   When engaging in extended multi-turn conversations where retaining context from earlier parts of the dialogue is critical for accurate and consistent responses.",
+    "reasoning_excerpt": "",
+    "tool_calls": []
+  },
+  {
+    "name": "json_enable_thinking_false",
+    "latency_ms": 691,
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 49,
+      "total_tokens": 90,
+      "completion_tokens": 41,
+      "prompt_tokens_details": null
+    },
+    "content": "{\n  \"route\": \"summarize logs\",\n  \"escalation_condition\": \"CUDA OOM or schema parse errors\",\n  \"confidence\": 0.95\n}",
+    "reasoning_excerpt": "",
+    "tool_calls": []
+  },
+  {
+    "name": "tool_enable_thinking_false",
+    "latency_ms": 789,
+    "finish_reason": "tool_calls",
+    "usage": {
+      "prompt_tokens": 492,
+      "total_tokens": 520,
+      "completion_tokens": 28,
+      "prompt_tokens_details": null
+    },
+    "content": null,
+    "reasoning_excerpt": "",
+    "tool_calls": [
+      {
+        "id": "chatcmpl-tool-ac16d7f9c02f759e",
+        "type": "function",
+        "function": {
+          "name": "get_gpu_memory",
+          "arguments": "{\"host\": \"alienware\"}"
+        }
+      }
+    ]
+  }
+]

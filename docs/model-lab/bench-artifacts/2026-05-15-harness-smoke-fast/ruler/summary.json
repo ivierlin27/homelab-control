@@ -1,0 +1,50 @@
+{
+  "by_task_length": {
+    "niah_single_simple": {
+      "8192": {
+        "attempts": 2,
+        "latency_ms": {
+          "cv": 0.0057,
+          "max": 3068,
+          "mean": 3050.5,
+          "min": 3033,
+          "n": 2,
+          "p50": 3050.5,
+          "p95": 3066.25,
+          "p99": 3067.65,
+          "stdev": 17.5
+        },
+        "match_rate": 1.0
+      }
+    },
+    "vt_2hop": {
+      "8192": {
+        "attempts": 2,
+        "latency_ms": {
+          "cv": 0.0052,
+          "max": 3010,
+          "mean": 2994.5,
+          "min": 2979,
+          "n": 2,
+          "p50": 2994.5,
+          "p95": 3008.45,
+          "p99": 3009.69,
+          "stdev": 15.5
+        },
+        "match_rate": 1.0
+      }
+    }
+  },
+  "finished_at": "2026-05-15T10:06:18-0700",
+  "lengths": [
+    8192
+  ],
+  "model": "homelab-fast-vllm",
+  "model_key": "q25-7b-smoke",
+  "samples": 2,
+  "started_at": "2026-05-15T10:06:06-0700",
+  "tasks": [
+    "niah_single_simple",
+    "vt_2hop"
+  ]
+}

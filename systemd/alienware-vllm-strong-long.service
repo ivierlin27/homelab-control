@@ -1,0 +1,46 @@
+[Unit]
+Description=Homelab vLLM strong-long backend (TP=2 across both GPUs)
+After=network-online.target
+Wants=network-online.target
+# Cannot coexist with the per-GPU fast/strong units; this one needs both
+# 3090s. Activate via:
+#   systemctl --user stop alienware-vllm-fast alienware-vllm-strong
+#   systemctl --user start alienware-vllm-strong-long
+Conflicts=alienware-vllm-fast.service alienware-vllm-strong.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/homelab-control/vllm-strong-long.env
+ExecStartPre=/usr/bin/podman rm -f homelab-vllm-strong-long
+ExecStart=/usr/bin/bash -lc '/usr/bin/podman run --name homelab-vllm-strong-long --replace \
+  --device "nvidia.com/gpu=all" \
+  --security-opt=label=disable --ipc=host \
+  -p 0.0.0.0:8002:8002 \
+  -v /mnt/data/hf-cache:/root/.cache/huggingface:Z \
+  -v /mnt/data/tmp:/tmp:Z \
+  -e HF_HUB_ENABLE_HF_TRANSFER=1 \
+  -e VLLM_ATTENTION_BACKEND=FLASHINFER \
+  -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+  --env-file %h/.config/homelab-control/vllm-strong-long.env \
+  "${VLLM_STRONG_LONG_IMAGE:-docker.io/vllm/vllm-openai:latest}" \
+  --host 0.0.0.0 --port 8002 \
+  --model "$VLLM_STRONG_LONG_MODEL" \
+  --served-model-name "$VLLM_STRONG_LONG_SERVED_MODEL_NAME" \
+  --tensor-parallel-size 2 \
+  --quantization "$VLLM_STRONG_LONG_QUANTIZATION" \
+  --dtype "$VLLM_STRONG_LONG_DTYPE" \
+  --kv-cache-dtype "$VLLM_STRONG_LONG_KV_CACHE_DTYPE" \
+  --max-model-len "$VLLM_STRONG_LONG_MAX_MODEL_LEN" \
+  --max-num-batched-tokens "$VLLM_STRONG_LONG_MAX_NUM_BATCHED_TOKENS" \
+  --max-num-seqs "$VLLM_STRONG_LONG_MAX_NUM_SEQS" \
+  --gpu-memory-utilization "$VLLM_STRONG_LONG_GPU_MEMORY_UTILIZATION" \
+  --enable-prefix-caching --enable-chunked-prefill \
+  --enable-auto-tool-choice --tool-call-parser "${VLLM_STRONG_LONG_TOOL_PARSER:-qwen3_xml}" \
+  --trust-remote-code --disable-custom-all-reduce \
+  --api-key "$VLLM_STRONG_LONG_API_KEY" $VLLM_STRONG_LONG_EXTRA_ARGS'
+ExecStop=/usr/bin/podman stop -t 30 homelab-vllm-strong-long
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

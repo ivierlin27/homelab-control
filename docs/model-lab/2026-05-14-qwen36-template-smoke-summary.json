@@ -1,0 +1,47 @@
+[
+  {
+    "name": "plain_no_think",
+    "ok": true,
+    "latency_ms": 6548,
+    "usage": {
+      "prompt_tokens": 52,
+      "total_tokens": 372,
+      "completion_tokens": 320,
+      "prompt_tokens_details": null
+    },
+    "finish_reason": "length",
+    "content": null,
+    "reasoning_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Command:** `/no_think` (implies direct, concise output without reasoning)\n   - **Request:** \"Give 3 bullets on when Kevin should use Qwen3.6 TP=2 as a long-context mode.\"\n   - **Key Entities:** Kevin (user/persona), Qwen3.6 (model version), TP=2 (Tensor Parallelism = 2), long-context mode\n   - **Format:** 3 bullet points\n\n2.  **Identify Constraints & Requirements:**\n   - Must be exactly 3 bullets\n   - Must address when to use this sp",
+    "tool_calls": []
+  },
+  {
+    "name": "json_contract",
+    "ok": true,
+    "latency_ms": 3546,
+    "usage": {
+      "prompt_tokens": 50,
+      "total_tokens": 230,
+      "completion_tokens": 180,
+      "prompt_tokens_details": null
+    },
+    "finish_reason": "length",
+    "content": null,
+    "reasoning_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - Command: `/no_think` (implies direct, concise output)\n   - Request: \"Return keys route, escalation_condition, confidence for: summarize logs, escalate on CUDA OOM or schema parse errors.\"\n   - Format requirement: \"Return only a JSON object. No markdown.\"\n\n2.  **Identify Required Keys:**\n   - `route`\n   - `escalation_condition`\n   - `confidence`\n\n3.  **Map Input to Keys:**\n   - `route`: \"summarize logs\"\n   - `escalation_condition`: \"CUD",
+    "tool_calls": []
+  },
+  {
+    "name": "tool_call",
+    "ok": true,
+    "latency_ms": 1615,
+    "usage": {
+      "prompt_tokens": 491,
+      "total_tokens": 567,
+      "completion_tokens": 76,
+      "prompt_tokens_details": null
+    },
+    "finish_reason": "stop",
+    "content": "\n\nI need to know which host you'd like me to check. Could you please provide the hostname or IP address?",
+    "reasoning_excerpt": "The user wants to check GPU memory.\nI have a tool `get_gpu_memory` that requires a `host` parameter.\nThe user did not specify a host.\nI should ask the user for the host name or IP address.\n",
+    "tool_calls": []
+  }
+]

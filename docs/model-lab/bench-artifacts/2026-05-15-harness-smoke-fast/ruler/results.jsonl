@@ -1,0 +1,4 @@
+{"answer_excerpt": "IV5UTAGP", "completion_tokens": 6, "error": "", "expected": "IV5UTAGP", "latency_ms": 3068, "match": true, "ok": true, "prompt_tokens": 12661, "sample": 0, "target_tokens": 8192, "task": "niah_single_simple"}
+{"answer_excerpt": "DX9O6625", "completion_tokens": 8, "error": "", "expected": "DX9O6625", "latency_ms": 3033, "match": true, "ok": true, "prompt_tokens": 12689, "sample": 1, "target_tokens": 8192, "task": "niah_single_simple"}
+{"answer_excerpt": "CDCK50", "completion_tokens": 5, "error": "", "expected": "CDCK50", "latency_ms": 2979, "match": true, "ok": true, "prompt_tokens": 12668, "sample": 0, "target_tokens": 8192, "task": "vt_2hop"}
+{"answer_excerpt": "1C4BDJ", "completion_tokens": 6, "error": "", "expected": "1C4BDJ", "latency_ms": 3010, "match": true, "ok": true, "prompt_tokens": 12669, "sample": 1, "target_tokens": 8192, "task": "vt_2hop"}

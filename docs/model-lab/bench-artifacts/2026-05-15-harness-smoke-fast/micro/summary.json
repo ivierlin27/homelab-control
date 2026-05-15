@@ -1,0 +1,187 @@
+{
+  "finished_at": "2026-05-15T10:04:21-0700",
+  "gpu_after": [
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1905.0,
+      "index": 0,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 21243.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 346.72,
+      "temp.gpu_c": 53.0,
+      "util.gpu_pct": 100.0
+    },
+    {
+      "clock.mem_mhz": 405.0,
+      "clock.sm_mhz": 210.0,
+      "index": 1,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 356.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 18.11,
+      "temp.gpu_c": 26.0,
+      "util.gpu_pct": 0.0
+    }
+  ],
+  "meta": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "gpu_before": [
+      {
+        "clock.mem_mhz": 9501.0,
+        "clock.sm_mhz": 1695.0,
+        "index": 0,
+        "memory.total_mib": 24576.0,
+        "memory.used_mib": 21239.0,
+        "name": "NVIDIA GeForce RTX 3090",
+        "power.draw_w": 101.52,
+        "temp.gpu_c": 38.0,
+        "util.gpu_pct": 0.0
+      },
+      {
+        "clock.mem_mhz": 405.0,
+        "clock.sm_mhz": 210.0,
+        "index": 1,
+        "memory.total_mib": 24576.0,
+        "memory.used_mib": 356.0,
+        "name": "NVIDIA GeForce RTX 3090",
+        "power.draw_w": 18.03,
+        "temp.gpu_c": 26.0,
+        "util.gpu_pct": 0.0
+      }
+    ],
+    "kind": "meta",
+    "model": "homelab-fast-vllm",
+    "model_key": "q25-7b-smoke",
+    "repeats": 3,
+    "started_at": "2026-05-15T10:04:04-0700",
+    "test_ids": [
+      "short_ops_summary",
+      "structured_json_contract",
+      "tool_call_contract"
+    ],
+    "vllm_metrics_before": {},
+    "warmup": 1
+  },
+  "per_test": {
+    "short_ops_summary": {
+      "attempts": 2,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 220.0,
+        "mean": 220.0,
+        "min": 220.0,
+        "n": 2,
+        "p50": 220.0,
+        "p95": 220.0,
+        "p99": 220.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0007,
+        "max": 51.15,
+        "mean": 51.115,
+        "min": 51.08,
+        "n": 2,
+        "p50": 51.115,
+        "p95": 51.1465,
+        "p99": 51.1493,
+        "stdev": 0.035
+      },
+      "latency_ms": {
+        "cv": 0.0007,
+        "max": 4307,
+        "mean": 4304.0,
+        "min": 4301,
+        "n": 2,
+        "p50": 4304.0,
+        "p95": 4306.7,
+        "p99": 4306.94,
+        "stdev": 3.0
+      },
+      "ok_count": 2,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 54.0,
+        "mean": 54.0,
+        "min": 54.0,
+        "n": 2,
+        "p50": 54.0,
+        "p95": 54.0,
+        "p99": 54.0,
+        "stdev": 0.0
+      }
+    },
+    "structured_json_contract": {
+      "attempts": 2,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 36.0,
+        "mean": 36.0,
+        "min": 36.0,
+        "n": 2,
+        "p50": 36.0,
+        "p95": 36.0,
+        "p99": 36.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0084,
+        "max": 50.63,
+        "mean": 50.21,
+        "min": 49.79,
+        "n": 2,
+        "p50": 50.21,
+        "p95": 50.588,
+        "p99": 50.6216,
+        "stdev": 0.42
+      },
+      "json_validity_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0084,
+        "max": 723,
+        "mean": 717.0,
+        "min": 711,
+        "n": 2,
+        "p50": 717.0,
+        "p95": 722.4,
+        "p99": 722.88,
+        "stdev": 6.0
+      },
+      "ok_count": 2,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 58.0,
+        "mean": 58.0,
+        "min": 58.0,
+        "n": 2,
+        "p50": 58.0,
+        "p95": 58.0,
+        "p99": 58.0,
+        "stdev": 0.0
+      },
+      "schema_pass_rate": 0.0
+    },
+    "tool_call_contract": {
+      "attempts": 2,
+      "completion_tokens": {
+        "n": 0
+      },
+      "decode_tok_s": {
+        "n": 0
+      },
+      "latency_ms": {
+        "n": 0
+      },
+      "ok_count": 0,
+      "ok_rate": 0.0,
+      "prompt_tokens": {
+        "n": 0
+      },
+      "tool_call_match_rate": 0.0
+    }
+  },
+  "vllm_metrics_after": {}
+}

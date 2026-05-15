@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-05-14T18:23:09-0700",
+  "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+  "model": "carnice-v2-27b-int4-bf16mtp",
+  "gpu_before": "0, NVIDIA GeForce RTX 3090, 21901 MiB, 24576 MiB, 0 %\n1, NVIDIA GeForce RTX 3090, 22011 MiB, 24576 MiB, 0 %",
+  "gpu_after": "0, NVIDIA GeForce RTX 3090, 24011 MiB, 24576 MiB, 100 %\n1, NVIDIA GeForce RTX 3090, 23885 MiB, 24576 MiB, 0 %",
+  "records": [
+    {
+      "ok": true,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "short_ops_summary",
+      "latency_ms": 5515,
+      "prompt_tokens": 56,
+      "completion_tokens": 220,
+      "total_tokens": 276,
+      "decode_tok_s": 39.89,
+      "finish_reason": "length",
+      "content_excerpt": "",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "Here's a thinking process:\n\n1.  **Analyze the Request:**\n    *   **Topic:** A single large local model (LLVM) serving both fast and strong use cases.\n*   **Task:** Provide 5 bullet points explaining *when* this is a good idea and *when* it is not.\n\n *   **Context:** The user is asking about a specif",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "code_config_review",
+      "latency_ms": 3484,
+      "prompt_tokens": 99,
+      "completion_tokens": 300,
+      "total_tokens": 399,
+      "decode_tok_s": 86.11,
+      "finish_reason": "length",
+      "content_excerpt": "",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "The user wants me to review a vLLME (vision-language model) plan and identify operational risks, then recommend a better setup.\n\nLet me analyze the plan:\n1. Run a 32B or 27B model with --tensor-parallel-size 2 across both RTX 3090s\n2. Start Qwen2.5-7B on GPU0 for fast tasks\n3. Both should expose Ope",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "structured_json_contract",
+      "latency_ms": 1218,
+      "prompt_tokens": 60,
+      "completion_tokens": 28,
+      "total_tokens": 88,
+      "decode_tok_s": 22.99,
+      "finish_reason": "stop",
+      "content_excerpt": "",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "{\"route\": \"summarize_agent_logs\", \"escalation_condition\": \"Failure\", \"confidence\": 0.9}\n",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "tool_call_contract",
+      "latency_ms": 472,
+      "prompt_tokens": 230,
+      "completion_tokens": 24,
+      "total_tokens": 254,
+      "decode_tok_s": 50.85,
+      "finish_reason": "tool_calls",
+      "content_excerpt": "",
+      "tool_call_count": 1,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "long_context_31k",
+      "latency_ms": 300108,
+      "error": "<HTTPError 500: 'Internal Server Error'>",
+      "error_body": "{\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}"
+    },
+    {
+      "ok": false,
+      "model_key": "carnice-v2-27b-int4-bf16mtp-128k",
+      "test_id": "long_context_60k",
+      "latency_ms": 2,
+      "error": "<HTTPError 500: 'Internal Server Error'>",
+      "error_body": "{\"error\":{\"message\":\"EngineCore encountered an issue. See stack trace (above) for the root cause.\",\"type\":\"InternalServerError\",\"param\":null,\"code\":500}}"
+    }
+  ]
+}

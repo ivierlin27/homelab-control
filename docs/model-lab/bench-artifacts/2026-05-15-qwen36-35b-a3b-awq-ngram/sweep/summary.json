@@ -1,0 +1,161 @@
+{
+  "base_url": "http://127.0.0.1:8010/v1",
+  "concurrencies": [
+    1,
+    4,
+    8
+  ],
+  "dataset_size": 4,
+  "finished_at": "2026-05-15T11:07:24-0700",
+  "gpu_after": [
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1950.0,
+      "index": 0,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 23649.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 237.68,
+      "temp.gpu_c": 63.0,
+      "util.gpu_pct": 62.0
+    },
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1935.0,
+      "index": 1,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 23878.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 226.79,
+      "temp.gpu_c": 63.0,
+      "util.gpu_pct": 67.0
+    }
+  ],
+  "gpu_before": [
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1950.0,
+      "index": 0,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 23649.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 244.87,
+      "temp.gpu_c": 64.0,
+      "util.gpu_pct": 12.0
+    },
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1935.0,
+      "index": 1,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 23878.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 232.48,
+      "temp.gpu_c": 63.0,
+      "util.gpu_pct": 14.0
+    }
+  ],
+  "model": "lab-qwen36-35b-a3b-awq",
+  "model_key": "qwen36-35b-a3b-awq-ngram",
+  "requests_per_concurrency": 16,
+  "started_at": "2026-05-15T11:06:25-0700",
+  "sweeps": [
+    {
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 200.0,
+        "mean": 200.0,
+        "min": 200.0,
+        "n": 16,
+        "p50": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 0.0
+      },
+      "concurrency": 1,
+      "decode_tok_s_mean": 116.462,
+      "elapsed_s": 28.055,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.1391,
+        "max": 2080,
+        "mean": 1752.5625,
+        "min": 1317,
+        "n": 16,
+        "p50": 1754.5,
+        "p95": 2068.0,
+        "p99": 2077.6,
+        "stdev": 243.7573
+      },
+      "requests_attempted": 16,
+      "requests_ok": 16,
+      "rps_attempted": 0.57,
+      "rps_completed": 0.57
+    },
+    {
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 200.0,
+        "mean": 200.0,
+        "min": 200.0,
+        "n": 16,
+        "p50": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 0.0
+      },
+      "concurrency": 4,
+      "decode_tok_s_mean": 46.919,
+      "elapsed_s": 19.036,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.1891,
+        "max": 6107,
+        "mean": 4429.0,
+        "min": 2696,
+        "n": 16,
+        "p50": 4289.0,
+        "p95": 5766.5,
+        "p99": 6038.9,
+        "stdev": 837.5767
+      },
+      "requests_attempted": 16,
+      "requests_ok": 16,
+      "rps_attempted": 0.84,
+      "rps_completed": 0.84
+    },
+    {
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 200.0,
+        "mean": 200.0,
+        "min": 200.0,
+        "n": 16,
+        "p50": 200.0,
+        "p95": 200.0,
+        "p99": 200.0,
+        "stdev": 0.0
+      },
+      "concurrency": 8,
+      "decode_tok_s_mean": 38.349,
+      "elapsed_s": 12.046,
+      "errors": 0,
+      "latency_ms": {
+        "cv": 0.1547,
+        "max": 7237,
+        "mean": 5341.0,
+        "min": 3743,
+        "n": 16,
+        "p50": 5250.5,
+        "p95": 6680.5,
+        "p99": 7125.7,
+        "stdev": 826.1706
+      },
+      "requests_attempted": 16,
+      "requests_ok": 16,
+      "rps_attempted": 1.328,
+      "rps_completed": 1.328
+    }
+  ],
+  "vllm_metrics_after": {}
+}

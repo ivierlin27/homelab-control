@@ -1,13 +1,35 @@
 [Unit]
-Description=Homelab vLLM fast-model backend
+Description=Homelab vLLM fast-model backend (GPU0)
 After=network-online.target
 Wants=network-online.target
+# Conflicts with the strong-long unit because that one needs both GPUs.
+Conflicts=alienware-vllm-strong-long.service
 
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/homelab-control/vllm-fast.env
 ExecStartPre=/usr/bin/podman rm -f homelab-vllm-fast
-ExecStart=/usr/bin/bash -lc '/usr/bin/podman run --name homelab-vllm-fast --replace --device nvidia.com/gpu=all --security-opt=label=disable --ipc=host -p 0.0.0.0:8000:8000 -v %h/.cache/huggingface:/root/.cache/huggingface:Z --env-file %h/.config/homelab-control/vllm-fast.env docker.io/vllm/vllm-openai:v0.19.1 --host 0.0.0.0 --port 8000 --model "$VLLM_FAST_MODEL" --served-model-name "$VLLM_FAST_SERVED_MODEL_NAME" --dtype "$VLLM_FAST_DTYPE" --max-model-len "$VLLM_FAST_MAX_MODEL_LEN" --gpu-memory-utilization "$VLLM_FAST_GPU_MEMORY_UTILIZATION" --kv-cache-dtype "$VLLM_FAST_KV_CACHE_DTYPE" --max-num-batched-tokens "$VLLM_FAST_MAX_NUM_BATCHED_TOKENS" --max-num-seqs "$VLLM_FAST_MAX_NUM_SEQS" --enable-prefix-caching --enable-chunked-prefill --api-key "$VLLM_FAST_API_KEY" $VLLM_FAST_EXTRA_ARGS'
+ExecStart=/usr/bin/bash -lc '/usr/bin/podman run --name homelab-vllm-fast --replace \
+  --device "nvidia.com/gpu=${VLLM_FAST_GPU_DEVICE:-0}" \
+  --security-opt=label=disable --ipc=host \
+  -p 0.0.0.0:8000:8000 \
+  -v /mnt/data/hf-cache:/root/.cache/huggingface:Z \
+  -v /mnt/data/tmp:/tmp:Z \
+  -e HF_HUB_ENABLE_HF_TRANSFER=1 \
+  --env-file %h/.config/homelab-control/vllm-fast.env \
+  "${VLLM_FAST_IMAGE:-docker.io/vllm/vllm-openai:latest}" \
+  --host 0.0.0.0 --port 8000 \
+  --model "$VLLM_FAST_MODEL" \
+  --served-model-name "$VLLM_FAST_SERVED_MODEL_NAME" \
+  --dtype "$VLLM_FAST_DTYPE" \
+  --max-model-len "$VLLM_FAST_MAX_MODEL_LEN" \
+  --gpu-memory-utilization "$VLLM_FAST_GPU_MEMORY_UTILIZATION" \
+  --kv-cache-dtype "$VLLM_FAST_KV_CACHE_DTYPE" \
+  --max-num-batched-tokens "$VLLM_FAST_MAX_NUM_BATCHED_TOKENS" \
+  --max-num-seqs "$VLLM_FAST_MAX_NUM_SEQS" \
+  --enable-prefix-caching --enable-chunked-prefill \
+  --enable-auto-tool-choice --tool-call-parser "${VLLM_FAST_TOOL_PARSER:-hermes}" \
+  --api-key "$VLLM_FAST_API_KEY" $VLLM_FAST_EXTRA_ARGS'
 ExecStop=/usr/bin/podman stop -t 20 homelab-vllm-fast
 Restart=always
 RestartSec=10

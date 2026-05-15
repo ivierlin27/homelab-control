@@ -1,0 +1,185 @@
+{
+  "generated_at": "2026-05-14T16:56:15-0700",
+  "gpu_before": "0, NVIDIA GeForce RTX 3090, 21491 MiB, 24576 MiB, 0 %\n1, NVIDIA GeForce RTX 3090, 16749 MiB, 24576 MiB, 0 %",
+  "gpu_after": "0, NVIDIA GeForce RTX 3090, 22057 MiB, 24576 MiB, 47 %\n1, NVIDIA GeForce RTX 3090, 17313 MiB, 24576 MiB, 64 %",
+  "records": [
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "short_ops_summary",
+      "latency_ms": 1256,
+      "prompt_tokens": 51,
+      "completion_tokens": 150,
+      "total_tokens": 201,
+      "decode_tok_s": 119.43,
+      "finish_reason": "stop",
+      "content_excerpt": "1. **For high-speed data transfer**: Use the fast route for transferring large files or streaming media over the internet.\n2. **When latency is critical**: Opt for the fast route if you need minimal delay between sending and receiving data, such as in real-time communication applications like video conferencing.\n3. **In scenarios requiring low-latency gaming**: The fast route is essential for ensuring smooth gameplay by reducing lag time.\n4. **For secure connections**: Utilize the fast route for encrypted traffic that requires quick transmission of sensitive information, such as banking transactions or online purchases.\n5. **During peak network usage periods**: Use the fast route during time",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "code_config_review",
+      "latency_ms": 1354,
+      "prompt_tokens": 117,
+      "completion_tokens": 260,
+      "total_tokens": 377,
+      "decode_tok_s": 192.02,
+      "finish_reason": "length",
+      "content_excerpt": "### Proposed Change Review\n\n#### Old Configuration:\n```bash\n--device nvidia.com/gpu=all -p 8000:8000 --model Qwen2.5-7B\n```\n\n#### New Configuration:\n```bash\nstart fast and strong services both with --device nvidia.com/gpu=all, fast on 8000, strong on 8001, both gpu_memory_utilization=0.92.\n```\n\n### Bugs Found:\n\n1. **Service Naming Confusion**:\n   - The new configuration suggests starting \"fast and strong services\" but does not specify which services are being referred to. This could lead to confusion or misinterpretation of the intended behavior.\n\n2. **GPU Memory Utilization**:\n   - The `gpu_memory_utilization` parameter is set to `0.92`, which means that up to 92% of GPU memory will be util",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "structured_json_contract",
+      "latency_ms": 661,
+      "prompt_tokens": 58,
+      "completion_tokens": 35,
+      "total_tokens": 93,
+      "decode_tok_s": 52.95,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"router\",\n  \"escalation_condition\": \"failures mention CUDA OOM or schema parse errors\",\n  \"confidence\": \"high\"\n}",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "long_context_8k",
+      "latency_ms": 38,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 4096 tokens. However, you requested 240 output tokens and your prompt contains at least 3857 input tokens, for a total of at least 4097 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=3857)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    },
+    {
+      "ok": false,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "long_context_24k",
+      "latency_ms": 99,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 4096 tokens. However, you requested 260 output tokens and your prompt contains at least 3837 input tokens, for a total of at least 4097 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=3837)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "short_ops_summary",
+      "latency_ms": 5100,
+      "prompt_tokens": 53,
+      "completion_tokens": 220,
+      "total_tokens": 273,
+      "decode_tok_s": 43.14,
+      "finish_reason": "length",
+      "content_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Topic:** Model gateway with \"fast\" and \"strong\" routes\n   - **Task:** Explain when to use each\n   - **Format:** Exactly 5 bullets\n   - **Focus:** Kevin's local homelab agents\n   - **Tone/Role:** Concise homelab operations assistant\n\n2.  **Deconstruct Key Concepts:**\n   - *Model Gateway:* A routing layer that directs requests to different AI models based on criteria.\n   - *Fast Route:* Typically uses smaller, faster, cheaper models (e.g., Llama-3-8B, Phi-3, Mistral-7B) optimized for speed and low latency.\n   - *Strong Route:* Typically uses larger, more capable models (e.g., Llama-3-70B, Mixtral, or cloud fallbacks) optimized for ",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "code_config_review",
+      "latency_ms": 4038,
+      "prompt_tokens": 120,
+      "completion_tokens": 260,
+      "total_tokens": 380,
+      "decode_tok_s": 64.39,
+      "finish_reason": "length",
+      "content_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Old Configuration:** `--device nvidia.com/gpu=all -p 8000:8000 --model Qwen2.5-7B`\n   - **New Configuration:** `start fast and strong services both with --device nvidia.com/gpu=all, fast on 8000, strong on 8001, both gpu_memory_utilization=0.92.`\n   - **Task:** Review the proposed vLLM service change, find operational bugs, and provide a corrected recommendation.\n\n2.  **Identify Key Components & Context:**\n   - This looks like a container orchestration command (likely Docker or Podman, given `--device` and `-p` syntax).\n   - vLLM is a high-throughput serving engine for LLMs.\n   - The old config runs a single vLLM instance on all ",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "structured_json_contract",
+      "latency_ms": 1347,
+      "prompt_tokens": 60,
+      "completion_tokens": 41,
+      "total_tokens": 101,
+      "decode_tok_s": 30.44,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"summarize_logs\",\n  \"escalation_condition\": \"CUDA OOM or schema parse errors\",\n  \"confidence\": 0.95\n}",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "long_context_8k",
+      "latency_ms": 28303,
+      "prompt_tokens": 31486,
+      "completion_tokens": 240,
+      "total_tokens": 31726,
+      "decode_tok_s": 8.48,
+      "finish_reason": "length",
+      "content_excerpt": "The user wants me to extract specific information from a long ledger log.\nI need to find the values for `alpha`, `bravo`, `charlie`, and `recommendation` based on the ledger.\nThe prompt says: \"Use only the ledger. Return JSON with keys alpha, bravo, charlie, and recommendation.\"\nI should look for `NEEDLE_ALPHA`, `NEEDLE_BRAVO`, `NEEDLE_CHARLIE` in the ledger.\n\nScanning the ledger:\n- `NEEDLE_ALPHA` is at event 17: `2026-05-14T17:17:00Z error component=agents event=17 latency_ms=57 NEEDLE_ALPHA gpu1 strong route must be isolated from fast route`\n- `NEEDLE_BRAVO` is at event 425: `2026-05-14T17:05:00Z error component=agents event=425 latency_ms=465 NEEDLE_BRAVO model gateway returned 502 while ",
+      "needle_hits": {
+        "NEEDLE_ALPHA": true,
+        "NEEDLE_BRAVO": true,
+        "NEEDLE_CHARLIE": true
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "long_context_24k",
+      "latency_ms": 105,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 32768 tokens. However, you requested 260 output tokens and your prompt contains at least 32509 input tokens, for a total of at least 32769 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=32509)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "concurrent_short_ops_summary",
+      "latency_ms": 2096,
+      "prompt_tokens": 51,
+      "completion_tokens": 198,
+      "total_tokens": 249,
+      "decode_tok_s": 94.47,
+      "finish_reason": "stop",
+      "content_excerpt": "1. **For high-speed data transfer:** Use the fast route for transferring large files or streaming media directly between your home network devices without any latency issues.\n2. **To ensure low-latency communication:** Utilize the fast route whenever you need immediate response times from connected devices, such as gaming sessions or real-time applications where delay is unacceptable.\n3. **In scenarios requiring secure data transmission:** Employ the fast route for encrypting sensitive information like personal data or financial transactions over your local network, ensuring that no unauthorized access can compromise the security of this critical data.\n4. **When optimizing bandwidth usage:**",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_32k_lowmem",
+      "test_id": "concurrent_code_config_review",
+      "latency_ms": 5222,
+      "prompt_tokens": 120,
+      "completion_tokens": 260,
+      "total_tokens": 380,
+      "decode_tok_s": 49.79,
+      "finish_reason": "length",
+      "content_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Old Configuration:** `--device nvidia.com/gpu=all -p 8000:8000 --model Qwen2.5-7B`\n   - **New Configuration:** \"start fast and strong services both with `--device nvidia.com/gpu=all`, fast on 8000, strong on 8001, both `gpu_memory_utilization=0.92`.\"\n   - **Context:** vLLM service deployment (likely using Docker, Podman, or a similar container runtime, given the `--device` and `-p` flags).\n   - **Task:** Review the diff, find operational bugs, and provide a corrected recommendation.\n\n2.  **Identify Key Components & Potential Issues:**\n   - `--device nvidia.com/gpu=all`: This syntax looks like Podman or Docker with NVIDIA Containe",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    }
+  ],
+  "concurrent_wall_ms": 5225
+}

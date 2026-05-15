@@ -1,0 +1,112 @@
+{
+  "generated_at": "2026-05-14T18:04:07-0700",
+  "model_key": "qwen36-35b-a3b-awq-64k-tools",
+  "model": "qwen36-35b-a3b-awq",
+  "gpu_before": "0, NVIDIA GeForce RTX 3090, 22375 MiB, 24576 MiB, 0 %\n1, NVIDIA GeForce RTX 3090, 22485 MiB, 24576 MiB, 0 %",
+  "gpu_after": "0, NVIDIA GeForce RTX 3090, 23263 MiB, 24576 MiB, 70 %\n1, NVIDIA GeForce RTX 3090, 23373 MiB, 24576 MiB, 76 %",
+  "records": [
+    {
+      "ok": true,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "short_ops_summary",
+      "latency_ms": 3604,
+      "prompt_tokens": 58,
+      "completion_tokens": 220,
+      "total_tokens": 278,
+      "decode_tok_s": 61.04,
+      "finish_reason": "length",
+      "content_excerpt": "*   **Good:** When hardware constraints prevent running multiple specialized models, a single large model (e.g., Llama-3-70B) acts as a versatile \"Swiss Army knife,\" simplifying infrastructure management and reducing the overhead of maintaining separate inference servers.\n*   **Good:** When use cases are mixed but not strictly latency-critical, a large model provides consistent high-quality reasoning and creativity across diverse tasks (coding, summarization, chat) without needing to route requests to different endpoints based on complexity.\n*   **Bad:** When strict low-latency requirements exist (e.g., real-time voice interaction or high-throughput API serving), a single large model creates a bottleneck; smaller, specialized models (e.g., 7B or 3B parameters) would serve fast queries significantly quicker with lower GPU memory usage.\n*   **Bad:** When cost efficiency is paramount for hi",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "code_config_review",
+      "latency_ms": 2870,
+      "prompt_tokens": 101,
+      "completion_tokens": 300,
+      "total_tokens": 401,
+      "decode_tok_s": 104.53,
+      "finish_reason": "length",
+      "content_excerpt": "This plan contains several critical operational risks that will likely lead to **service instability, poor latency, and potential hardware damage**. Below is a detailed breakdown of the risks and a recommended, robust setup.\n\n### \ud83d\udd34 Critical Operational Risks\n\n#### 1. **GPU Memory Overcommitment & OOM Crashes**\n- **Problem:** You are trying to run **two models simultaneously** on two GPUs.\n  - **RTX 3090:** 24GB VRAM each. Total: 48GB.\n  - **32B/27B Model:** Requires ~64\u201372GB VRAM for FP16/BF16 (even with quantization, it\u2019s tight). With `--tensor-parallel-size 2`, the model weights are split across both GPUs.\n  - **Qwen2.5-7B:** Requires ~14\u201316GB VRAM for FP16.\n  - **Total Demand:** ~80\u201390GB VRAM vs. 48GB available.\n- **Result:** **Immediate Out-Of-Memory (OOM) crashes.** vLLM will fail to load either model, or the system will swap to CPU (causing massive latency spikes) and crash.\n\n#### ",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "structured_json_contract",
+      "latency_ms": 1071,
+      "prompt_tokens": 62,
+      "completion_tokens": 47,
+      "total_tokens": 109,
+      "decode_tok_s": 43.88,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"conditional_escalation\",\n  \"escalation_condition\": \"log_content contains 'CUDA OOM' OR 'schema parse errors'\",\n  \"confidence\": 0.95\n}",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "tool_call_contract",
+      "latency_ms": 688,
+      "prompt_tokens": 291,
+      "completion_tokens": 28,
+      "total_tokens": 319,
+      "decode_tok_s": 40.7,
+      "finish_reason": "tool_calls",
+      "content_excerpt": "",
+      "tool_call_count": 1,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "long_context_31k",
+      "latency_ms": 7742,
+      "prompt_tokens": 37264,
+      "completion_tokens": 109,
+      "total_tokens": 37373,
+      "decode_tok_s": 14.08,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"alpha\": \"NEEDLE_ALPHA gpu1 strong route must be isolated from fast route\",\n  \"bravo\": \"NEEDLE_BRAVO model gateway returned 502 while local vLLM was healthy\",\n  \"charlie\": \"NEEDLE_CHARLIE final remediation is pin fast to GPU0 and strong to GPU1\",\n  \"recommendation\": \"NEEDLE_CHARLIE final remediation is pin fast to GPU0 and strong to GPU1\"\n}",
+      "tool_call_count": 0,
+      "reasoning_excerpt": "",
+      "needle_hits": {
+        "NEEDLE_ALPHA": true,
+        "NEEDLE_BRAVO": true,
+        "NEEDLE_CHARLIE": true
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "qwen36-35b-a3b-awq-64k-tools",
+      "test_id": "long_context_60k",
+      "latency_ms": 80,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 65536 tokens. However, you requested 260 output tokens and your prompt contains at least 65277 input tokens, for a total of at least 65537 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=65277)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    }
+  ]
+}

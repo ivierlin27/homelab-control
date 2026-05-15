@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-05-14T16:38:35-0700",
+  "model_key": "tp2_qwen36_27b_awq_65k",
+  "model": "homelab-tp2-qwen36-27b-awq",
+  "gpu_before": "0, NVIDIA GeForce RTX 3090, 19863 MiB, 24576 MiB, 0 %\n1, NVIDIA GeForce RTX 3090, 19975 MiB, 24576 MiB, 0 %",
+  "gpu_after": "0, NVIDIA GeForce RTX 3090, 21253 MiB, 24576 MiB, 6 %\n1, NVIDIA GeForce RTX 3090, 21363 MiB, 24576 MiB, 27 %",
+  "records": [
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_65k",
+      "test_id": "short_ops_summary",
+      "latency_ms": 4990,
+      "prompt_tokens": 56,
+      "completion_tokens": 220,
+      "total_tokens": 276,
+      "decode_tok_s": 44.09,
+      "finish_reason": "length",
+      "content_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Context:** Homelab operations assistant\n   - **Scenario:** A single large local model serving both \"fast\" and \"strong\" use cases\n   - **Request:** 5 bullets explaining when this is a good idea and when it is not\n   - **Constraints:** Concise, homelab-focused, exactly 5 bullets, each should cover both \"good idea\" and \"not good idea\" aspects (or clearly delineate them)\n\n2.  **Deconstruct Key Concepts:**\n   - *Single large local model:* One big LLM running locally (e.g., Llama-3-70B, Mixtral, etc.)\n   - *Fast use cases:* Low latency, simple tasks, quick responses (e.g., chat, formatting, simple Q&A)\n   - *Strong use cases:* High accuracy, complex reasoning, heavy context, specialized tasks (e.g., code generation, analysis, long-context processing)\n   - *Homel",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_65k",
+      "test_id": "code_config_review",
+      "latency_ms": 4735,
+      "prompt_tokens": 99,
+      "completion_tokens": 300,
+      "total_tokens": 399,
+      "decode_tok_s": 63.36,
+      "finish_reason": "length",
+      "content_excerpt": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - **Framework:** vLLM\n   - **Model 1:** 32B or 27B model (likely Qwen2.5-32B or similar)\n   - **Model 2:** Qwen2.5-7B\n   - **Hardware:** Two RTX 3090s (24GB VRAM each)\n   - **Configuration:** \n     - Model 1: `--tensor-parallel-size 2` across both GPUs\n     - Model 2: Run on GPU0 only\n     - Both expose OpenAI APIs\n   - **Goal:** Review for operational risks, recommend better setup\n\n2.  **Identify Key Technical Constraints & Facts:**\n   - **RTX 3090 VRAM:** 24GB per GPU\n   - **vLLM Memory Requirements:** \n     - Model weights + KV cache + overhead\n     - 32B model in FP16/BF16: ~64GB weights alone. With TP=2, each GPU gets ~32GB weights. That's already >24GB. Even with 4-bit quantization, it's tight.\n     - 27B model: ~54GB weights. TP=2 \u2192 ~27GB per GPU. Still >24GB.\n     -",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_65k",
+      "test_id": "structured_json_contract",
+      "latency_ms": 1354,
+      "prompt_tokens": 60,
+      "completion_tokens": 41,
+      "total_tokens": 101,
+      "decode_tok_s": 30.28,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"summarize_logs\",\n  \"escalation_condition\": \"CUDA OOM or schema parse errors\",\n  \"confidence\": 0.95\n}",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "tp2_qwen36_27b_awq_65k",
+      "test_id": "long_context_31k",
+      "latency_ms": 33244,
+      "prompt_tokens": 37262,
+      "completion_tokens": 260,
+      "total_tokens": 37522,
+      "decode_tok_s": 7.82,
+      "finish_reason": "length",
+      "content_excerpt": "The user wants a compact JSON with keys `alpha`, `bravo`, `charlie`, and `recommendation`.\nThe values must include the exact NEEDLE labels from the ledger.\nI need to scan the ledger for `NEEDLE_ALPHA`, `NEEDLE_BRAVO`, and `NEEDLE_CHARLIE`.\n\nScanning the ledger:\n- `NEEDLE_ALPHA` is found at event 17: `2026-05-14T17:17:00Z error component=agents event=17 latency_ms=57 trace=agent-00017 route=fast NEEDLE_ALPHA gpu1 strong route must be isolated from fast route`\n- `NEEDLE_BRAVO` is found at event 380: `2026-05-14T20:20:00Z error component=litellm event=380 latency_ms=420 trace=agent-00380 route=fast NEEDLE_BRAVO model gateway returned 502 while local vLLM was healthy`\n- `NEEDLE_CHARLIE` is found at event 749: `",
+      "needle_hits": {
+        "NEEDLE_ALPHA": true,
+        "NEEDLE_BRAVO": true,
+        "NEEDLE_CHARLIE": true
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "tp2_qwen36_27b_awq_65k",
+      "test_id": "long_context_60k",
+      "latency_ms": 84,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 65536 tokens. However, you requested 260 output tokens and your prompt contains at least 65277 input tokens, for a total of at least 65537 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=65277)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    }
+  ]
+}

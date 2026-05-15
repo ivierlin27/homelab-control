@@ -1,0 +1,194 @@
+{
+  "generated_at": "2026-05-14T15:49:04-0700",
+  "gpu_before": "0, NVIDIA GeForce RTX 3090, 21351 MiB, 24576 MiB, 0 %\n1, NVIDIA GeForce RTX 3090, 21404 MiB, 24576 MiB, 0 %",
+  "gpu_after": "0, NVIDIA GeForce RTX 3090, 22745 MiB, 24576 MiB, 75 %\n1, NVIDIA GeForce RTX 3090, 22018 MiB, 24576 MiB, 0 %",
+  "records": [
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "short_ops_summary",
+      "latency_ms": 4866,
+      "prompt_tokens": 51,
+      "completion_tokens": 220,
+      "total_tokens": 271,
+      "decode_tok_s": 45.21,
+      "finish_reason": "length",
+      "content_excerpt": "Certainly! Here are five key points to consider when deciding between fast and strong routes for Kevin's local homelab:\n\n1. **Performance-Critical Applications**: Use fast routes for applications that require high-speed data transfer, such as streaming services, gaming, or large file transfers. This ensures minimal latency and maximum throughput.\n\n2. **Security-Focused Networks**: Employ strong routes for security-sensitive environments, like accessing critical servers or conducting sensitive data analysis. Strong routes can include additional security measures like encryption, authentication, and firewall rules to enhance protection.\n\n3. **Resource-Constrained Devices**: Fast routes are ide",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "code_config_review",
+      "latency_ms": 5081,
+      "prompt_tokens": 117,
+      "completion_tokens": 260,
+      "total_tokens": 377,
+      "decode_tok_s": 51.17,
+      "finish_reason": "length",
+      "content_excerpt": "The proposed changes introduce several potential issues that need to be addressed for proper functionality and resource management. Here are the key points and corrections:\n\n### Issues Identified:\n1. **Port Conflict**: The new configuration specifies two services running on different ports (8000 and 8001), but it does not specify which service is associated with which port.\n2. **Resource Utilization**: The `gpu_memory_utilization` parameter is set to 0.92, which might be too high and could lead to resource contention or instability.\n3. **Service Naming**: It's unclear what \"fast\" and \"strong\" refer to in terms of the services being started. This could lead to confusion and misconfiguration.\n",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "structured_json_contract",
+      "latency_ms": 1169,
+      "prompt_tokens": 58,
+      "completion_tokens": 36,
+      "total_tokens": 94,
+      "decode_tok_s": 30.8,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"summarize_agent_logs\",\n  \"escalation_condition\": \"CUDA OOM or schema parse errors\",\n  \"confidence\": \"high\"\n}",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "long_context_8k",
+      "latency_ms": 12222,
+      "prompt_tokens": 31483,
+      "completion_tokens": 145,
+      "total_tokens": 31628,
+      "decode_tok_s": 11.86,
+      "finish_reason": "stop",
+      "content_excerpt": "```json\n{\n  \"alpha\": \"gpu1 strong route must be isolated from fast route\",\n  \"bravo\": \"model gateway returned 502 while local vLLM was healthy\",\n  \"charlie\": \"final remediation is pin fast to GPU0 and strong to GPU1\",\n  \"recommendation\": \"To address the issues identified, implement a strict isolation between the fast route and the strong route on GPU1. Ensure that the model gateway does not interfere with the local vLLM by handling requests through a dedicated and stable path. Additionally, configure the system to prioritize and pin the fast route to GPU0 and the strong route to GPU1 to optimize performance and reliability.\"\n}\n```",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "long_context_24k",
+      "latency_ms": 112,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 32768 tokens. However, you requested 260 output tokens and your prompt contains at least 32509 input tokens, for a total of at least 32769 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=32509)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    },
+    {
+      "ok": true,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "short_ops_summary",
+      "latency_ms": 3290,
+      "prompt_tokens": 51,
+      "completion_tokens": 220,
+      "total_tokens": 271,
+      "decode_tok_s": 66.87,
+      "finish_reason": "length",
+      "content_excerpt": "Certainly! Here\u2019s how Kevin can utilize the fast and strong routes in his local homelab:\n\n1. **Fast Routes for Internal Traffic:**\n   - Use fast routes for internal network traffic between Kevin's homelab devices.\n   - This ensures quick communication between devices like servers, switches, and routers within the homelab.\n\n2. **Strong Routes for External Connections:**\n   - Employ strong routes for connections that leave Kevin's homelab and go out to the internet or other external networks.\n   - Strong routes provide better security and reliability for data leaving the homelab.\n\n3. **Fast Routes for Development Workflows:**\n   - Utilize fast routes for development workflows where speed is cr",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "code_config_review",
+      "latency_ms": 3282,
+      "prompt_tokens": 117,
+      "completion_tokens": 260,
+      "total_tokens": 377,
+      "decode_tok_s": 79.22,
+      "finish_reason": "length",
+      "content_excerpt": "The proposed change aims to start two vLLM services, one labeled \"fast\" and the other \"strong,\" each using all available GPUs but listening on different ports (8000 for \"fast\" and 8001 for \"strong\"). The GPU memory utilization is set to 0.92 for both services. Here are some points to consider:\n\n### Potential Bugs and Recommendations\n\n1. **Port Conflicts**:\n   - Ensure that port 8000 is not already in use by another service before starting the \"fast\" service.\n   - Similarly, verify that port 8001 is free before starting the \"strong\" service.\n\n2. **Configuration Consistency**:\n   - Both services are configured with `gpu_memory_utilization=0.92`. This value should be appropriate for the workloa",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "structured_json_contract",
+      "latency_ms": 940,
+      "prompt_tokens": 58,
+      "completion_tokens": 40,
+      "total_tokens": 98,
+      "decode_tok_s": 42.55,
+      "finish_reason": "stop",
+      "content_excerpt": "{\n  \"route\": \"summarize yesterday agent logs\",\n  \"escalation_condition\": \"failures mention CUDA OOM or schema parse errors\",\n  \"confidence\": \"high\"\n}",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "long_context_8k",
+      "latency_ms": 23040,
+      "prompt_tokens": 31483,
+      "completion_tokens": 175,
+      "total_tokens": 31658,
+      "decode_tok_s": 7.6,
+      "finish_reason": "stop",
+      "content_excerpt": "```json\n{\n  \"alpha\": \"gpu1 strong route must be isolated from fast route\",\n  \"bravo\": \"model gateway returned 502 while local vLLM was healthy\",\n  \"charlie\": \"final remediation is pin fast to GPU0 and strong to GPU1\",\n  \"recommendation\": \"Isolate the strong route to GPU1 from the fast route to GPU0 and ensure that the model gateway does not return 502 errors when local vLLM is healthy.\"\n}\n```\n\nNEEDLE_ALPHA label: `gpu1 strong route must be isolated from fast route`\nNEEDLE_BRAVO label: `model gateway returned 502 while local vLLM was healthy`\nNEEDLE_CHARLIE label: `final remediation is pin fast to GPU0 and strong to GPU1`",
+      "needle_hits": {
+        "NEEDLE_ALPHA": true,
+        "NEEDLE_BRAVO": true,
+        "NEEDLE_CHARLIE": true
+      }
+    },
+    {
+      "ok": false,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "long_context_24k",
+      "latency_ms": 111,
+      "error": "<HTTPError 400: 'Bad Request'>",
+      "error_body": "{\"error\":{\"message\":\"This model's maximum context length is 32768 tokens. However, you requested 260 output tokens and your prompt contains at least 32509 input tokens, for a total of at least 32769 tokens. Please reduce the length of the input prompt or the number of requested output tokens. (parameter=input_tokens, value=32509)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}"
+    },
+    {
+      "ok": true,
+      "model_key": "fast_qwen25_7b_gpu0",
+      "test_id": "concurrent_short_ops_summary",
+      "latency_ms": 4343,
+      "prompt_tokens": 51,
+      "completion_tokens": 220,
+      "total_tokens": 271,
+      "decode_tok_s": 50.66,
+      "finish_reason": "length",
+      "content_excerpt": "Certainly! Here are five key points to consider when deciding between fast and strong routes for Kevin's local homelab:\n\n1. **Performance-Critical Applications**: Use fast routes for applications that require high-speed data transfer, such as streaming services, gaming, or large file transfers. Fast routes prioritize speed over security, ensuring minimal latency and maximum throughput.\n\n2. **Security-Focused Environments**: Employ strong routes for environments where security is paramount, such as accessing sensitive data or conducting secure communications. Strong routes ensure robust encryption and authentication mechanisms, enhancing the overall security posture of Kevin\u2019s homelab.\n\n3. **",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    },
+    {
+      "ok": true,
+      "model_key": "strong_qwen25_14b_awq_gpu1",
+      "test_id": "concurrent_code_config_review",
+      "latency_ms": 3257,
+      "prompt_tokens": 117,
+      "completion_tokens": 260,
+      "total_tokens": 377,
+      "decode_tok_s": 79.83,
+      "finish_reason": "length",
+      "content_excerpt": "The proposed change aims to start two vLLM services, one labeled \"fast\" and the other \"strong,\" each using all available GPUs but listening on different ports (8000 for \"fast\" and 8001 for \"strong\"). The GPU memory utilization is set to 0.92 for both services. Here are the details of the proposed configuration:\n\n### Old Configuration:\n```\n--device nvidia.com/gpu=all -p 8000:8000 --model Qwen2.5-7B\n```\n\n### New Configuration:\n```\nstart fast and strong services both with --device nvidia.com/gpu=all, fast on 8000, strong on 8001, both gpu_memory_utilization=0.92.\n```\n\n### Analysis:\n1. **Service Names**: The new configuration does not explicitly define the names of the services in the command-li",
+      "needle_hits": {
+        "NEEDLE_ALPHA": false,
+        "NEEDLE_BRAVO": false,
+        "NEEDLE_CHARLIE": false
+      }
+    }
+  ],
+  "concurrent_wall_ms": 4346
+}

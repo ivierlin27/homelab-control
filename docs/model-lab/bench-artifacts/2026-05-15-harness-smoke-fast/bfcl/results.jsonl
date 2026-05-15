@@ -1,0 +1,5 @@
+{"args_correct": false, "case_id": "simple_gpu_memory", "content_excerpt": "", "expected_tool": "get_gpu_memory", "latency_ms": 0, "ok": false, "repeat": 0, "selection_correct": false, "tool_names": []}
+{"args_correct": false, "case_id": "simple_restart", "content_excerpt": "", "expected_tool": "restart_service", "latency_ms": 0, "ok": false, "repeat": 0, "selection_correct": false, "tool_names": []}
+{"args_correct": false, "case_id": "logs_with_since", "content_excerpt": "", "expected_tool": "summarize_logs", "latency_ms": 0, "ok": false, "repeat": 0, "selection_correct": false, "tool_names": []}
+{"args_correct": false, "case_id": "search_default_limit", "content_excerpt": "", "expected_tool": "search_inventory", "latency_ms": 0, "ok": false, "repeat": 0, "selection_correct": false, "tool_names": []}
+{"args_correct": true, "case_id": "no_tool_needed", "content_excerpt": "", "expected_tool": null, "latency_ms": 0, "ok": false, "repeat": 0, "selection_correct": true, "tool_names": []}

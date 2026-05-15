@@ -12,29 +12,32 @@ hardware:
       disk_warn_percent: 80
       disk_critical_percent: 92
 
-  - id: alienware-r10-primary
+  - id: alienware-r10
     role: llm-and-agent
     cpu: amd-ryzen
-    ram_gb: 32
+    ram_gb: 48
     gpu:
+      - model: rtx-3090
+        vram_gb: 24
       - model: rtx-3090
         vram_gb: 24
     storage:
       - kind: nvme
         size_gb: 256
+        mountpoint: /
+        notes: rootfs (btrfs); keep below 80% to avoid GC pressure
+      - kind: ssd
+        label: Data
+        size_gb: 1000
+        mountpoint: /mnt/data
+        notes: HF cache, model weights, bench artifacts (HF_HOME)
+      - kind: hdd
+        label: Spinny
+        size_gb: 1000
+        mountpoint: /mnt/spinny
+        notes: archival quants, soak logs, cold MoE shards
     thresholds:
       disk_warn_percent: 75
       disk_critical_percent: 90
       gpu_memory_warn_percent: 80
       gpu_memory_critical_percent: 95
-
-  - id: alienware-r10-secondary
-    role: future-llm-or-agent
-    cpu: amd-ryzen
-    ram_gb: 32
-    gpu:
-      - model: rtx-3090
-        vram_gb: 24
-    storage:
-      - kind: nvme
-        size_gb: 256
