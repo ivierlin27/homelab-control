@@ -46,6 +46,7 @@ tools:
   - git.commit
   - git.push
   - forgejo.open_pr
+  - planka.comment
   - memory.write
   - queue.enqueue
 
