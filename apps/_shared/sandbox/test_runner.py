@@ -1,0 +1,136 @@
+"""Tests for the sandbox runner.
+
+These tests do not require Podman to be installed: they shim the runner's
+``podman_path`` to a small fake executable that records its argv and exits
+cleanly. Real podman integration is exercised on hosts where it's available
+via the ``--print-only`` build flag and the ``run`` CLI.
+"""
+
+from __future__ import annotations
+
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+from .runner import BranchStrategy, SandboxError, SandboxRunner
+
+
+def _fake_podman(tmp_path: Path, *, exit_code: int = 0, stdout: str = "", stderr: str = "") -> Path:
+    """Create an executable shim that records its argv to argv.log and exits."""
+    log_path = tmp_path / "argv.log"
+    script = tmp_path / "fake-podman"
+    script.write_text(
+        f"""#!/usr/bin/env bash
+printf '%s\\n' "$@" >> {log_path}
+printf '%s' '{stdout}'
+printf '%s' '{stderr}' >&2
+exit {exit_code}
+"""
+    )
+    script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return script
+
+
+def _runner(tmp_path: Path, *, allowed_hosts=()) -> SandboxRunner:
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    return SandboxRunner(
+        principal="agent:test",
+        image="agent-test:latest",
+        worktree_path=worktree,
+        allowed_hosts=allowed_hosts,
+        podman_path=str(_fake_podman(tmp_path)),
+    )
+
+
+def test_rejects_non_agent_principal(tmp_path: Path) -> None:
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    with pytest.raises(SandboxError, match="agent:"):
+        SandboxRunner(principal="human:kevin", image="x:latest", worktree_path=worktree)
+
+
+def test_rejects_missing_worktree(tmp_path: Path) -> None:
+    with pytest.raises(SandboxError, match="worktree_path"):
+        SandboxRunner(
+            principal="agent:test",
+            image="x:latest",
+            worktree_path=tmp_path / "nope",
+        )
+
+
+def test_rejects_empty_command(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    with pytest.raises(SandboxError, match="non-empty"):
+        runner.run(command=())
+
+
+def test_run_records_argv_and_returns_result(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    result = runner.run(command=("echo", "hi"))
+    log = (Path(runner.podman_path).parent / "argv.log").read_text().splitlines()
+    assert log[0] == "run"
+    assert "--rm" in log
+    assert "--read-only" in log
+    assert "--cap-drop=ALL" in log
+    assert "--security-opt=no-new-privileges" in log
+    assert "--network=none" in log
+    assert log[-2] == "echo"
+    assert log[-1] == "hi"
+    assert result.exit_code == 0
+    assert result.image == "agent-test:latest"
+    assert result.network_mode == "none"
+    assert result.egress_allowed == ()
+
+
+def test_allowed_hosts_changes_network_mode(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, allowed_hosts=("forgejo.dev-path.org",))
+    result = runner.run(command=("true",))
+    log = (Path(runner.podman_path).parent / "argv.log").read_text().splitlines()
+    assert any(line.startswith("--network=slirp4netns") for line in log)
+    assert "--network=none" not in log
+    assert result.network_mode == "slirp4netns"
+    assert result.egress_allowed == ("forgejo.dev-path.org",)
+
+
+def test_session_jsonl_is_appended(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    session = tmp_path / "session.jsonl"
+    runner.run(command=("echo", "x"), capture_session_to=session)
+    runner.run(command=("echo", "y"), capture_session_to=session)
+    lines = session.read_text().splitlines()
+    assert len(lines) == 2
+    import json
+    rec0 = json.loads(lines[0])
+    assert rec0["principal"] == "agent:test"
+    assert rec0["command"] == ["echo", "x"]
+    assert rec0["network_mode"] == "none"
+    assert "correlation_id" in rec0
+
+
+def test_propagates_exit_code(tmp_path: Path) -> None:
+    runner = SandboxRunner(
+        principal="agent:test",
+        image="agent-test:latest",
+        worktree_path=tmp_path,
+        podman_path=str(_fake_podman(tmp_path, exit_code=42)),
+    )
+    result = runner.run(command=("false",))
+    assert result.exit_code == 42
+
+
+def test_correlation_id_used_when_provided(tmp_path: Path) -> None:
+    runner = _runner(tmp_path)
+    cid = "00000000-1111-2222-3333-444444444444"
+    result = runner.run(command=("true",), correlation_id=cid)
+    assert result.correlation_id == cid
+    assert cid[:8] in result.container_name
+
+
+def test_branch_strategy_enum() -> None:
+    # Sanity: enum values match the schema's allowed strings.
+    assert BranchStrategy.HEAD.value == "head"
+    assert BranchStrategy.MERGE_TO_HEAD.value == "merge-to-head"
+    assert BranchStrategy.BRANCH.value == "branch"
