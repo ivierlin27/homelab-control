@@ -1,0 +1,122 @@
+principal: agent:homelab-maintainer
+display_name: Homelab Maintainer
+domain: homelab
+queue_dir: ~/.local/state/homelab-control/agent-homelab-maintainer
+
+references:
+  policy: config/policies/homelab-maintainer-policy.yaml
+  memory_principal: config/memory/principals.yaml
+
+identity:
+  git_user: agent-homelab-maintainer
+  git_email: agent-homelab-maintainer@forgejo.dev-path.org
+  forgejo_account: agent-homelab-maintainer
+  discord_bot_app_name: agent-homelab-maintainer
+  secrets_profile: homelab-maintainer
+
+sandbox:
+  base_image: agent-homelab-maintainer
+  network:
+    allowed_hosts:
+      - planka.dev-path.org
+      - n8n.dev-path.org
+      - forgejo.dev-path.org
+
+data_scope:
+  memory:
+    read_prefixes: [homelab.*]
+    write_prefixes: [homelab.*]
+  files:
+    allowed_roots: [docs, inventory, compose]
+    blocked_roots: [finance, secrets]
+
+tool_grants:
+  planka:
+    enabled: true
+    actions: [create_card, comment, move, label]
+  memory: { read: true, write: true }
+  queue:
+    enqueue_targets: [agent-homelab, agent-review]
+  forgejo: { enabled: true, scope: read }
+  shell: { allowed_commands: [] }
+  network:
+    allowed_hosts: [planka.dev-path.org, n8n.dev-path.org, forgejo.dev-path.org]
+
+skills:
+  - homelab-inventory
+  - cve-triage
+  - upgrade-planning
+  - planka-card
+
+tools:
+  - planka.comment
+  - planka.move_to_list
+  - memory.search
+  - memory.write
+  - queue.enqueue
+  - inventory.read
+  - a2a.ask_agent
+
+a2a:
+  allowed_callees:
+    - agent:homelab
+    - agent:review
+    - agent:executive
+
+discord:
+  bot_app_name: agent-homelab-maintainer
+  channels:
+    - { name: "#homelab", mode: write }
+    - { name: "#ops",     mode: write }
+  default_channel: "#homelab"
+  dm_humans: []
+
+routing_policy:
+  local_only: [secrets, private_memory_update]
+  local_preferred: [summarize, classify, inventory_refresh, code_review_small]
+  cloud_allowed: [architecture_synthesis, migration_planning]
+  cloud_required_review: true
+  route_overrides:
+    summarize: local-fast
+    classify: local-fast
+    inventory_refresh: local-strong
+    code_review_small: local-strong
+    architecture_synthesis: cloud-frontier
+    migration_planning: cloud-frontier
+
+trust:
+  autonomy_mode: propose_only
+  human_review_triggers:
+    labels: [sensitive, auth-change, network-exposure]
+    paths: [compose, inventory]
+
+escalation_overrides:
+  tier1_budget_seconds: 120
+  tier2_budget_seconds: 1800
+  tier3_dm_after_seconds: 14400
+  by_task_class:
+    homelab_deploy:
+      tier1_budget_seconds: 120
+      tier3_dm_after_seconds: 600
+
+surfaces:
+  planka_domain: homelab
+  chat_tags: [homelab]
+  dashboard_slug: homelab-maintainer
+  weekly_review_enabled: false
+  intake_match_hints:
+    - homelab
+    - proxmox
+    - forgejo
+    - planka
+    - vaultwarden
+    - pihole
+    - pi-hole
+    - immich
+    - model gateway
+    - litellm
+    - vllm
+    - backup
+    - observability
+    - service
+    - dashboard

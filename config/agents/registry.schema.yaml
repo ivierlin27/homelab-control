@@ -1,0 +1,147 @@
+# Capability Registry Schema (v1)
+#
+# This file is documentation for humans and a machine-checkable spec for the
+# loader at apps/_shared/registry/. The loader does not consume YAML schema
+# (no dep on jsonschema); it implements these rules in code so the manifests
+# and the loader stay tightly coupled.
+#
+# Two file shapes are defined here:
+#   - Index   (registry.yaml)
+#   - Manifest (agent-<name>.yaml)
+
+schema_version: 1
+
+# ---------------------------------------------------------------------------
+# Index file: config/agents/registry.yaml
+# ---------------------------------------------------------------------------
+index:
+  required:
+    schema_version: int   # must equal 1
+    agents: list          # >=1 entries
+  agents_entry:
+    required:
+      principal: string   # matches ^agent:[a-z][a-z0-9-]*$
+      manifest: string    # repo-relative path to manifest YAML; must exist
+
+# ---------------------------------------------------------------------------
+# Manifest file: config/agents/agent-<name>.yaml
+# ---------------------------------------------------------------------------
+manifest:
+  required:
+    principal: string             # matches ^agent:[a-z][a-z0-9-]*$
+    display_name: string
+    domain: string                # short slug, e.g. "homelab", "finance"
+    queue_dir: string             # absolute path or starts with ~/
+
+  optional_top_level:
+    references: object            # cross-references to other config files
+    identity: object              # who the agent is on Forgejo/Discord/Infisical
+    sandbox: object               # podman image + network allowlist
+    data_scope: object            # memory + filesystem boundaries
+    tool_grants: object           # per-tool grants (planka, queue, network, ...)
+    skills: list                  # skill ids loaded into the agent's prompt
+    tools: list                   # tool ids bound at runtime
+    a2a: object                   # inter-agent call allowlist
+    discord: object               # per-agent Discord presence
+    routing_policy: object        # symbolic intent routing posture
+    trust: object                 # autonomy mode + promotion/demotion rules
+    escalation_overrides: object  # per-task-class budget overrides
+    surfaces: object              # planka domain, dashboard slug, intake hints
+    notes: string                 # free-form annotation
+
+  references_block:
+    optional:
+      policy: string              # repo-relative path; must exist if set
+      review_policy: string       # repo-relative path; must exist if set
+      memory_principal: string    # path to principals.yaml; principal entry
+                                  #  with id == top-level principal must exist
+
+  identity_block:
+    optional:
+      git_user: string            # unique across the registry
+      git_email: string
+      forgejo_account: string     # unique across the registry
+      discord_bot_app_name: string# unique across the registry
+      secrets_profile: string     # Infisical scope name; "none" allowed
+
+  sandbox_block:
+    optional:
+      base_image: string          # tag built from images/<base_image>.Containerfile
+      network:
+        allowed_hosts: list       # default empty = no egress
+      mounts: list                # default = worktree only
+
+  data_scope_block:
+    optional:
+      memory:
+        read_prefixes: list
+        write_prefixes: list
+      files:
+        allowed_roots: list
+        blocked_roots: list
+
+  tool_grants_block:
+    optional:
+      planka: { enabled: bool, boards: list, actions: list }
+      memory: { read: bool, write: bool }
+      queue:  { enqueue_targets: list }
+      forgejo:{ enabled: bool, scope: string }   # read|review|author
+      shell:  { allowed_commands: list }
+      network:{ allowed_hosts: list }
+      mcp_tools: list
+
+  a2a_block:
+    optional:
+      allowed_callees: list       # principals; each must exist in registry
+
+  discord_block:
+    optional:
+      bot_app_name: string        # mirror of identity.discord_bot_app_name
+      channels: list              # entries: { id|name, mode: read|write|silent }
+      default_channel: string|null
+      dm_humans: list             # discord user ids the bot may DM
+
+  routing_policy_block:
+    optional:
+      local_only: list
+      local_preferred: list
+      cloud_allowed: list
+      cloud_required_review: bool
+      route_overrides: object
+
+  trust_block:
+    optional:
+      autonomy_mode: string       # one of: propose_only|low_risk_auto|domain_auto
+      promotion_rules: list
+      demotion_rules: list
+      human_review_triggers: object
+
+  escalation_overrides_block:
+    optional:
+      tier1_budget_seconds: int
+      tier2_budget_seconds: int
+      tier3_dm_after_seconds: int
+      by_task_class: object       # task_class -> override block
+
+  surfaces_block:
+    optional:
+      planka_domain: string
+      chat_tags: list
+      dashboard_slug: string
+      weekly_review_enabled: bool
+      intake_match_hints: list
+
+# ---------------------------------------------------------------------------
+# Cross-file integrity rules enforced by the loader
+# ---------------------------------------------------------------------------
+cross_file_rules:
+  - "principal in manifest must equal principal in registry index entry"
+  - "identity.git_user is unique across all manifests"
+  - "identity.forgejo_account is unique across all manifests"
+  - "identity.discord_bot_app_name is unique across all manifests"
+  - "identity.secrets_profile is unique across all manifests when set and != 'none'"
+  - "references.memory_principal must point to a file containing an entry with id == principal"
+  - "references.policy and references.review_policy paths must exist if set"
+  - "a2a.allowed_callees principals must all exist in the registry"
+  - "trust.autonomy_mode must be one of {propose_only, low_risk_auto, domain_auto}"
+  - "discord.channels[].mode must be one of {read, write, silent}"

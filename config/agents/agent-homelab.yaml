@@ -1,0 +1,76 @@
+principal: agent:homelab
+display_name: Homelab Author
+domain: homelab
+queue_dir: ~/.local/state/homelab-control/agent-homelab
+
+references:
+  memory_principal: config/memory/principals.yaml
+
+identity:
+  git_user: agent-homelab
+  git_email: agent-homelab@forgejo.dev-path.org
+  forgejo_account: agent-homelab
+  discord_bot_app_name: agent-homelab
+  secrets_profile: homelab
+
+sandbox:
+  base_image: agent-homelab
+  network:
+    allowed_hosts:
+      - forgejo.dev-path.org
+
+data_scope:
+  memory:
+    read_prefixes: [homelab.*]
+    write_prefixes: [homelab.*]
+  files:
+    allowed_roots: [docs, inventory, compose, apps]
+    blocked_roots: [finance, secrets, compose/secrets]
+
+tool_grants:
+  memory: { read: true, write: true }
+  queue:
+    enqueue_targets: [agent-review]
+  forgejo: { enabled: true, scope: author }
+  shell:
+    allowed_commands: [git, python3]
+  network:
+    allowed_hosts: [forgejo.dev-path.org]
+
+skills:
+  - planka-card
+  - render-plan
+  - execute-task
+
+tools:
+  - git.commit
+  - git.push
+  - forgejo.open_pr
+  - memory.write
+  - queue.enqueue
+
+a2a:
+  allowed_callees:
+    - agent:review
+
+discord:
+  bot_app_name: agent-homelab
+  channels:
+    - { name: "#homelab", mode: write }
+  default_channel: "#homelab"
+  dm_humans: []
+
+trust:
+  autonomy_mode: low_risk_auto
+  promotion_rules: [two_consecutive_low_risk_successes]
+  demotion_rules: [blocked_sensitive_action, repeated_human_rejection]
+  human_review_triggers:
+    labels: [sensitive, auth-change, network-exposure]
+    paths: [compose, apps/review_agent]
+
+surfaces:
+  planka_domain: homelab
+  chat_tags: [homelab]
+  dashboard_slug: homelab
+  weekly_review_enabled: false
+  intake_match_hints: []

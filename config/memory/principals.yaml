@@ -31,6 +31,15 @@ principals:
     role: executive-coordinator
     delegation_domains: [homelab, learning, products]
 
+  - id: agent:homelab-maintainer
+    kind: agent
+    domains: [homelab]
+    git_user: agent-homelab-maintainer
+    readable_domains: [homelab]
+    writable_domains: [homelab]
+    planka_project: homelab
+    role: project-maintainer
+
   - id: agent:chinese
     kind: agent
     domains: [learning]

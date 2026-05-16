@@ -1,0 +1,75 @@
+principal: agent:review
+display_name: Review Agent
+domain: homelab
+queue_dir: ~/.local/state/homelab-control/agent-review
+
+references:
+  review_policy: config/policies/review-policy.yaml
+  memory_principal: config/memory/principals.yaml
+
+identity:
+  git_user: agent-review
+  git_email: agent-review@forgejo.dev-path.org
+  forgejo_account: agent-review
+  discord_bot_app_name: agent-review
+  secrets_profile: review
+
+sandbox:
+  base_image: agent-review
+  network:
+    allowed_hosts:
+      - forgejo.dev-path.org
+
+data_scope:
+  memory:
+    read_prefixes: [homelab.*]
+    write_prefixes: [homelab.review.*]
+  files:
+    allowed_roots: [docs, inventory, compose, apps, config]
+    blocked_roots: [finance, secrets]
+
+tool_grants:
+  memory: { read: true, write: true }
+  forgejo:
+    enabled: true
+    scope: review
+  shell:
+    allowed_commands: [git, python3]
+  network:
+    allowed_hosts: [forgejo.dev-path.org]
+
+skills:
+  - pr-review
+  - planka-card
+
+tools:
+  - forgejo.read_pr
+  - forgejo.approve_pr
+  - forgejo.request_changes
+  - forgejo.merge_pr
+  - planka.comment
+  - planka.move_to_list
+
+a2a:
+  allowed_callees:
+    - agent:executive
+
+discord:
+  bot_app_name: agent-review
+  channels:
+    - { name: "#homelab", mode: write }
+    - { name: "#approvals", mode: write }
+  default_channel: "#approvals"
+  dm_humans: []
+
+trust:
+  autonomy_mode: low_risk_auto
+  human_review_triggers:
+    labels: [sensitive, auth-change, network-exposure, finance, new_capability]
+
+surfaces:
+  planka_domain: homelab
+  chat_tags: [review]
+  dashboard_slug: review
+  weekly_review_enabled: false
+  intake_match_hints: []

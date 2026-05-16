@@ -1,0 +1,14 @@
+schema_version: 1
+
+# Index of registered agents. Add a new entry here when issuing a new agent.
+# Each `manifest` is a repo-relative path to the per-agent manifest.
+
+agents:
+  - principal: agent:executive
+    manifest: config/agents/agent-executive.yaml
+  - principal: agent:homelab-maintainer
+    manifest: config/agents/agent-homelab-maintainer.yaml
+  - principal: agent:homelab
+    manifest: config/agents/agent-homelab.yaml
+  - principal: agent:review
+    manifest: config/agents/agent-review.yaml

@@ -1,0 +1,100 @@
+principal: agent:executive
+display_name: Executive Assistant
+domain: cross-cutting
+queue_dir: ~/.local/state/homelab-control/agent-executive
+
+references:
+  policy: config/policies/executive-assistant-policy.yaml
+  memory_principal: config/memory/principals.yaml
+
+identity:
+  git_user: agent-executive
+  git_email: agent-executive@forgejo.dev-path.org
+  forgejo_account: agent-executive
+  discord_bot_app_name: agent-executive
+  secrets_profile: executive
+
+sandbox:
+  base_image: agent-executive
+  network:
+    allowed_hosts:
+      - planka.dev-path.org
+      - n8n.dev-path.org
+      - khoj.dev-path.org
+      - forgejo.dev-path.org
+
+data_scope:
+  memory:
+    read_prefixes: [homelab.*, learning.*, products.*, finance.summary.*, intake.*, trust.*]
+    write_prefixes: [intake.*, trust.executive.*]
+  files:
+    allowed_roots: [docs, inventory]
+    blocked_roots: [secrets, finance/ledger]
+
+tool_grants:
+  planka:
+    enabled: true
+    actions: [create_card, comment, move, label]
+  memory: { read: true, write: true }
+  queue:
+    enqueue_targets: [agent-homelab, agent-homelab-maintainer, agent-review]
+  forgejo: { enabled: true, scope: read }
+  shell: { allowed_commands: [] }
+  network:
+    allowed_hosts:
+      - planka.dev-path.org
+      - n8n.dev-path.org
+      - khoj.dev-path.org
+      - forgejo.dev-path.org
+
+skills:
+  - intake-classify
+  - planka-card
+  - weekly-review
+
+tools:
+  - planka.create_card
+  - planka.comment
+  - planka.move_to_list
+  - memory.search
+  - memory.write_proposal
+  - queue.enqueue
+  - a2a.ask_agent
+
+a2a:
+  allowed_callees:
+    - agent:homelab-maintainer
+    - agent:homelab
+    - agent:review
+
+discord:
+  bot_app_name: agent-executive
+  channels:
+    - { name: "#intake",     mode: write }
+    - { name: "#approvals",  mode: write }
+    - { name: "#ops",        mode: write }
+    - { name: "#homelab",    mode: write }
+    - { name: "#knowledge",  mode: write }
+    - { name: "#insights",   mode: write }
+    - { name: "#language",   mode: write }
+    - { name: "#finance",    mode: read }
+    - { name: "#profile",    mode: read }
+  default_channel: "#intake"
+  dm_humans: []   # populated by identity issuer from registry-side allowlist
+
+trust:
+  autonomy_mode: propose_only
+  human_review_triggers:
+    labels: [sensitive, auth-change, network-exposure, finance, new_capability]
+
+escalation_overrides:
+  tier1_budget_seconds: 60
+  tier2_budget_seconds: 600
+  tier3_dm_after_seconds: 14400
+
+surfaces:
+  planka_domain: homelab
+  chat_tags: [executive]
+  dashboard_slug: executive
+  weekly_review_enabled: true
+  intake_match_hints: []
