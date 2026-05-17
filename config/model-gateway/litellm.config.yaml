@@ -34,3 +34,12 @@ router_settings:
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   infer_model_from_keys: false
+
+litellm_settings:
+  # Phase 0.6: per-call cost + latency to JSONL on disk; the
+  # apps/litellm_cost_relay/ daemon ships the JSONL to memory-engine.
+  # See apps/_shared/litellm_callbacks/custom_callbacks.py — that file is
+  # mounted into the container at /app/custom_callbacks.py by the
+  # alienware-model-gateway.service systemd unit. LLM_CALLS_JSONL env
+  # selects the on-disk path.
+  callbacks: custom_callbacks.proxy_handler_instance

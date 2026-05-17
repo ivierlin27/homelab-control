@@ -1,0 +1,29 @@
+[Unit]
+Description=Homelab LiteLLM Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=LLM_CALLS_DIR=%h/.local/state/homelab-control/llm-calls
+ExecStartPre=/usr/bin/install -d -m 0777 ${LLM_CALLS_DIR}
+ExecStartPre=/usr/bin/podman rm -f homelab-model-gateway
+# Mounts:
+#  - config.yaml          (LiteLLM proxy config; Phase 0.6 enables the JSONL callback)
+#  - custom_callbacks.py  (cost/latency JSONL writer, see apps/_shared/litellm_callbacks/)
+#  - LLM_CALLS_DIR        (host-writable JSONL output; relay daemon ships to memory-engine)
+ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
+  -p 0.0.0.0:4000:4000 \
+  --env-file %h/.config/homelab-control/model-gateway.env \
+  -e LLM_CALLS_JSONL=/var/log/llm-calls/llm-calls.jsonl \
+  -v %h/git/homelab-control/config/model-gateway/litellm.config.yaml:/app/config.yaml:ro,Z \
+  -v %h/git/homelab-control/apps/_shared/litellm_callbacks/custom_callbacks.py:/app/custom_callbacks.py:ro,Z \
+  -v ${LLM_CALLS_DIR}:/var/log/llm-calls:Z \
+  ghcr.io/berriai/litellm:main-latest \
+  --config /app/config.yaml --port 4000 --num_workers 2
+ExecStop=/usr/bin/podman stop -t 10 homelab-model-gateway
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

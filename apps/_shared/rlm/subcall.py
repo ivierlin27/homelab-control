@@ -158,6 +158,12 @@ class SubCallInvoker:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        # Phase 0.6: surface the calling agent so the gateway's cost/latency
+        # callback can attribute the call. Empty/unset → callback records
+        # "unknown" rather than guessing.
+        principal = os.environ.get("AGENT_PRINCIPAL", "").strip()
+        if principal:
+            headers["x-agent-principal"] = principal
         req = request.Request(f"{self.base_url}/chat/completions", data=body, headers=headers, method="POST")
         with request.urlopen(req, timeout=int(os.environ.get("RLM_SUBCALL_TIMEOUT", "120"))) as response:
             raw = response.read().decode("utf-8")
