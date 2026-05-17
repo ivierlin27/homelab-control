@@ -1,11 +1,23 @@
+# Trimmed model fleet (2026-05-17): the only inference backend currently
+# running on Alienware is alienware-vllm-strong-long.service (Qwen3-Coder-30B
+# AWQ, TP=2 across both GPUs, max_model_len=131k). Until we stand up
+# additional backends, all three logical names below point at the same
+# upstream so existing callers (e.g. apps/_shared/rlm/subcall.py routing
+# summarize/classify -> homelab-fast, code/plan -> homelab-strong) keep
+# working without code changes.
+#
+# When we bring back a real fast model or a dedicated embeddings backend,
+# repoint the corresponding model_list entry to the new upstream — agents
+# need no changes.
+
 model_list:
-  - model_name: homelab-strong
-    litellm_params:
-      model: openai/homelab-strong-vllm
-      api_base: os.environ/HOMELAB_STRONG_API_BASE
-      api_key: os.environ/HOMELAB_STRONG_API_KEY
-      timeout: 180
   - model_name: homelab-strong-long
+    litellm_params:
+      model: openai/homelab-strong-long-vllm
+      api_base: os.environ/HOMELAB_STRONG_LONG_API_BASE
+      api_key: os.environ/HOMELAB_STRONG_LONG_API_KEY
+      timeout: 600
+  - model_name: homelab-strong
     litellm_params:
       model: openai/homelab-strong-long-vllm
       api_base: os.environ/HOMELAB_STRONG_LONG_API_BASE
@@ -13,22 +25,10 @@ model_list:
       timeout: 600
   - model_name: homelab-fast
     litellm_params:
-      model: openai/homelab-fast-vllm
-      api_base: os.environ/HOMELAB_FAST_VLLM_API_BASE
-      api_key: os.environ/HOMELAB_FAST_VLLM_API_KEY
-      timeout: 60
-  - model_name: homelab-fast-vllm
-    litellm_params:
-      model: openai/homelab-fast-vllm
-      api_base: os.environ/HOMELAB_FAST_VLLM_API_BASE
-      api_key: os.environ/HOMELAB_FAST_VLLM_API_KEY
-      timeout: 60
-  - model_name: global-embed
-    litellm_params:
-      model: openai/text-embedding-nomic-embed-text-v1.5
-      api_base: os.environ/GLOBAL_EMBED_API_BASE
-      api_key: os.environ/GLOBAL_EMBED_API_KEY
-      timeout: 60
+      model: openai/homelab-strong-long-vllm
+      api_base: os.environ/HOMELAB_STRONG_LONG_API_BASE
+      api_key: os.environ/HOMELAB_STRONG_LONG_API_KEY
+      timeout: 600
 
 router_settings:
   routing_strategy: simple-shuffle
