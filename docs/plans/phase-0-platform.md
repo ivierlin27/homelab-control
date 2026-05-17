@@ -34,7 +34,7 @@ Decisions locked at planning time:
 | Sub-agent spawner                  | 0.10    | not started         |
 | Tiered escalation                  | 0.11    | not started         |
 | Master dashboard + KB browser      | 0.12    | not started         |
-| Backup + restore                   | 0.13    | done (local; off-host blocked) |
+| Backup + restore                   | 0.13    | done (local + Proxmox SFTP) |
 
 ## Known gaps / deferred work
 
@@ -477,20 +477,26 @@ Retention via `restic forget --prune --tag <tier>`:
 `--keep-hourly 48 --keep-daily 30 --keep-weekly 8 --keep-monthly 12`
 (hourly only applies to hot; full uses daily as its finest grain).
 
-Multi-target via `BACKUP_REPOSITORIES` (comma-separated). Today this
-points at one local repo on Alienware's spinning disk
-(`/mnt/spinny/restic-homelab`, 870 GB free). The off-host target slot
-is wired but blocked: the Proxmox host
-(`proxmox.dev-path.org` / 192.168.1.23) refuses all probed ports (no
-SSH, no NFS, no Proxmox web UI) from Alienware. Adding the off-host
-target once the firewall opens is a one-line env change — see the
-runbook.
+Multi-target via `BACKUP_REPOSITORIES` (comma-separated). Two
+targets live today:
 
-Verified live: both tiers ran clean on first invocation,
-`restic check` reports `no errors were found` across all 2 snapshots,
-both systemd timers armed. Runbook (`docs/runbooks/backup.md`) covers
-install, init, restore (`restic restore latest --tag <tier> --target
-…`), and the off-host extension path.
+- `/mnt/spinny/restic-homelab` — local on Alienware's spinning disk
+  (870 GB free). Protects against operator error and SSD failure.
+- `sftp:root@proxmox.dev-path.org:/var/lib/vz/dump/restic-homelab-alienware`
+  — off-host on Proxmox via restic's SFTP backend (root volume,
+  81 GB free at setup). Protects against full Alienware loss.
+
+Both targets receive every snapshot. The runner iterates serially
+and continues on individual target failures (per-target success is
+logged); service exit code is non-zero if any target failed, so
+the journal surfaces red.
+
+Verified live: both tiers ran clean on first invocation in both
+local and off-host repos, `restic check` reports `no errors were
+found`, both systemd timers armed. Runbook
+(`docs/runbooks/backup.md`) covers install, init, restore
+(`restic restore latest --tag <tier> --target …`), and adding more
+targets to `BACKUP_REPOSITORIES`.
 
 14 unit tests cover config parsing, `$HOME`-only path expansion (the
 runner rejects other env tokens to avoid surprising leakage),
@@ -502,25 +508,21 @@ error).
 
 Follow-ups (not blocking 0.9):
 
-- **Off-host Proxmox target**: open SSH or set up an NFS export from
-  `proxmox.dev-path.org` to Alienware; mount at `/mnt/proxmox-backup`,
-  `restic init` against `/mnt/proxmox-backup/restic-homelab`, append
-  to `BACKUP_REPOSITORIES` in `~/.config/homelab-control/backup.env`.
-  Owner: Kevin (firewall) / `agent:homelab-maintainer`
-  (mount + init).
 - **LXC-side coverage** (Forgejo, Planka, memory-engine PG, Qdrant,
-  Vaultwarden, Infisical): these live on the beelink/Proxmox host,
-  unreachable from Alienware today. Either run a parallel restic
-  setup on the Proxmox host targeting the same off-host repo (best
-  for PG, which wants `pg_dump`-then-snapshot), or expose volumes
-  to Alienware via NFS read-only.
-- **Quarterly DR drill**: restore from `/mnt/spinny` to a throwaway
-  directory, run audit verify against the restored ledger trees,
-  confirm chains match the live state's head hashes.
-- **Repo password durability**: the restic password is on disk at
-  `~/.config/homelab-control/restic-password` (chmod 600). It must
-  also be in Vaultwarden break-glass and a printed paper copy —
-  losing it = losing every snapshot, irrecoverably.
+  Vaultwarden, Infisical) is still un-snapshotted. These live as
+  Docker volumes in LXCs on Proxmox; Alienware's restic only covers
+  Alienware-resident state. Either run a parallel restic timer on
+  Proxmox targeting the same off-host directory (best for PG, which
+  wants `pg_dump`-then-snapshot) or mount the volumes read-only over
+  NFS into Alienware's source set.
+- **Quarterly DR drill**: restore each tier from each target to a
+  throwaway directory, run `audit verify` against the restored ledger
+  trees, confirm chains match the live state's head hashes.
+- **Repo password durability**: restic password stored at
+  `~/.config/homelab-control/restic-password` (chmod 600) on
+  Alienware and (per operator) in Vaultwarden + paper. Same
+  passphrase secures both the local and the Proxmox repo. Losing it
+  = losing every snapshot, irrecoverably.
 
 ## 0.14 Doc + plan layout (this file)
 

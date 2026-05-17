@@ -16,33 +16,42 @@ provisioning).
 
 What this does **not** protect (yet):
 
-- **Forgejo, Planka, memory-engine Postgres, Qdrant**: these live on
-  the beelink/Proxmox host (`proxmox.dev-path.org`, 192.168.1.23). The
-  Alienware-side runner cannot reach that host today — no SSH, no NFS
-  export, all probed ports refused. To extend coverage:
-  1. Open SSH (and optionally NFS) from the Proxmox firewall to
-     Alienware's IP.
-  2. Either mount an NFS share at `/mnt/proxmox-backup` and add
-     `/mnt/proxmox-backup/restic-homelab` to `BACKUP_REPOSITORIES`,
-     **or** run a parallel restic backup on the Proxmox host itself
-     using the per-LXC volume snapshots (preferred for PG and Qdrant).
-- Self-hosted services that Proxmox manages (vaultwarden, infisical).
-  Same blocker as above.
+- **Forgejo, Planka, memory-engine Postgres, Qdrant, Vaultwarden,
+  Infisical**: these live on the Proxmox host
+  (`proxmox.dev-path.org`) as Docker volumes inside LXCs. The
+  Alienware-side runner snapshots only Alienware-resident state.
+  Two follow-up paths:
+  1. **Run restic on Proxmox** with its own systemd timer covering
+     `/var/lib/lxc/*/rootfs/opt/<service>/data` (or the equivalent
+     bind-mounts), targeting the same off-host repo prefix
+     (different sub-path). Preferred for PG: use
+     `pg_dump`-then-snapshot rather than raw volume copy.
+  2. **Cross-host restic from Alienware**: mount the relevant
+     volumes read-only over NFS and add them to
+     `config/backup/sources.yaml`. Simpler operationally, less
+     robust if NFS hiccups.
 
 ## Targets
 
 `BACKUP_REPOSITORIES` is a comma-separated list of restic repo URIs.
-Today it points at one local repo on Alienware's spinning drive:
+Today it points at two targets:
 
 ```
-BACKUP_REPOSITORIES=/mnt/spinny/restic-homelab
+BACKUP_REPOSITORIES=/mnt/spinny/restic-homelab,sftp:root@proxmox.dev-path.org:/var/lib/vz/dump/restic-homelab-alienware
 ```
 
-When the Proxmox path opens up, add the off-host target:
+- **Local**: `/mnt/spinny/restic-homelab` on Alienware's spinning
+  drive (916G volume, ~5M used today). Protects against operator
+  error, ransomware on the SSD, NVMe failure.
+- **Off-host**: SFTP to Proxmox host (94G root volume, 81G free at
+  setup). Protects against full Alienware loss (theft, fire, dead
+  hardware). Restic over SFTP needs only an SSH key — no daemon on
+  Proxmox.
 
-```
-BACKUP_REPOSITORIES=/mnt/spinny/restic-homelab,/mnt/proxmox-backup/restic-homelab
-```
+Both targets receive every snapshot; the runner iterates the list
+serially. If one target is unreachable the run still attempts the
+other (success per-target is reported individually) but the
+service exit code is non-zero so journal shows red.
 
 ## Setup on Alienware
 
