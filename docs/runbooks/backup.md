@@ -137,6 +137,38 @@ returns the most recent snapshot regardless of tier, which is usually
 the hot one (smaller, more frequent) rather than the more inclusive
 full one.
 
+## Disaster-recovery drill
+
+`scripts/backup/dr-drill.sh` restores the most recent snapshot from
+every configured repository into a scratch directory, verifies the
+restic restore succeeded (non-zero files), and runs `python3 -m
+apps._shared.audit verify` against any audit ledgers in the restored
+tree. Proves the chain survives a full round-trip.
+
+Wired up as a quarterly systemd timer:
+
+- `systemd/alienware-backup-dr-drill.service`
+- `systemd/alienware-backup-dr-drill.timer` — first Sunday of
+  Jan/Apr/Jul/Oct at 03:00 ± 30 min
+
+Run manually anytime:
+
+```bash
+export BACKUP_ENV_FILE=$HOME/.config/homelab-control/backup.env
+bash ~/git/homelab-control/scripts/backup/dr-drill.sh
+```
+
+Expected good output ends with `drill complete; scratch retained at
+…` and `exit 0`. On failure the scratch dir is preserved and the
+restic restore log is at `<scratch>/<repo>/<host>/.restic.log`.
+
+The same script can run on Proxmox against the LXC-side repo:
+
+```bash
+BACKUP_ENV_FILE=/etc/homelab-control/backup-lxcs.env \
+  bash /usr/local/bin/proxmox-dr-drill
+```
+
 ## Health checks
 
 Run weekly (or wire into a future weekly-review report):

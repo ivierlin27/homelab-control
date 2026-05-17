@@ -1,0 +1,15 @@
+[Unit]
+Description=Quarterly DR drill: restore every restic snapshot to a scratch dir, verify audit chains
+Documentation=file:///%h/git/homelab-control/docs/runbooks/backup.md
+
+[Service]
+Type=oneshot
+Environment=BACKUP_ENV_FILE=%h/.config/homelab-control/backup.env
+Environment=DR_DRILL_SCRATCH=%t/dr-drill
+ExecStartPre=/usr/bin/rm -rf %t/dr-drill
+ExecStart=/bin/bash %h/git/homelab-control/scripts/backup/dr-drill.sh
+# Clean scratch on success so we don't fill /run; on failure keep it for forensics.
+ExecStartPost=/bin/bash -c '[ "$$EXIT_STATUS" = "0" ] && rm -rf %t/dr-drill || true'
+
+[Install]
+WantedBy=default.target

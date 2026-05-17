@@ -284,10 +284,13 @@ Follow-ups (not blocking 0.9):
 - **0.12 surface**: master dashboard reads the PG `llm_calls` table
   for per-agent / per-day spend and latency curves; weekly review
   pulls the local-vs-cloud spend trade.
-- **Tagging**: extend `apps/_shared/rlm/subcall.py` to forward an
-  `x-task-intent` header (summarize/classify/code/plan) so the
-  `llm_calls.raw` JSONB has intent attribution for the master
-  dashboard's "cost per task class" charts.
+- ~~**Tagging**: forward `x-task-intent`…~~ **(DONE 2026-05-17)**
+  `apps/_shared/rlm/subcall.py` now sends `x-task-intent` alongside
+  `x-agent-principal`; the callback writes `task_intent` into the
+  JSONL record; n8n inserts it into the new
+  `llm_calls.task_intent text` column (indexed for
+  `task_intent IS NOT NULL`). End-to-end verified: a smoke call with
+  `x-task-intent: classify` lands in PG with the column populated.
 
 ## 0.7 Per-agent Discord presence — `apps/_shared/discord_bridge/` (DONE)
 
@@ -508,21 +511,37 @@ error).
 
 Follow-ups (not blocking 0.9):
 
-- **LXC-side coverage** (Forgejo, Planka, memory-engine PG, Qdrant,
-  Vaultwarden, Infisical) is still un-snapshotted. These live as
-  Docker volumes in LXCs on Proxmox; Alienware's restic only covers
-  Alienware-resident state. Either run a parallel restic timer on
-  Proxmox targeting the same off-host directory (best for PG, which
-  wants `pg_dump`-then-snapshot) or mount the volumes read-only over
-  NFS into Alienware's source set.
-- **Quarterly DR drill**: restore each tier from each target to a
-  throwaway directory, run `audit verify` against the restored ledger
-  trees, confirm chains match the live state's head hashes.
+- ~~**LXC-side coverage**~~ **(DONE 2026-05-17)** — daily 04:00
+  restic snapshots of every managed LXC's logical state via
+  `scripts/proxmox-backup/backup-lxcs.sh` + `systemd/proxmox-backup-lxcs.{service,timer}`,
+  documented in [`docs/runbooks/backup-lxcs.md`](../runbooks/backup-lxcs.md).
+  Covers `memory-engine` (PG dumpall + qdrant/mem0/planka/n8n/khoj
+  volumes + `.env`), `forgejo` (PG + data volume), `vaultwarden`
+  (data volume with sqlite), `infisical` (PG). Each LXC tagged
+  `--host pve-lxc-<id>` for per-service retention scoping. Smoke-run
+  produced 5 snapshots, `restic check` clean, 3.0M on disk after
+  4.4× compression. Single-fault risk today: the LXC-side repo lives
+  on the same physical disk that hosts the LXCs themselves —
+  acceptable for everything currently in there (all reproducible
+  from git except Vaultwarden + Infisical secrets, which we should
+  add an off-host LXC backup target for before going production-
+  critical).
+- ~~**Quarterly DR drill**~~ **(DONE 2026-05-17)** —
+  `scripts/backup/dr-drill.sh` restores the latest snapshot from
+  every repo in `$BACKUP_REPOSITORIES`, runs `python3 -m
+  apps._shared.audit verify` on every audit ledger in the restored
+  tree, and exits non-zero if anything fails. Wired up as
+  `systemd/alienware-backup-dr-drill.{service,timer}` (first Sunday
+  of Jan/Apr/Jul/Oct at 03:00 ±30 min). Same script also runs on
+  Proxmox against the LXC repo as `/usr/local/bin/proxmox-dr-drill`.
+  First live run: 2028 files restored from both Alienware repos with
+  11 audit ledgers clean each, all 4 LXC backups restored from the
+  Proxmox repo.
 - **Repo password durability**: restic password stored at
   `~/.config/homelab-control/restic-password` (chmod 600) on
-  Alienware and (per operator) in Vaultwarden + paper. Same
-  passphrase secures both the local and the Proxmox repo. Losing it
-  = losing every snapshot, irrecoverably.
+  Alienware and `/etc/homelab-control/restic-password` on Proxmox,
+  plus (per operator) in Vaultwarden + paper. Same passphrase secures
+  all three repos. Losing it = losing every snapshot, irrecoverably.
 
 ## 0.14 Doc + plan layout (this file)
 
