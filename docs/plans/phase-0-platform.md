@@ -20,21 +20,59 @@ Decisions locked at planning time:
 
 ## Status
 
-| Item                               | Section | Status      |
-| ---------------------------------- | ------- | ----------- |
-| Capability registry                | 0.5     | done        |
-| Sandbox runner                     | 0.1     | not started |
-| Identity issuer                    | 0.2     | not started |
-| Hash-chained audit                 | 0.3     | not started |
-| Verifier-loop primitive            | 0.4     | not started |
-| Gateway cost/latency log           | 0.6     | not started |
-| Per-agent Discord presence         | 0.7     | not started |
-| Per-agent skill registry           | 0.8     | not started |
-| Inter-agent communication (A2A)    | 0.9     | not started |
-| Sub-agent spawner                  | 0.10    | not started |
-| Tiered escalation                  | 0.11    | not started |
-| Master dashboard + KB browser      | 0.12    | not started |
-| Backup + restore                   | 0.13    | not started |
+| Item                               | Section | Status              |
+| ---------------------------------- | ------- | ------------------- |
+| Capability registry                | 0.5     | done                |
+| Sandbox runner                     | 0.1     | done (egress: gap)  |
+| Identity issuer                    | 0.2     | done                |
+| Hash-chained audit                 | 0.3     | not started         |
+| Verifier-loop primitive            | 0.4     | not started         |
+| Gateway cost/latency log           | 0.6     | not started         |
+| Per-agent Discord presence         | 0.7     | not started         |
+| Per-agent skill registry           | 0.8     | done                |
+| Inter-agent communication (A2A)    | 0.9     | not started         |
+| Sub-agent spawner                  | 0.10    | not started         |
+| Tiered escalation                  | 0.11    | not started         |
+| Master dashboard + KB browser      | 0.12    | not started         |
+| Backup + restore                   | 0.13    | not started         |
+
+## Known gaps / deferred work
+
+These items were uncovered during build-out and explicitly deferred. Each must
+be addressed before any agent that depends on the gap goes live.
+
+### Gap 0.1-egress: per-host egress enforcement is not implemented
+
+The sandbox runner records the manifest's `sandbox.network.allowed_hosts` in
+the audit log but does not enforce it. With `allowed_hosts` non-empty the
+container runs under `--network=slirp4netns` with **wide-open egress** — any
+TCP/UDP destination is reachable. With an empty list it correctly runs under
+`--network=none`.
+
+**Why deferred (2026-05-16):** the first concrete agent runs (homelab-maintainer
+CVE triage, executive intake classification on trusted Planka cards) read
+from operator-curated inputs and reach only first-party hosts. The risk of
+exfiltration via this gap is bounded by the threat model: the homelab LAN
+itself, not random untrusted internet input.
+
+**Hard gate before lifting the deferral:** no agent that processes content
+from an untrusted source (URLs from intake, web fetches, third-party RSS,
+attached files from unknown senders) may run in production until this is
+fixed.
+
+**Planned implementation (Phase 0.1.1):**
+
+- Run a small `httpx`-based forward proxy on the runner host. The proxy reads
+  each agent's `allowed_hosts` from the registry and 403s anything else.
+- Sandboxes get `HTTP_PROXY`/`HTTPS_PROXY` env vars pointed at the proxy.
+- Container `--network=slirp4netns:port_handler=slirp4netns` plus an explicit
+  reject-all default — the proxy is the only reachable address.
+- Acceptance: a sandboxed `curl https://1.1.1.1` returns 403 when 1.1.1.1
+  is not in the manifest; a sandboxed `curl https://forgejo.dev-path.org`
+  succeeds when it is.
+
+**Tracked card:** to be filed on Planka when the homelab-maintainer agent
+goes live and can own its own backlog.
 
 ---
 
