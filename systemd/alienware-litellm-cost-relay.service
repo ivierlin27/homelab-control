@@ -1,0 +1,20 @@
+[Unit]
+Description=LiteLLM cost JSONL relay → memory-engine
+Documentation=file://%h/git/homelab-control/docs/runbooks/litellm-cost-relay.md
+After=network-online.target homelab-model-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/git/homelab-control
+EnvironmentFile=-%h/.config/homelab-control/litellm-cost-relay.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/git/homelab-control
+Environment=LLM_CALLS_JSONL=%h/.local/state/homelab-control/llm-calls/llm-calls.jsonl
+Environment=LLM_COST_RELAY_STATE=%h/.local/state/homelab-control/llm-calls/.relay-offset
+ExecStart=%h/git/homelab-control/.venv/bin/python -m apps.litellm_cost_relay.main
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
