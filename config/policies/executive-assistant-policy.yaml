@@ -85,8 +85,11 @@ interaction_sources:
     allowed_user_ids: []
 
   discord-channel:
-    enabled: false
+    enabled: true
     allowed_user_ids: []
+    # IDs come from DISCORD_ALLOWED_GUILD_IDS / DISCORD_ALLOWED_CHANNEL_IDS
+    # in ~/.config/homelab-control/agent-executive-discord.env (env vars are
+    # unioned with these lists at load time in apps/executive_agent/chat_core.py).
     allowed_guild_ids: []
     allowed_channel_ids: []
 
