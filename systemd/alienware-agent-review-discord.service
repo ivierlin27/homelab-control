@@ -1,0 +1,16 @@
+[Unit]
+Description=Homelab agent review Discord bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=%h/.config/homelab-control/agent-review.env
+EnvironmentFile=%h/.config/homelab-control/agent-review-discord.env
+ExecStart=/usr/bin/bash -lc 'cd "%h/git/homelab-control" && exec python3 apps/review_agent/discord_bot.py --state-dir %h/.local/state/homelab-control/agent-review'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

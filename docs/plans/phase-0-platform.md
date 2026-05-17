@@ -28,7 +28,7 @@ Decisions locked at planning time:
 | Hash-chained audit                 | 0.3     | done                |
 | Verifier-loop primitive            | 0.4     | not started         |
 | Gateway cost/latency log           | 0.6     | not started         |
-| Per-agent Discord presence         | 0.7     | not started         |
+| Per-agent Discord presence         | 0.7     | done                |
 | Per-agent skill registry           | 0.8     | done                |
 | Inter-agent communication (A2A)    | 0.9     | not started         |
 | Sub-agent spawner                  | 0.10    | not started         |
@@ -215,37 +215,59 @@ tokens_in, tokens_out, latency_ms, est_cost_usd, cloud_alt_cost_usd}` to
 memory-engine. Surface in the master dashboard (0.12). Weekly review shows the
 local-vs-cloud spend trade.
 
-## 0.7 Per-agent Discord presence — `apps/_shared/discord/`
+## 0.7 Per-agent Discord presence — `apps/_shared/discord_bridge/` (DONE)
 
-Replace the single `alienware-executive-discord.service` with one bridge
-process per agent. Each agent gets its own bot user, display name, and avatar;
-bot tokens are stored in Infisical by 0.2.
+`apps/_shared/discord_bridge/` extracts the connect/intent/filter/audit/
+chunk machinery that the executive bridge has been carrying since cut. Per-
+agent bridges are now thin wrappers that supply a `BridgeConfig` (principal,
+label, prefix, audit ledger path) plus an async `handler(MessageContext) ->
+reply | None`.
 
-- Single existing guild. All agents live there.
-- Channel topology: `#homelab`, `#knowledge`, `#insights`, `#language`
-  (domain), `#finance`, `#profile` (sensitive, role-gated, **read-only from
-  Discord** — analyze/report/summarize OK, mutations require CLI or dashboard,
-  enforced bridge-side by call origin), `#intake`, `#approvals`, `#ops`
-  (cross-cutting), `#general` (humans-only, no bots).
-- Threads = Planka cards. When a card enters `Plan Ready`, the executive
-  auto-creates a thread under its domain channel. Auto-archive on `Done`.
-- Bot Discord permissions: `Send Messages`, `Read Messages`, `Create Threads`,
-  `Send Messages in Threads`, `Add Reactions`, `Embed Links` only. Never
-  `Manage *`, `Mention Everyone`, `Kick`, `Ban`.
-- Bot status: online but silent unless @mentioned, in their dedicated
-  channel/thread, or in DMs. "Watching" status surfaces verifier loop progress.
-- Audit alignment: every action triggered by Discord logs `discord_guild_id`,
-  `discord_channel_id`, `discord_thread_id`, `discord_message_id`,
-  `discord_author_id` to the trust ledger.
-- Notification policy: DMs to Kevin reserved for human-approval requests,
-  verifier escalations, audit-anchor mismatches, backup failures.
-- Channel + thread membership generated from the registry, not hand-edited in
-  Discord.
+Initial fleet (Phase 0.7 ship):
 
-Acceptance: a new agent gets a working Discord identity solely from `identity
-issue --principal agent:foo` (guided) plus a registry entry; sensitive bots
-refuse mutating tool calls when invoked from Discord; one Planka card produces
-exactly one Discord thread and one ledger correlation chain.
+| Agent | Bridge module | Prefix | Channels (env allowlist) |
+| --- | --- | --- | --- |
+| `agent:executive` | `apps/executive_agent/discord_bot.py` | `!assistant` | `#intake`, `#approvals`, `#ops`, `#homelab`, `#executive-assistant` |
+| `agent:homelab-maintainer` | `apps/homelab_maintainer_agent/discord_bot.py` | `!maintainer` | `#ops`, `#homelab` |
+| `agent:homelab` | `apps/author_agent/discord_bot.py` | `!homelab` | `#homelab` |
+| `agent:review` | `apps/review_agent/discord_bot.py` | `!review` | `#approvals`, `#homelab` |
+
+Each bridge:
+
+- Connects with the intents we proved necessary in 0.3:
+  `message_content` + `members` + `dm_messages` (privileged toggles must be
+  enabled per-app in the Discord developer portal).
+- Filters by `DISCORD_ALLOWED_USER_IDS` and `DISCORD_ALLOWED_CHANNEL_IDS`
+  (env-only — IDs intentionally out of git).
+- Writes a hash-chained `discord-message` event to the agent's own trust
+  ledger for every inbound, outbound, and handler exception. Per-agent
+  ledgers are independent: a compromise of one agent's storage cannot forge
+  another's history.
+- Chunks replies at 1800 chars.
+
+Initial handlers expose only `help` and `status` plus an "ack-and-audit"
+fallback for free-form text. They deliberately do **not** act on free-form
+input until A2A lands in 0.9 — this keeps the audit boundary explicit:
+anything that reaches an agent over Discord is logged before any work
+decision.
+
+systemd units per bridge under `systemd/alienware-agent-<name>-discord.service`
+read `~/.config/homelab-control/agent-<name>{,-discord}.env` and run on the
+same machine as the rest of the agent fleet.
+
+Pending finer cuts (deferred to follow-up tickets, not blocking 0.9):
+
+- Planka-card → thread automation (thread creation on `Plan Ready`).
+- Sensitive-channel mutation guard (read-only mode for `agent:finance` and
+  `agent:profile` once those agents land).
+- Bot avatars + presence text ("Watching: verifier-loop step 2/3").
+- Channel + thread membership generated from the registry (today bot
+  membership is operator-managed via Discord UI; the registry already
+  declares the intent).
+
+Acceptance met: four bots online; each responds in its allowlisted
+channels and in DMs from Kevin; each produces a fully verified hash chain
+in its own per-agent ledger; ledgers anchored.
 
 ## 0.8 Per-agent skill registry — `config/skills/` + `apps/_shared/skills/`
 
