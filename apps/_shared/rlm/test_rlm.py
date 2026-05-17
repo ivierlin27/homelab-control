@@ -93,6 +93,38 @@ class SubCallInvokerTests(unittest.TestCase):
         with self.assertRaises(SubCallSchemaError):
             invoker.call(intent="summarize", sub_prompt="x", context={})
 
+    def test_http_post_sends_attribution_headers(self) -> None:
+        """Phase 0.6 follow-up: x-agent-principal + x-task-intent must reach the gateway."""
+        from unittest import mock
+
+        captured_request = {}
+
+        class _FakeResp:
+            def read(self) -> bytes:
+                return b'{"choices":[{"message":{"content":"{\\"summary\\":\\"ok\\",\\"citations\\":[],\\"confidence\\":\\"low\\",\\"open_questions\\":[]}"}}],"usage":{}}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def _fake_urlopen(req, timeout=None):
+            captured_request["headers"] = dict(req.headers)
+            return _FakeResp()
+
+        with mock.patch.dict(
+            "os.environ", {"AGENT_PRINCIPAL": "agent:executive", "MODEL_GATEWAY_BASE_URL": "http://gw"}
+        ):
+            with mock.patch("apps._shared.rlm.subcall.request.urlopen", _fake_urlopen):
+                invoker = SubCallInvoker()
+                invoker.call(intent="classify", sub_prompt="x", context={})
+
+        headers = captured_request["headers"]
+        # urllib normalizes header names to Capitalized
+        self.assertEqual("agent:executive", headers.get("X-agent-principal"))
+        self.assertEqual("classify", headers.get("X-task-intent"))
+
 
 class HarnessTests(unittest.TestCase):
     def setUp(self) -> None:

@@ -119,7 +119,7 @@ class SubCallInvoker:
         if self.transport is not None:
             response = self.transport(intent, model, payload)
         else:
-            response = self._http_post(payload)
+            response = self._http_post(payload, intent=intent)
         latency_ms = int((time.monotonic() - start) * 1000)
         text = self._extract_text(response)
         parsed = _parse_schema(text)
@@ -151,7 +151,7 @@ class SubCallInvoker:
             "response_format": {"type": "json_object"},
         }
 
-    def _http_post(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _http_post(self, payload: dict[str, Any], *, intent: str | None = None) -> dict[str, Any]:
         if not self.base_url:
             raise RuntimeError("MODEL_GATEWAY_BASE_URL is not configured for sub-calls")
         body = json.dumps(payload).encode("utf-8")
@@ -164,6 +164,10 @@ class SubCallInvoker:
         principal = os.environ.get("AGENT_PRINCIPAL", "").strip()
         if principal:
             headers["x-agent-principal"] = principal
+        # Phase 0.6 follow-up: include the sub-call intent (summarize / classify /
+        # code / plan / ...) so the gateway can group cost/latency by task class.
+        if intent:
+            headers["x-task-intent"] = intent
         req = request.Request(f"{self.base_url}/chat/completions", data=body, headers=headers, method="POST")
         with request.urlopen(req, timeout=int(os.environ.get("RLM_SUBCALL_TIMEOUT", "120"))) as response:
             raw = response.read().decode("utf-8")

@@ -19,6 +19,11 @@ Design notes
   by ``apps/_shared/rlm/subcall.py``. Falls back to ``"unknown"``.
 - ``request_id`` from the ``x-litellm-call-id`` header (proxy-assigned) so
   the same call can be cross-referenced in agent ledgers later.
+- ``task_intent`` from the ``x-task-intent`` header (set by
+  ``apps/_shared/rlm/subcall.py`` per sub-call). Lets us group cost/latency
+  by task class (summarize / classify / code / plan) in the dashboard.
+  Null when the caller doesn't supply it (e.g. direct API hits without
+  the RLM harness).
 - We extract ``response_cost`` opportunistically: LiteLLM auto-computes
   it for catalogued models, but our self-hosted vLLM models will yield
   ``0.0``. That is fine — token counts are the real signal locally.
@@ -134,6 +139,7 @@ def build_record(
         "status": status,
         "model": kwargs.get("model"),
         "agent_principal": _header(req, "x-agent-principal") or "unknown",
+        "task_intent": _header(req, "x-task-intent"),
         "request_id": _header(req, "x-litellm-call-id")
         or _header(req, "x-request-id")
         or response_id,

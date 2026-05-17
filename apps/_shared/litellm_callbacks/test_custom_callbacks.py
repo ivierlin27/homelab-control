@@ -26,12 +26,15 @@ def _kwargs(
     principal: str | None = "agent:executive",
     request_id: str | None = "call-123",
     response_cost: float | None = 0.0,
+    task_intent: str | None = None,
 ) -> dict:
     headers: dict[str, str] = {}
     if principal is not None:
         headers["x-agent-principal"] = principal
     if request_id is not None:
         headers["x-litellm-call-id"] = request_id
+    if task_intent is not None:
+        headers["x-task-intent"] = task_intent
     return {
         "model": model,
         "user": "kevin",
@@ -68,7 +71,15 @@ def test_build_record_happy_path():
     assert record["cost_usd"] == 0.0
     assert record["latency_ms"] == 1250
     assert record["ts"] == pytest.approx(end.timestamp())
+    assert record["task_intent"] is None
     assert "error" not in record
+
+
+def test_build_record_carries_task_intent_when_header_present():
+    record = build_record(
+        _kwargs(task_intent="summarize"), _response(), 1700000000.0, 1700000000.5, status="success"
+    )
+    assert record["task_intent"] == "summarize"
 
 
 def test_build_record_defaults_principal_when_header_missing():

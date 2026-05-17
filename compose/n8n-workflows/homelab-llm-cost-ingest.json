@@ -42,9 +42,9 @@
       {
         "parameters": {
           "operation": "executeQuery",
-          "query": "INSERT INTO llm_calls (ts, status, model, agent_principal, request_id, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, user_id, error, raw) VALUES (to_timestamp($1::double precision), $2, $3, $4, $5, NULLIF($6,'')::int, NULLIF($7,'')::int, NULLIF($8,'')::int, NULLIF($9,'')::numeric, NULLIF($10,'')::int, $11, $12, $13::jsonb) ON CONFLICT (request_id) DO NOTHING",
+          "query": "INSERT INTO llm_calls (ts, status, model, agent_principal, task_intent, request_id, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, user_id, error, raw) VALUES (to_timestamp($1::double precision), $2, $3, $4, NULLIF($5,'')::text, $6, NULLIF($7,'')::int, NULLIF($8,'')::int, NULLIF($9,'')::int, NULLIF($10,'')::numeric, NULLIF($11,'')::int, $12, $13, $14::jsonb) ON CONFLICT (request_id) DO NOTHING",
           "options": {
-            "queryReplacement": "={{ $json.ts }},={{ $json.status }},={{ $json.model }},={{ $json.agent_principal }},={{ $json.request_id }},={{ $json.prompt_tokens ?? '' }},={{ $json.completion_tokens ?? '' }},={{ $json.total_tokens ?? '' }},={{ $json.cost_usd ?? '' }},={{ $json.latency_ms ?? '' }},={{ $json.user ?? null }},={{ $json.error ?? null }},={{ JSON.stringify($json) }}"
+            "queryReplacement": "={{ $json.ts }},={{ $json.status }},={{ $json.model }},={{ $json.agent_principal }},={{ $json.task_intent ?? '' }},={{ $json.request_id }},={{ $json.prompt_tokens ?? '' }},={{ $json.completion_tokens ?? '' }},={{ $json.total_tokens ?? '' }},={{ $json.cost_usd ?? '' }},={{ $json.latency_ms ?? '' }},={{ $json.user ?? null }},={{ $json.error ?? null }},={{ JSON.stringify($json) }}"
           }
         },
         "id": "pg-node",
