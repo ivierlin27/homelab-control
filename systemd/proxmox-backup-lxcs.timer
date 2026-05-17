@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily LXC backup (memory-engine PG, forgejo, vaultwarden, infisical)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=15min
+Persistent=true
+Unit=proxmox-backup-lxcs.service
+
+[Install]
+WantedBy=timers.target

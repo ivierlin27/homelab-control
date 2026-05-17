@@ -1,0 +1,12 @@
+[Unit]
+Description=Proxmox restic backup of managed LXCs (memory-engine, forgejo, vaultwarden, infisical)
+Documentation=file:///root/homelab-control-git/docs/runbooks/backup-lxcs.md
+After=pve-cluster.service pve-guests.service
+
+[Service]
+Type=oneshot
+Environment=BACKUP_ENV_FILE=/etc/homelab-control/backup-lxcs.env
+ExecStart=/usr/local/bin/proxmox-backup-lxcs
+
+[Install]
+WantedBy=multi-user.target
