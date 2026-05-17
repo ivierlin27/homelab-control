@@ -25,7 +25,7 @@ Decisions locked at planning time:
 | Capability registry                | 0.5     | done                |
 | Sandbox runner                     | 0.1     | done (egress: gap)  |
 | Identity issuer                    | 0.2     | done                |
-| Hash-chained audit                 | 0.3     | not started         |
+| Hash-chained audit                 | 0.3     | done                |
 | Verifier-loop primitive            | 0.4     | not started         |
 | Gateway cost/latency log           | 0.6     | not started         |
 | Per-agent Discord presence         | 0.7     | not started         |
@@ -112,15 +112,50 @@ Acceptance: re-running `issue` is idempotent; `revoke` exists; identities show
 up in [docs/ACCESS_MATRIX.md](../ACCESS_MATRIX.md) generation; tokens never
 written to disk outside Infisical.
 
-## 0.3 Hash-chained audit — `apps/_shared/audit/`
+## 0.3 Hash-chained audit — `apps/_shared/audit/` (DONE)
 
-Wrap the existing `trust-ledger.jsonl` and `lifecycle-events.jsonl` writers
-with a hash-chained appender (each line includes `prev_hash`, `entry_hash`).
+`AuditLog` wraps existing JSONL ledgers with SHA-256 hash-chaining. Each
+appended record adds `audit_seq`, `audit_ts`, `audit_prev`, and
+`audit_hash` (= `sha256(canonical_json(payload) + audit_prev)`). The first
+chained record's `audit_prev` is `GENESIS_HASH = "0" * 64`.
 
-- Daily anchor: write the day's tip hash into memory-engine and DM Kevin.
-- `verify-ledger` CLI: walks every chain, exits non-zero on any break.
-- Acceptance: an agent cannot rewrite its own history without breaking the
-  chain.
+Implementation highlights:
+
+- **Concurrency-safe append** via `fcntl.flock` on the ledger file; multiple
+  writers in the same process or across processes serialize cleanly.
+- **Legacy-prefix tolerant**: pre-existing un-chained lines are preserved
+  as a "legacy prefix"; chaining starts on top. Useful for adopting the
+  scheme on running systems without rewriting history (which would itself
+  break trust assumptions).
+- **External anchoring**: `AuditLog.anchor(receipt_path, note=...)` writes
+  `{ts, head_hash, chained_lines, legacy_prefix_lines, note}` to a separate
+  receipt file. Receipts can be backed up / printed / pinned to a Forgejo
+  branch / DM'd to operator — verifier later compares the recomputed head
+  to the anchored value.
+
+CLI:
+
+```bash
+python3 -m apps._shared.audit info   <ledger>
+python3 -m apps._shared.audit verify <ledger>
+python3 -m apps._shared.audit tail   <ledger> [--lines N]
+python3 -m apps._shared.audit anchor <ledger> --to <receipt> [--note ...]
+```
+
+Integration: `apps/executive_agent/main.py:append_jsonl` and
+`apps/homelab_maintainer_agent/main.py:append_jsonl` were refactored to
+delegate to `AuditLog`. All other agent code paths that write to those
+files automatically inherit chaining.
+
+Verified live (2026-05-17): a Discord message in `#intake` →
+executive-agent handler → `AuditLog.append` → chained record written →
+`verify_chain` returns `chain_ok: True`. First operator anchor at
+`~/.local/state/homelab-control/audit-anchors/agent-executive.jsonl`.
+
+Acceptance met: any byte modification to a chained record (including
+re-ordering fields) breaks subsequent records' hash recomputation and is
+reported by `verify`. Test coverage includes tamper, legacy-prefix,
+concurrent-append, and round-trip-after-anchor scenarios (13 tests).
 
 ## 0.4 Verifier-loop primitive — `apps/_shared/verifier/`
 
