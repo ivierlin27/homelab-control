@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 import sys
@@ -71,12 +72,19 @@ class ChatInterfaceTests(unittest.TestCase):
                 )
 
             turns = store.list_turns(conversation["id"])
-            ledger = (state_dir / "trust-ledger.jsonl").read_text()
+            # Parse the chained JSONL rather than substring-matching so the
+            # assertion is robust to serialization style (canonical JSON in
+            # the hash-chained ledger has no whitespace).
+            ledger_lines = [
+                json.loads(line)
+                for line in (state_dir / "trust-ledger.jsonl").read_text().splitlines()
+                if line.strip()
+            ]
 
             self.assertIn("Decision: plan_ready", result["reply"])
             self.assertEqual(["user", "assistant"], [turn["role"] for turn in turns])
-            self.assertIn('"source": "local-web"', ledger)
-            self.assertIn('"conversation_id": "local-web:test"', ledger)
+            self.assertTrue(any(row.get("source") == "local-web" for row in ledger_lines))
+            self.assertTrue(any(row.get("conversation_id") == "local-web:test" for row in ledger_lines))
 
 
 if __name__ == "__main__":

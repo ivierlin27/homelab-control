@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 import importlib.util
@@ -35,7 +36,14 @@ class HomelabMaintainerTests(unittest.TestCase):
             self.assertFalse(result["card"]["created"])
             ledger = queue_dir / "trust-ledger.jsonl"
             self.assertTrue(ledger.exists())
-            self.assertIn('"event": "triage-intake"', ledger.read_text())
+            # Parse the chained JSONL: canonical JSON for the hash chain has
+            # no whitespace, so substring matches on '"event": "..."' fail.
+            rows = [
+                json.loads(line)
+                for line in ledger.read_text().splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(any(row.get("event") == "triage-intake" for row in rows))
 
     def test_delegate_author_job_enqueues_into_author_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
