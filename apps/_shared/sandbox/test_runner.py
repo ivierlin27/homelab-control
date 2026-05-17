@@ -129,6 +129,39 @@ def test_correlation_id_used_when_provided(tmp_path: Path) -> None:
     assert cid[:8] in result.container_name
 
 
+def test_cli_strips_leading_double_dash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: argparse.REMAINDER preserves `--`; CLI must strip it before exec."""
+    from apps._shared.sandbox import __main__ as cli
+
+    captured: dict = {}
+
+    class _FakeRunner:
+        def __init__(self, *, principal, image, worktree_path, allowed_hosts):
+            captured["init"] = (principal, image, str(worktree_path), tuple(allowed_hosts))
+
+        def run(self, *, command, timeout_seconds, capture_session_to):
+            captured["command"] = tuple(command)
+            from apps._shared.sandbox.runner import SandboxResult
+            return SandboxResult(
+                exit_code=0, stdout="ok\n", stderr="", duration_seconds=0.01,
+                container_name="x", image="agent-test:latest",
+                correlation_id="abc", network_mode="none", egress_allowed=(),
+            )
+
+    monkeypatch.setattr(cli, "SandboxRunner", _FakeRunner)
+
+    # Mimic the user CLI: -- python3 -c "..."
+    rc = cli.main([
+        "run",
+        "--principal", "agent:homelab-maintainer",
+        "--worktree", str(tmp_path),
+        "--", "python3", "-c", "print(1)",
+    ])
+    assert rc == 0, captured
+    # The leading "--" must have been stripped before reaching the runner.
+    assert captured["command"] == ("python3", "-c", "print(1)")
+
+
 def test_branch_strategy_enum() -> None:
     # Sanity: enum values match the schema's allowed strings.
     assert BranchStrategy.HEAD.value == "head"

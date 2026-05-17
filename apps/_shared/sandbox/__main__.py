@@ -49,13 +49,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="path to append a session JSONL record to",
     )
+    # Use `--` as the standard end-of-options separator before the command argv.
+    # argparse.REMAINDER preserves the literal `--` in the list, so we strip a
+    # leading `--` in _cmd_run before passing to tini.
     run_p.add_argument(
-        "--",
-        dest="dashes",
-        action="store_true",
-        help="separator before the command",
+        "command",
+        nargs=argparse.REMAINDER,
+        help="command argv to run inside the sandbox (use -- before it)",
     )
-    run_p.add_argument("command", nargs=argparse.REMAINDER, help="command argv to run")
     return parser
 
 
@@ -79,9 +80,13 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    if not args.command:
+    command = list(args.command)
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
         print("error: command required after --", file=sys.stderr)
         return 64
+    args.command = command
     registry = load_registry()
     try:
         manifest = registry.get(args.principal)
