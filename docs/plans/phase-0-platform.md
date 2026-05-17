@@ -34,7 +34,7 @@ Decisions locked at planning time:
 | Sub-agent spawner                  | 0.10    | not started         |
 | Tiered escalation                  | 0.11    | not started         |
 | Master dashboard + KB browser      | 0.12    | not started         |
-| Backup + restore                   | 0.13    | not started         |
+| Backup + restore                   | 0.13    | done (local; off-host blocked) |
 
 ## Known gaps / deferred work
 
@@ -435,30 +435,70 @@ note Kevin types in Obsidian on his Mac appears on `kb.dev-path.org` after the
 next rebuild only if it's in `vault/published/` or marked `publish: true`;
 nothing from `vault/notes/` ever leaks publicly.
 
-## 0.13 Backup + restore — `scripts/backup/` + `docs/RESTORE.md`
+## 0.13 Backup + restore — `apps/backup/` + `docs/runbooks/backup.md` (DONE — local target shipped)
 
-- **Target:** local NAS via SFTP, single restic repository. Repo password in
-  Vaultwarden break-glass + a printed paper copy.
-- **Daily** systemd timers per source host:
-  - Code/config: already in git. Mirror Forgejo to a private GitHub backup
-    remote nightly.
-  - Data: Postgres dumps (memory-engine), Qdrant snapshots, Vaultwarden
-    export, Infisical export, per-agent queue + ledger trees
-    (`~/.local/state/homelab-control/`), Planka DB + attachments, Khoj index,
-    finance ledger (`~/finance/ledger/`), Beancount-imported source
-    statements.
-  - Hosts: Proxmox VZDump snapshots of LXCs nightly to NAS; weekly full.
-- **Retention:** restic policy `keep-daily 14 keep-weekly 8 keep-monthly 12
-  keep-yearly 3`. Weekly `restic check --read-data-subset=10%` on its own
-  timer.
-- **Restore runbook** ([docs/RESTORE.md](../RESTORE.md)) ordered: Proxmox up
-  -> LXC restore -> Postgres -> Qdrant -> Khoj reindex -> Vaultwarden ->
-  Infisical -> queues -> finance ledger -> `podman compose up -d` ->
-  `verify-ledger` -> spot-check master dashboard -> rotate Discord bot tokens
-  (break-glass implies tokens may have been seen) -> announce in `#ops`.
-- **Quarterly DR drill** on a throwaway Proxmox node restores from NAS only;
-  pass = master dashboard up, `verify-ledger` clean, finance ledger checksums
-  match, all bots back online.
+Tiered restic runner (`apps/backup/runner.py`) driven by
+`config/backup/sources.yaml`:
+
+- **hot** (every hour, `alienware-backup-hot.timer`):
+  `~/.local/state/homelab-control/` — per-agent hash-chained ledgers,
+  audit anchors, llm-calls JSONL, relay offsets. The irreplaceable
+  append-only state. First snapshot: 1205 files, 2.97 MiB raw / 567 KiB
+  stored (3.26x compression).
+- **full** (daily 03:30, `alienware-backup-full.timer`): hot +
+  `~/.config/homelab-control/` (all bot tokens, env files) +
+  `~/.config/systemd/user/` + `~/git/{homelab-control,memory-engine}/`
+  minus venvs/caches/git internals. First snapshot: 2003 files,
+  5.17 MiB raw / 1.46 MiB stored (2.88x compression).
+
+Retention via `restic forget --prune --tag <tier>`:
+`--keep-hourly 48 --keep-daily 30 --keep-weekly 8 --keep-monthly 12`
+(hourly only applies to hot; full uses daily as its finest grain).
+
+Multi-target via `BACKUP_REPOSITORIES` (comma-separated). Today this
+points at one local repo on Alienware's spinning disk
+(`/mnt/spinny/restic-homelab`, 870 GB free). The off-host target slot
+is wired but blocked: the Proxmox host
+(`proxmox.dev-path.org` / 192.168.1.23) refuses all probed ports (no
+SSH, no NFS, no Proxmox web UI) from Alienware. Adding the off-host
+target once the firewall opens is a one-line env change — see the
+runbook.
+
+Verified live: both tiers ran clean on first invocation,
+`restic check` reports `no errors were found` across all 2 snapshots,
+both systemd timers armed. Runbook (`docs/runbooks/backup.md`) covers
+install, init, restore (`restic restore latest --tag <tier> --target
+…`), and the off-host extension path.
+
+14 unit tests cover config parsing, `$HOME`-only path expansion (the
+runner rejects other env tokens to avoid surprising leakage),
+existing-vs-missing source separation (a missing optional source is a
+logged skip, not a failure), backup/forget argv construction, and the
+`run_plan` invocation contract (env-only secret passing,
+backup-then-forget ordering, skip-forget-on-backup-failure, no-paths
+error).
+
+Follow-ups (not blocking 0.9):
+
+- **Off-host Proxmox target**: open SSH or set up an NFS export from
+  `proxmox.dev-path.org` to Alienware; mount at `/mnt/proxmox-backup`,
+  `restic init` against `/mnt/proxmox-backup/restic-homelab`, append
+  to `BACKUP_REPOSITORIES` in `~/.config/homelab-control/backup.env`.
+  Owner: Kevin (firewall) / `agent:homelab-maintainer`
+  (mount + init).
+- **LXC-side coverage** (Forgejo, Planka, memory-engine PG, Qdrant,
+  Vaultwarden, Infisical): these live on the beelink/Proxmox host,
+  unreachable from Alienware today. Either run a parallel restic
+  setup on the Proxmox host targeting the same off-host repo (best
+  for PG, which wants `pg_dump`-then-snapshot), or expose volumes
+  to Alienware via NFS read-only.
+- **Quarterly DR drill**: restore from `/mnt/spinny` to a throwaway
+  directory, run audit verify against the restored ledger trees,
+  confirm chains match the live state's head hashes.
+- **Repo password durability**: the restic password is on disk at
+  `~/.config/homelab-control/restic-password` (chmod 600). It must
+  also be in Vaultwarden break-glass and a printed paper copy —
+  losing it = losing every snapshot, irrecoverably.
 
 ## 0.14 Doc + plan layout (this file)
 
