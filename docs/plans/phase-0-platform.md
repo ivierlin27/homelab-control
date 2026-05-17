@@ -27,7 +27,7 @@ Decisions locked at planning time:
 | Identity issuer                    | 0.2     | done                |
 | Hash-chained audit                 | 0.3     | done                |
 | Verifier-loop primitive            | 0.4     | not started         |
-| Gateway cost/latency log           | 0.6     | not started         |
+| Gateway cost/latency log           | 0.6     | done (relay dry-run)|
 | Per-agent Discord presence         | 0.7     | done                |
 | Per-agent skill registry           | 0.8     | done                |
 | Inter-agent communication (A2A)    | 0.9     | not started         |
@@ -208,12 +208,64 @@ Acceptance: removing an agent from the registry stops the executive routing to
 it without code changes; `validate` exits non-zero on any cross-file violation
 and is wired into CI.
 
-## 0.6 Gateway cost/latency log — `compose/model-gateway/`
+## 0.6 Gateway cost/latency log — `apps/_shared/litellm_callbacks/` + `apps/litellm_cost_relay/` (DONE — relay in dry-run)
 
-LiteLLM callback that writes `{ts, principal, task_class, route, model,
-tokens_in, tokens_out, latency_ms, est_cost_usd, cloud_alt_cost_usd}` to
-memory-engine. Surface in the master dashboard (0.12). Weekly review shows the
-local-vs-cloud spend trade.
+Two halves:
+
+1. **Capture (`apps/_shared/litellm_callbacks/custom_callbacks.py`)** — a
+   LiteLLM `CustomLogger` mounted into the `homelab-model-gateway`
+   container. Appends one JSON line per call to
+   `~/.local/state/homelab-control/llm-calls/llm-calls.jsonl` with:
+   `{schema, ts, status, model, agent_principal, request_id,
+   prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms,
+   user, error?}`. Writes are best-effort and **never raise into the
+   request path** — a logging failure cannot break an LLM call.
+   `agent_principal` is sourced from the `x-agent-principal` header
+   forwarded by `apps/_shared/rlm/subcall.py` (driven by per-agent
+   `AGENT_PRINCIPAL` env, already set on the maintainer/homelab/review/
+   executive bridges).
+
+2. **Ship (`apps/litellm_cost_relay/main.py`)** — long-running daemon
+   that tails the JSONL with durable byte-offset persistence and POSTs
+   batches to `$LLM_COST_RELAY_URL` (typically an n8n webhook on the
+   memory-engine LXC). Dry-run when the URL is unset. Exponential
+   backoff (1s → 60s) on failures; offset only advances after a
+   successful POST so memory-engine outages cause replay, never loss.
+   See `docs/runbooks/litellm-cost-relay.md` for the PG DDL and n8n
+   workflow spec.
+
+Bonus fixes shipped with this phase:
+
+- The `homelab-model-gateway.service` unit was crash-looping ~7000
+  times because of a wrong mount path. Unit committed to
+  `systemd/alienware-model-gateway.service` with the path fix plus
+  the new callback + JSONL mounts.
+- Added a `homelab-strong-long` route so the gateway has at least one
+  live upstream. The other configured routes (`homelab-fast`,
+  `homelab-fast-vllm`, `homelab-strong`, `global-embed`) point at
+  upstreams that are currently inactive — see follow-up below.
+
+Acceptance: a real call through the gateway produced
+`{"status":"success","model":"homelab-strong-long-vllm","agent_principal":
+"agent:executive","prompt_tokens":14,"completion_tokens":2,"latency_ms":673,
+...}` in the JSONL; the relay (in dry-run) caught up to byte-equality
+with the file on its first iteration. 18 unit tests covering the
+callback's record builder and the relay's offset/batch/backoff
+semantics, all green.
+
+Follow-ups (not blocking 0.9):
+
+- **Model fleet drift**: 4 of 5 gateway upstreams point at services
+  that aren't running on the current Alienware. Decide which models we
+  actually want online; align `model_list` and the vllm services so
+  `homelab-fast` and `homelab-strong` resolve. Owner: Kevin /
+  `agent:homelab-maintainer`.
+- **n8n workflow**: create the webhook + insert workflow on the
+  memory-engine LXC per the runbook, then set `LLM_COST_RELAY_URL` to
+  flip the relay out of dry-run.
+- **0.12 surface**: master dashboard should read from the PG
+  `llm_calls` table once shipping is live; weekly review pulls the
+  local-vs-cloud spend trade.
 
 ## 0.7 Per-agent Discord presence — `apps/_shared/discord_bridge/` (DONE)
 
