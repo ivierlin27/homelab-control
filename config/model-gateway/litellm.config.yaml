@@ -5,6 +5,12 @@ model_list:
       api_base: os.environ/HOMELAB_STRONG_API_BASE
       api_key: os.environ/HOMELAB_STRONG_API_KEY
       timeout: 180
+  - model_name: homelab-strong-long
+    litellm_params:
+      model: openai/homelab-strong-long-vllm
+      api_base: os.environ/HOMELAB_STRONG_LONG_API_BASE
+      api_key: os.environ/HOMELAB_STRONG_LONG_API_KEY
+      timeout: 600
   - model_name: homelab-fast
     litellm_params:
       model: openai/homelab-fast-vllm
