@@ -71,6 +71,9 @@ async def run_bot(args: argparse.Namespace) -> int:
             "discord.py is required for the Discord bridge. Install apps/executive_agent/requirements.txt."
         ) from DISCORD_IMPORT_ERROR
 
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
     token = os.environ.get("DISCORD_BOT_TOKEN", "")
     if not token or token == "replace-me":
         raise ValueError("DISCORD_BOT_TOKEN must be configured")
@@ -85,6 +88,7 @@ async def run_bot(args: argparse.Namespace) -> int:
     intents = discord.Intents.default()
     intents.message_content = True
     intents.dm_messages = True
+    intents.members = True
     client = discord.Client(intents=intents)
 
     @client.event

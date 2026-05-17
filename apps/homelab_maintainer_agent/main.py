@@ -115,6 +115,11 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     Any pre-existing un-chained lines are preserved as a legacy prefix; the
     chain starts fresh on top. See ``apps/_shared/audit/`` for details.
     """
+    import sys
+    from pathlib import Path as _P
+    _root = _P(__file__).resolve().parents[2]
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
     from apps._shared.audit import AuditLog
 
     AuditLog(path).append(payload)
