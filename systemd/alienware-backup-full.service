@@ -1,0 +1,17 @@
+[Unit]
+Description=Homelab restic backup (full tier — state + config + repos)
+Documentation=file://%h/git/homelab-control/docs/runbooks/backup.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/git/homelab-control
+EnvironmentFile=%h/.config/homelab-control/backup.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/git/homelab-control
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 -m apps.backup.runner full
+
+[Install]
+WantedBy=default.target

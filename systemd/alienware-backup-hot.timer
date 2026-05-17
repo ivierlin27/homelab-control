@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly restic backup (hot tier)
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+Unit=alienware-backup-hot.service
+
+[Install]
+WantedBy=timers.target

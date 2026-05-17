@@ -1,0 +1,58 @@
+# Backup source declarations for apps/backup/runner.py (Phase 0.13).
+#
+# Two tiers:
+#   - hot:  irreplaceable, append-only state. Hourly.
+#   - full: hot + config + repo working state + memory-engine source tree.
+#           Daily.
+#
+# Paths are HOME-relative via the literal token "$HOME". The runner
+# expands it at execution time; we keep it as a token in the file so this
+# config is reviewable in git without leaking the operator's username.
+#
+# Each entry's `tag` becomes the restic snapshot tag — used by retention
+# policies and by `restic snapshots --tag <name>` for filtering.
+
+tiers:
+  hot:
+    tag: hot
+    paths:
+      - $HOME/.local/state/homelab-control
+    excludes: []
+    keep:
+      hourly: 48
+      daily: 30
+      weekly: 8
+      monthly: 12
+
+  full:
+    tag: full
+    paths:
+      - $HOME/.local/state/homelab-control
+      - $HOME/.config/homelab-control
+      - $HOME/.config/systemd/user
+      - $HOME/git/homelab-control
+      - $HOME/git/memory-engine
+    excludes:
+      # Caches and build artifacts: trivially regenerable, frequently
+      # change, dominate snapshot size.
+      - "**/.venv"
+      - "**/.venv-test"
+      - "**/__pycache__"
+      - "**/node_modules"
+      - "**/.pytest_cache"
+      - "**/.ruff_cache"
+      - "**/.mypy_cache"
+      - "**/.cache"
+      # Git internals: the working tree's history is the source-of-truth on
+      # the remote (github + forgejo); we don't need a third copy in restic.
+      # If a remote is lost, the working tree restore + `git init` + remote
+      # add still recovers it.
+      - "**/.git/objects/pack"
+      - "**/.tox"
+      # Container/HF caches if they ever land in repo dirs.
+      - "**/hf-cache"
+    keep:
+      hourly: 0
+      daily: 30
+      weekly: 8
+      monthly: 12
