@@ -146,9 +146,14 @@ def enqueue_json(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as handle:
-        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    """Append one JSONL record, hash-chained for audit (Phase 0.3).
+
+    Any pre-existing un-chained lines are preserved as a legacy prefix; the
+    chain starts fresh on top. See ``apps/_shared/audit/`` for details.
+    """
+    from apps._shared.audit import AuditLog
+
+    AuditLog(path).append(payload)
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
