@@ -63,56 +63,93 @@ response or a network error → exponential backoff (1s → 60s), the
 offset is NOT advanced, and the relay retries with the same batch on
 its next iteration.
 
-## Setup on memory-engine LXC
+## Setup on memory-engine LXC (already applied 2026-05-17)
 
-1. Add a `llm_calls` table to the `memory` database:
+### Postgres `llm_calls` table
 
-   ```sql
-   CREATE TABLE IF NOT EXISTS llm_calls (
-     id              BIGSERIAL PRIMARY KEY,
-     ts              TIMESTAMPTZ NOT NULL,
-     status          TEXT NOT NULL,
-     model           TEXT,
-     agent_principal TEXT,
-     request_id      TEXT UNIQUE,
-     prompt_tokens   INT,
-     completion_tokens INT,
-     total_tokens    INT,
-     cost_usd        NUMERIC(12, 6),
-     latency_ms      INT,
-     user_id         TEXT,
-     error           TEXT,
-     raw             JSONB NOT NULL,
-     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-   );
-   CREATE INDEX IF NOT EXISTS llm_calls_ts_idx ON llm_calls (ts DESC);
-   CREATE INDEX IF NOT EXISTS llm_calls_principal_idx ON llm_calls (agent_principal, ts DESC);
-   CREATE INDEX IF NOT EXISTS llm_calls_model_idx ON llm_calls (model, ts DESC);
-   ```
+```sql
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id              BIGSERIAL PRIMARY KEY,
+  ts              TIMESTAMPTZ NOT NULL,
+  status          TEXT NOT NULL,
+  model           TEXT,
+  agent_principal TEXT,
+  request_id      TEXT UNIQUE,
+  prompt_tokens   INT,
+  completion_tokens INT,
+  total_tokens    INT,
+  cost_usd        NUMERIC(12, 6),
+  latency_ms      INT,
+  user_id         TEXT,
+  error           TEXT,
+  raw             JSONB NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS llm_calls_ts_idx ON llm_calls (ts DESC);
+CREATE INDEX IF NOT EXISTS llm_calls_principal_idx ON llm_calls (agent_principal, ts DESC);
+CREATE INDEX IF NOT EXISTS llm_calls_model_idx ON llm_calls (model, ts DESC);
+```
 
-   `request_id UNIQUE` lets us safely retry batches — the n8n insert
-   should use `ON CONFLICT (request_id) DO NOTHING`.
+`request_id UNIQUE` is the idempotency anchor — the n8n insert uses
+`ON CONFLICT (request_id) DO NOTHING`, so the relay can replay batches
+without producing duplicates.
 
-2. Create an n8n workflow:
-   - **Webhook** trigger, path `/llm-calls`, method POST, auth = "Header
-     Auth" with a shared secret (matches `LLM_COST_RELAY_TOKEN`).
-   - **Split In Batches** over `body.records` (size 1).
-   - **Postgres** insert into `llm_calls` with `ON CONFLICT
-     (request_id) DO NOTHING`, mapping fields directly and storing the
-     full record in the `raw` JSONB column.
-   - **Respond to Webhook** with HTTP 200.
+To re-apply (e.g. on a rebuilt LXC):
 
-3. Note the webhook URL (e.g.
-   `https://memory-engine.dev-path.org/n8n/webhook/llm-calls`) and the
-   shared secret.
+```bash
+ssh root@memory-engine.dev-path.org \
+  "docker exec -i memory-postgres psql -U memory -d memory" \
+  < <DDL above>
+```
+
+### n8n workflow
+
+The workflow definition lives in
+[`compose/n8n-workflows/homelab-llm-cost-ingest.json`](../../compose/n8n-workflows/homelab-llm-cost-ingest.json)
+and is imported into the LXC via the n8n CLI:
+
+```bash
+# Generate a fresh bearer token (paste into Alienware env later):
+BEARER=$(openssl rand -hex 24)
+
+# Build creds JSON inline (do NOT commit this file — it has the PG password):
+cat > /tmp/creds.json <<EOF
+[
+  {"id":"homelab-pg","name":"memory-engine postgres","type":"postgres",
+   "data":{"host":"postgres","port":5432,"database":"memory","user":"memory",
+           "password":"$(ssh root@memory-engine.dev-path.org 'grep ^POSTGRES_PASSWORD /opt/memory-engine/.env | cut -d= -f2-')","ssl":"disable"}},
+  {"id":"homelab-cost-bearer","name":"homelab cost-relay bearer","type":"httpHeaderAuth",
+   "data":{"name":"Authorization","value":"Bearer $BEARER"}}
+]
+EOF
+
+scp /tmp/creds.json root@memory-engine.dev-path.org:/tmp/
+scp compose/n8n-workflows/homelab-llm-cost-ingest.json root@memory-engine.dev-path.org:/tmp/workflow.json
+ssh root@memory-engine.dev-path.org "
+  docker cp /tmp/creds.json memory-n8n:/tmp/creds.json
+  docker cp /tmp/workflow.json memory-n8n:/tmp/workflow.json
+  docker exec memory-n8n n8n import:credentials --input=/tmp/creds.json
+  docker exec memory-n8n n8n import:workflow --input=/tmp/workflow.json
+
+  # n8n 2.x ships imported workflows as drafts; publish + activate:
+  docker exec memory-postgres psql -U memory -d n8n -c \"
+    UPDATE workflow_entity
+       SET active=true, \\\"activeVersionId\\\" = \\\"versionId\\\"
+     WHERE id='homelab-llm-cost-ingest';\"
+  docker restart memory-n8n
+"
+rm /tmp/creds.json    # do not leave PG password on the laptop
+```
+
+Webhook URL: `https://n8n.dev-path.org/webhook/llm-calls`.
 
 ## Setup on Alienware
 
 1. Create `~/.config/homelab-control/litellm-cost-relay.env`:
 
    ```bash
-   LLM_COST_RELAY_URL=https://memory-engine.dev-path.org/n8n/webhook/llm-calls
-   LLM_COST_RELAY_TOKEN=<shared-secret>
+   LLM_COST_RELAY_URL=https://n8n.dev-path.org/webhook/llm-calls
+   LLM_COST_RELAY_TOKEN=<bearer from n8n credential>
    LLM_COST_RELAY_INTERVAL_S=30
    LLM_COST_RELAY_BATCH=200
    LOG_LEVEL=INFO

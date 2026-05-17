@@ -1,0 +1,95 @@
+[
+  {
+    "id": "homelab-llm-cost-ingest",
+    "name": "Homelab LLM cost ingest",
+    "active": true,
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "llm-calls",
+          "authentication": "headerAuth",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-node",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 300],
+        "webhookId": "homelab-llm-calls",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "homelab-cost-bearer",
+            "name": "homelab cost-relay bearer"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "fieldToSplitOut": "body.records",
+          "options": {}
+        },
+        "id": "split-node",
+        "name": "Split Records",
+        "type": "n8n-nodes-base.splitOut",
+        "typeVersion": 1,
+        "position": [480, 300]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO llm_calls (ts, status, model, agent_principal, request_id, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, user_id, error, raw) VALUES (to_timestamp($1::double precision), $2, $3, $4, $5, NULLIF($6,'')::int, NULLIF($7,'')::int, NULLIF($8,'')::int, NULLIF($9,'')::numeric, NULLIF($10,'')::int, $11, $12, $13::jsonb) ON CONFLICT (request_id) DO NOTHING",
+          "options": {
+            "queryReplacement": "={{ $json.ts }},={{ $json.status }},={{ $json.model }},={{ $json.agent_principal }},={{ $json.request_id }},={{ $json.prompt_tokens ?? '' }},={{ $json.completion_tokens ?? '' }},={{ $json.total_tokens ?? '' }},={{ $json.cost_usd ?? '' }},={{ $json.latency_ms ?? '' }},={{ $json.user ?? null }},={{ $json.error ?? null }},={{ JSON.stringify($json) }}"
+          }
+        },
+        "id": "pg-node",
+        "name": "Insert llm_calls",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [720, 300],
+        "credentials": {
+          "postgres": {
+            "id": "homelab-pg",
+            "name": "memory-engine postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={\"accepted\": {{ $('Webhook').first().json.body.records.length }}}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "respond-node",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [960, 300]
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [{ "node": "Split Records", "type": "main", "index": 0 }]
+        ]
+      },
+      "Split Records": {
+        "main": [
+          [{ "node": "Insert llm_calls", "type": "main", "index": 0 }]
+        ]
+      },
+      "Insert llm_calls": {
+        "main": [
+          [{ "node": "Respond 200", "type": "main", "index": 0 }]
+        ]
+      }
+    }
+  }
+]

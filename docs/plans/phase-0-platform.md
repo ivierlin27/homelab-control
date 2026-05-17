@@ -27,7 +27,7 @@ Decisions locked at planning time:
 | Identity issuer                    | 0.2     | done                |
 | Hash-chained audit                 | 0.3     | done                |
 | Verifier-loop primitive            | 0.4     | not started         |
-| Gateway cost/latency log           | 0.6     | done (relay dry-run)|
+| Gateway cost/latency log           | 0.6     | done (live to PG)   |
 | Per-agent Discord presence         | 0.7     | done                |
 | Per-agent skill registry           | 0.8     | done                |
 | Inter-agent communication (A2A)    | 0.9     | not started         |
@@ -208,7 +208,7 @@ Acceptance: removing an agent from the registry stops the executive routing to
 it without code changes; `validate` exits non-zero on any cross-file violation
 and is wired into CI.
 
-## 0.6 Gateway cost/latency log — `apps/_shared/litellm_callbacks/` + `apps/litellm_cost_relay/` (DONE — relay in dry-run)
+## 0.6 Gateway cost/latency log — `apps/_shared/litellm_callbacks/` + `apps/litellm_cost_relay/` (DONE — live to memory-engine PG)
 
 Two halves:
 
@@ -253,19 +253,41 @@ with the file on its first iteration. 18 unit tests covering the
 callback's record builder and the relay's offset/batch/backoff
 semantics, all green.
 
+End-to-end pipeline live as of 2026-05-17:
+
+```
+agent → homelab-model-gateway (LiteLLM)
+   → apps/_shared/litellm_callbacks (CustomLogger)
+   → JSONL on Alienware (/var/log/llm-calls/llm-calls.jsonl)
+   → apps/litellm_cost_relay (every 30s, HTTPS POST batch)
+   → n8n webhook (https://n8n.dev-path.org/webhook/llm-calls)
+   → ON CONFLICT DO NOTHING insert into memory-engine PG llm_calls
+```
+
+n8n workflow definition committed to
+[`compose/n8n-workflows/homelab-llm-cost-ingest.json`](../../compose/n8n-workflows/homelab-llm-cost-ingest.json);
+re-importable via the n8n CLI pattern in the runbook.
+
+Smoke verified: 6 records in `llm_calls` after first non-dry-run
+iteration (3 gateway smoke calls + 1 direct webhook test + 2
+historical agent:executive calls); relay log:
+`shipped 5 records (offset 0 -> 1466)`.
+
+Model fleet was trimmed (2026-05-17): `homelab-fast` and
+`homelab-strong` are now aliases for `homelab-strong-long-vllm`
+(Qwen3-Coder-30B AWQ, TP=2, 131k ctx) — the only live backend. When
+real fast/embed backends come back online, repoint the corresponding
+`model_list` entry; no agent changes needed.
+
 Follow-ups (not blocking 0.9):
 
-- **Model fleet drift**: 4 of 5 gateway upstreams point at services
-  that aren't running on the current Alienware. Decide which models we
-  actually want online; align `model_list` and the vllm services so
-  `homelab-fast` and `homelab-strong` resolve. Owner: Kevin /
-  `agent:homelab-maintainer`.
-- **n8n workflow**: create the webhook + insert workflow on the
-  memory-engine LXC per the runbook, then set `LLM_COST_RELAY_URL` to
-  flip the relay out of dry-run.
-- **0.12 surface**: master dashboard should read from the PG
-  `llm_calls` table once shipping is live; weekly review pulls the
-  local-vs-cloud spend trade.
+- **0.12 surface**: master dashboard reads the PG `llm_calls` table
+  for per-agent / per-day spend and latency curves; weekly review
+  pulls the local-vs-cloud spend trade.
+- **Tagging**: extend `apps/_shared/rlm/subcall.py` to forward an
+  `x-task-intent` header (summarize/classify/code/plan) so the
+  `llm_calls.raw` JSONB has intent attribution for the master
+  dashboard's "cost per task class" charts.
 
 ## 0.7 Per-agent Discord presence — `apps/_shared/discord_bridge/` (DONE)
 
