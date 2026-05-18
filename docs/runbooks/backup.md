@@ -162,6 +162,37 @@ Expected good output ends with `drill complete; scratch retained at
 …` and `exit 0`. On failure the scratch dir is preserved and the
 restic restore log is at `<scratch>/<repo>/<host>/.restic.log`.
 
+### Alerting + audit trail
+
+The script's EXIT trap unconditionally appends one hash-chained row
+to `${DR_DRILL_AUDIT_LEDGER:-~/.local/state/homelab-control/dr-drill/audit.jsonl}`
+recording `outcome` (pass/fail), `exit_code`, `duration_seconds`,
+`host`, `repositories`, and `failed_checks`. So **the absence of a
+fresh row in this ledger is itself an alarm** — drill silence means
+the timer broke, not that everything's fine. Verify quarterly with:
+
+```bash
+tail -3 ~/.local/state/homelab-control/dr-drill/audit.jsonl | \
+  jq -r '[.event, .outcome, .duration_seconds, (.repositories|length)] | @tsv'
+python3 -m apps._shared.audit verify ~/.local/state/homelab-control/dr-drill/audit.jsonl
+```
+
+On a non-zero exit the script also posts a summary to
+`$DR_DRILL_DISCORD_WEBHOOK` (typically wired to the same `#ops-alerts`
+channel as the health monitor — see `backup.env`). Successes stay
+silent on Discord; the audit row + journal output are sufficient.
+
+Test the alert path without touching production state:
+
+```bash
+TMPLEDGER=$(mktemp) DR_DRILL_AUDIT_LEDGER=$TMPLEDGER \
+  BACKUP_ENV_FILE=/dev/null \
+  bash ~/git/homelab-control/scripts/backup/dr-drill.sh
+# expect: exit 2, audit row outcome=fail, Discord message posted
+cat $TMPLEDGER | jq .
+rm $TMPLEDGER
+```
+
 The same script can run on Proxmox against the LXC-side repo:
 
 ```bash
