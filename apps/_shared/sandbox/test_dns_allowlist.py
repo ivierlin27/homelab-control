@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from . import runner as runner_mod  # same module identity as `from .runner import …`
 from .runner import (
     SKIP_UNRESOLVED_ENV,
     SandboxError,
@@ -33,6 +34,18 @@ from .scratch import (
     default_scratch_root,
     dns_isolation_files,
 )
+
+# Why we resolve runner_mod once via `from . import runner` instead of
+# `import apps._shared.sandbox.runner as runner_mod` inside each test:
+# under some pytest rootdir configurations (notably GitHub Actions, CI
+# run 26045803961, 2026-05-18) `apps/` lands on sys.path so the package
+# is importable as both ``_shared.sandbox.runner`` AND
+# ``apps._shared.sandbox.runner``. Python does NOT deduplicate by file
+# path — those are two distinct module objects with independent
+# globals. ``monkeypatch.setattr`` on one of them is invisible to the
+# function looking up names in the other. The relative `from . import
+# runner` guarantees we patch the SAME module that owns the function
+# we're testing, regardless of which name pytest used to load us.
 
 
 @pytest.fixture(autouse=True)
@@ -191,7 +204,6 @@ def test_no_allowed_hosts_no_dns_isolation(tmp_path, isolated_scratch):
 def test_allowed_hosts_emits_add_host_and_dns_mounts(tmp_path, isolated_scratch, monkeypatch):
     # Inject a deterministic resolver via monkeypatching the module-level default.
     fake = {"forgejo.dev-path.org": "192.168.1.42", "planka.dev-path.org": "192.168.1.42"}
-    import apps._shared.sandbox.runner as runner_mod
     monkeypatch.setattr(runner_mod, "_default_resolver", lambda h: fake[h])
 
     runner = _mk_runner(tmp_path, allowed=("forgejo.dev-path.org", "planka.dev-path.org"))
@@ -220,7 +232,6 @@ def test_allowed_hosts_emits_add_host_and_dns_mounts(tmp_path, isolated_scratch,
 
 def test_allowed_hosts_unresolvable_fails_loud(tmp_path, isolated_scratch, monkeypatch):
     monkeypatch.delenv(SKIP_UNRESOLVED_ENV, raising=False)
-    import apps._shared.sandbox.runner as runner_mod
     monkeypatch.setattr(
         runner_mod,
         "_default_resolver",
@@ -233,7 +244,6 @@ def test_allowed_hosts_unresolvable_fails_loud(tmp_path, isolated_scratch, monke
 
 def test_allowed_hosts_skip_unresolved_continues(tmp_path, isolated_scratch, monkeypatch):
     monkeypatch.setenv(SKIP_UNRESOLVED_ENV, "1")
-    import apps._shared.sandbox.runner as runner_mod
 
     def resolver(host):
         if host == "broken.example":

@@ -113,8 +113,9 @@ def test_allowed_hosts_changes_network_mode(tmp_path: Path, monkeypatch) -> None
     # Inject a fake resolver so this unit test doesn't depend on real DNS.
     # The DNS allowlist (FU3c) changed network_mode from 'slirp4netns' to
     # 'slirp4netns-dns-allowlist' — see test_dns_allowlist.py for the
-    # exhaustive coverage.
-    import apps._shared.sandbox.runner as runner_mod
+    # exhaustive coverage. Use `from . import runner` for the same
+    # module-identity reason documented in test_dns_allowlist.py.
+    from . import runner as runner_mod
     monkeypatch.setattr(runner_mod, "_default_resolver", lambda h: "192.168.1.42")
     # dns_isolation_files needs a writable scratch root; route to tmp_path.
     monkeypatch.setenv("HOMELAB_SANDBOX_SCRATCH_ROOT", str(tmp_path / "scratch"))
