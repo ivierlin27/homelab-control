@@ -21,10 +21,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
-from agentlib import extract_links, forgejo_request, load_json, parse_pr_url, write_json  # noqa: E402
+from agentlib import boot_principal, extract_links, forgejo_request, load_json, parse_pr_url, write_json  # noqa: E402
 
 
 DEFAULT_POLICY = ROOT / "config" / "policies" / "review-policy.yaml"
+DEFAULT_PRINCIPAL = "agent:review"
 
 
 def utc_now() -> str:
@@ -358,6 +359,8 @@ def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> i
 
 
 def main() -> int:
+    boot_principal(DEFAULT_PRINCIPAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 

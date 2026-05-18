@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 from urllib import error, request
@@ -15,6 +16,11 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "apps"))
+
+from agentlib import boot_principal  # noqa: E402
+
+DEFAULT_PRINCIPAL = "agent:homelab"
 DEFAULT_INVENTORY_SYNC_STATE = (
     Path.home() / ".local" / "state" / "homelab-control" / "inventory-memory-sync-state.json"
 )
@@ -347,6 +353,8 @@ def print_output(findings: Any, fmt: str) -> None:
 
 
 def main() -> int:
+    boot_principal(DEFAULT_PRINCIPAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 

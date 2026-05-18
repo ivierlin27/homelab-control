@@ -20,10 +20,13 @@ from urllib import request
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
-from agentlib import forgejo_request, load_json, repo_name_from_path, slugify, write_json, write_text  # noqa: E402
+from agentlib import boot_principal, forgejo_request, load_json, repo_name_from_path, slugify, write_json, write_text  # noqa: E402
 
 
 DEFAULT_TEMPLATE = ROOT / "config" / "planka" / "card-template.md"
+# author_agent runs under the `agent:homelab` principal (shares it with
+# homelab_operator); see config/agents/agent-homelab.yaml.
+DEFAULT_PRINCIPAL = "agent:homelab"
 
 
 def utc_now() -> str:
@@ -593,6 +596,8 @@ def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> i
 
 
 def main() -> int:
+    boot_principal(DEFAULT_PRINCIPAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 

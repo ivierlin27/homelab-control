@@ -24,7 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised when PyYAML is unava
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
-from agentlib import load_json, slugify, write_json  # noqa: E402
+from agentlib import boot_principal, load_json, slugify, write_json  # noqa: E402
 import project_agents  # noqa: E402
 
 
@@ -1014,6 +1014,10 @@ def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> i
 
 
 def main() -> int:
+    # Registry-aware boot. Default soft-fail; set AGENT_REGISTRY_ENFORCE=1 in
+    # systemd to make manifest/skills consistency a hard precondition.
+    boot_principal(DEFAULT_PRINCIPAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 

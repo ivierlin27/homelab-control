@@ -24,7 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
-from agentlib import load_json, write_json  # noqa: E402
+from agentlib import boot_principal, load_json, write_json  # noqa: E402
 
 
 DEFAULT_POLICY = ROOT / "config" / "policies" / "homelab-maintainer-policy.yaml"
@@ -439,6 +439,8 @@ def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> i
 
 
 def main() -> int:
+    boot_principal(DEFAULT_PRINCIPAL)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
