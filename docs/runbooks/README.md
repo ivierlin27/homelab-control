@@ -34,6 +34,7 @@ on-call agent) will thank present-you.
 | Maintenance mode | [maintenance-mode.md](maintenance-mode.md) | Time-bound, scoped alert suppression for planned outages |
 | Author-agent sandbox | [author-sandbox.md](author-sandbox.md) | Routes job `checks` through rootless podman under `AUTHOR_AGENT_SANDBOX_CHECKS=1` |
 | CI (GitHub + Forgejo Actions) | [ci.md](ci.md) | On-push test runs + nightly canary |
+| Agent identity issuance | [`../identity-runbook-agent-executive.md`](../identity-runbook-agent-executive.md) (one per principal; generate via `python -m apps._shared.identity plan --principal <p> --output docs/identity-runbook-<p>.md`) | Per-principal checklist for SSH keys, Forgejo accounts/PATs, Discord bots, Infisical tokens |
 
 ### By symptom
 
