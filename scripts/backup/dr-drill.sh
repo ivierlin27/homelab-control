@@ -21,11 +21,19 @@
 #   2   misconfiguration (missing env, restic, etc.)
 #
 # Environment (sourced from $BACKUP_ENV_FILE or already in env):
-#   BACKUP_REPOSITORIES   comma-separated restic repo URIs
-#   RESTIC_PASSWORD_FILE  path to the password file
-#   DR_DRILL_SCRATCH      where to materialize restores (default: mktemp -d)
-#   PYTHON_BIN            python3 interpreter (default: python3); used to
-#                         invoke `python3 -m apps._shared.audit verify <ledger>`
+#   BACKUP_REPOSITORIES        comma-separated restic repo URIs
+#   RESTIC_PASSWORD_FILE       path to the password file
+#   DR_DRILL_SCRATCH           where to materialize restores (default: mktemp -d)
+#   PYTHON_BIN                 python3 interpreter (default: python3); used to
+#                              invoke `python3 -m apps._shared.audit verify <ledger>`
+#   DR_DRILL_DISCORD_WEBHOOK   when set, a non-zero exit posts a summary alert
+#                              to this webhook (typically #ops-alerts). Success
+#                              runs are silent on Discord; the audit row below
+#                              captures both outcomes.
+#   DR_DRILL_AUDIT_LEDGER      hash-chained audit log path (default:
+#                              ~/.local/state/homelab-control/dr-drill/audit.jsonl).
+#                              Every drill — pass or fail — appends one row so
+#                              the chain proves the drill actually ran.
 #
 # Run manually:
 #   export BACKUP_ENV_FILE=$HOME/.config/homelab-control/backup.env
@@ -45,8 +53,81 @@ REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 PYTHON_BIN=${PYTHON_BIN:-python3}
 
 log() { printf '%(%Y-%m-%dT%H:%M:%S%z)T %s\n' -1 "$*"; }
-fail() { log "FAIL: $*"; exit_code=1; }
+fail() { log "FAIL: $*"; failed_messages+=("$*"); exit_code=1; }
 exit_code=0
+failed_messages=()
+START_TS=$(date +%s)
+
+DR_DRILL_AUDIT_LEDGER=${DR_DRILL_AUDIT_LEDGER:-$HOME/.local/state/homelab-control/dr-drill/audit.jsonl}
+
+# Posts a Discord message; silent on success / missing webhook. Truncates
+# the body to Discord's 2000-char limit so curl never gets rejected on size.
+notify_discord() {
+  local body=$1
+  [[ -z "${DR_DRILL_DISCORD_WEBHOOK:-}" ]] && return 0
+  local truncated=${body:0:1900}
+  # curl --fail keeps systemd journals clean on a non-2xx response so the
+  # operator notices via the journal even if the webhook itself is down.
+  curl -fsS -X POST "$DR_DRILL_DISCORD_WEBHOOK" \
+       -H 'Content-Type: application/json' \
+       --max-time 10 \
+       --data "$(printf '{"content":%s}' "$("$PYTHON_BIN" -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$truncated")")" \
+       >/dev/null 2>&1 \
+    || log "WARN: failed to post DR drill alert to Discord webhook"
+}
+
+# Best-effort audit row (hash-chained). Uses AuditLog directly so the chain
+# stays consistent with how every other writer in the system extends it.
+emit_audit() {
+  local outcome=$1 duration_s=$2
+  mkdir -p "$(dirname "$DR_DRILL_AUDIT_LEDGER")"
+  local repos_joined fail_joined
+  repos_joined=${BACKUP_REPOSITORIES:-}
+  fail_joined=$(IFS=$'\n'; echo "${failed_messages[*]:-}")
+  ( cd "$REPO_ROOT" && "$PYTHON_BIN" - "$DR_DRILL_AUDIT_LEDGER" "$outcome" "$duration_s" "$exit_code" "$repos_joined" "$fail_joined" <<'PY' >/dev/null 2>&1 || true
+import os, sys
+sys.path.insert(0, os.getcwd())
+from apps._shared.audit import AuditLog
+ledger, outcome, dur, code, repos, fails = sys.argv[1:7]
+AuditLog(ledger).append({
+    "event": "dr_drill_complete",
+    "outcome": outcome,
+    "exit_code": int(code),
+    "duration_seconds": int(dur),
+    "host": os.uname().nodename,
+    "repositories": [r for r in repos.split(",") if r.strip()],
+    "failed_checks": [m for m in fails.split("\n") if m.strip()],
+})
+PY
+  )
+}
+
+# Single EXIT trap: always emit the audit row, and on non-zero exit alert
+# Discord. The trap fires for every code path including misconfig (exit 2)
+# and uncaught errors, so the operator always learns when a drill stops
+# producing fresh evidence — even a silently broken cron.
+on_exit() {
+  local code=$?
+  exit_code=${code:-$exit_code}
+  local duration=$(( $(date +%s) - START_TS ))
+  local outcome="pass"
+  [[ "$exit_code" != 0 ]] && outcome="fail"
+  emit_audit "$outcome" "$duration"
+  if [[ "$exit_code" != 0 ]]; then
+    local summary
+    if [[ "$exit_code" == 2 ]]; then
+      summary="DR drill **misconfigured** on $(hostname -s); exit=2. Check BACKUP_REPOSITORIES, RESTIC_PASSWORD_FILE, restic binary."
+    else
+      summary="DR drill **failed** on $(hostname -s) (${#failed_messages[@]} check(s), ${duration}s):\n"
+      for m in "${failed_messages[@]}"; do
+        summary+="• ${m}\n"
+      done
+      summary+="\nFull log: \`journalctl --user -u alienware-dr-drill.service -n 200\` (if timer-driven) or rerun manually with \`./scripts/backup/dr-drill.sh\`."
+    fi
+    notify_discord "$summary"
+  fi
+}
+trap on_exit EXIT
 
 [[ -z "${BACKUP_REPOSITORIES:-}" ]] && { log "BACKUP_REPOSITORIES unset"; exit 2; }
 [[ -z "$RESTIC" || ! -x "$RESTIC" ]] && { log "restic not found"; exit 2; }
