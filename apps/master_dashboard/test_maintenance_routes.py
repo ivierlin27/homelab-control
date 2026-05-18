@@ -94,18 +94,19 @@ def test_start_then_end_flow(client):
     assert "kernel update via dashboard" in r2.text
     assert "▲" in r2.text  # banner marker
 
-    # audit row written with dashboard actor
-    rows = [line for line in audit_path.read_text().splitlines() if line.strip()]
-    assert any('"event": "maintenance_start"' in r for r in rows)
-    assert any('"actor": "dashboard:' in r for r in rows)
+    # audit row written with dashboard actor (compact JSON — no spaces)
+    import json as _json
+    rows = [_json.loads(line) for line in audit_path.read_text().splitlines() if line.strip()]
+    assert any(r["event"] == "maintenance_start" for r in rows)
+    assert any(r.get("actor", "").startswith("dashboard:") for r in rows)
 
     # end
     r3 = c.post("/maintenance/end")
     assert r3.status_code == 200, r3.text
     assert "No active window" in r3.text
     assert not lock_path.exists()
-    rows = [line for line in audit_path.read_text().splitlines() if line.strip()]
-    assert any('"event": "maintenance_end"' in r for r in rows)
+    rows = [_json.loads(line) for line in audit_path.read_text().splitlines() if line.strip()]
+    assert any(r["event"] == "maintenance_end" for r in rows)
 
 
 # ---- validation ---------------------------------------------------------
