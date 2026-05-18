@@ -358,7 +358,37 @@ def execute_task(job: dict[str, Any], *, job_path: Path, queue_dir: Path, done_d
     execution_env = git_env()
     touched_paths = apply_operations(operations, worktree=worktree, allowed_paths=allowed_paths)
 
-    checks = [run_command(command, cwd=worktree, env=execution_env) for command in job.get("checks", [])]
+    # Job-supplied check commands are the highest blast-radius shell-out in
+    # the author agent (arbitrary strings, shell=True). When
+    # AUTHOR_AGENT_SANDBOX_CHECKS=1, route them through the per-principal
+    # sandbox image instead. Default off so production keeps the existing
+    # host-execution path until the operator opts in per-host. See
+    # docs/runbooks/author-sandbox.md.
+    from .sandboxed import (
+        SandboxedCheckError,
+        run_command_sandboxed,
+        sandbox_checks_enabled,
+    )
+    if sandbox_checks_enabled():
+        from apps._shared.audit import AuditLog
+        sandbox_audit = AuditLog(str(queue_dir / "trust-ledger.jsonl"))
+        try:
+            checks = [
+                run_command_sandboxed(
+                    command,
+                    worktree=worktree,
+                    principal=os.environ.get("AGENT_PRINCIPAL", "agent:homelab"),
+                    audit=sandbox_audit,
+                )
+                for command in job.get("checks", [])
+            ]
+        except SandboxedCheckError as exc:
+            # Surface the launch failure as a non-zero check so the worker
+            # records it like any other failed check, with no silent
+            # fallback to host execution.
+            raise RuntimeError(f"sandboxed check launch failed: {exc}") from exc
+    else:
+        checks = [run_command(command, cwd=worktree, env=execution_env) for command in job.get("checks", [])]
     for result in checks:
         ensure_success(result)
 
