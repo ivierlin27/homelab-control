@@ -76,6 +76,7 @@ def test_run_records_argv_and_returns_result(tmp_path: Path) -> None:
     assert "--read-only" in log
     assert "--cap-drop=ALL" in log
     assert "--security-opt=no-new-privileges" in log
+    assert "--security-opt=label=disable" in log
     assert "--userns=keep-id" in log
     assert "--network=none" in log
     assert log[-2] == "echo"

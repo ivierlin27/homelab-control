@@ -122,6 +122,15 @@ class SandboxRunner:
             "--read-only",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
+            # On SELinux-enforcing hosts (Fedora, RHEL) the default container
+            # MCS labels block reading host-owned bind mounts inside rootless
+            # containers. ``label=disable`` is the documented rootless
+            # workaround. We still keep: --read-only rootfs, --cap-drop=ALL,
+            # --no-new-privileges, --userns=keep-id, mem/pid limits, and
+            # --network=none by default. Tightening SELinux policy back on
+            # is tracked as Phase 0.1 follow-up (proper container_t policy
+            # or per-worktree :Z relabel).
+            "--security-opt=label=disable",
             "--pids-limit=512",
             "--memory=2g",
             "--workdir=/work",
