@@ -67,8 +67,14 @@ The autonomous triage loop is a follow-up sprint, scoped roughly as:
 
 ## One-time setup (operator)
 
-Until the autonomous loop ships, do these once so the visibility hook
-above starts working:
+**Status as of 2026-05-18**: GitHub side complete (Discord `#ci-failures`
+channel + webhook created; `CI_FAILURE_DISCORD_WEBHOOK` secret set on
+`ivierlin27/homelab-control`; webhook smoke-tested directly). Forgejo
+side intentionally deferred until `act_runner` is registered against
+forgejo.dev-path.org.
+
+Steps below documented so the next operator (or a future autonomous
+agent provisioning a new repo) can repeat them:
 
 ```text
 1. In Discord:
