@@ -198,3 +198,37 @@ Webhook URL: `https://n8n.dev-path.org/webhook/llm-calls`.
 4. **Local debugging** — `tail -f` on the JSONL is the fastest
    feedback loop for any model-related question ("did the call go
    through? how many tokens? how long?").
+
+## Symptoms → likely causes
+
+| Symptom | Likely cause | First check |
+|---|---|---|
+| Dashboard cost tile shows "stale (>1h)" | relay service is down OR n8n webhook is unreachable | `systemctl --user is-active alienware-litellm-cost-relay.service`; `curl -fsS <n8n-webhook-url>` (200 = up) |
+| Cost numbers stopped updating but service is running | offset file got out of sync with the JSONL (e.g., manual `truncate`) | `stat ~/.local/state/homelab-control/llm-calls/llm-calls.jsonl`; if smaller than the offset, the relay resets to 0 — but a stale offset persists |
+| n8n returns 500 on POST | Postgres `llm_calls` insert failed (e.g., new column required but the workflow wasn't updated) | n8n execution log; `psql -h <pg> -c '\d llm_calls'` schema |
+| Duplicate rows in PG | `request_id` not unique in the gateway log (race condition on retry) | the INSERT uses `ON CONFLICT (request_id) DO NOTHING`; if you see dupes, the conflict target may be missing — verify `\d llm_calls` shows a unique index |
+| Missing `task_intent` on rows | older gateway version was running when the call happened | the `x-task-intent` header is opt-in from the caller; older callers send nothing — `task_intent` is NULL by design for those |
+
+## Investigation steps
+
+1. `systemctl --user status alienware-litellm-cost-relay.service` — running?
+2. `tail -20 ~/.local/state/homelab-control/llm-calls/llm-calls.jsonl` — gateway still writing?
+3. `cat ~/.local/state/homelab-control/llm-calls/.relay-offset` — where the relay thinks it is
+4. `journalctl --user -u alienware-litellm-cost-relay.service -n 100 --no-pager` — last batch result + any HTTP errors
+5. `psql -h <pg> -d memory -c "select count(*), max(ts) from llm_calls"` — actual row count + latest timestamp
+6. `curl -fsS -X POST <n8n-webhook-url> -d '[]' -H 'content-type: application/json'` — can we hit n8n directly?
+
+## Recovery
+
+- **Service crashed**: `systemctl --user restart alienware-litellm-cost-relay.service`; check that the offset file is preserved.
+- **Need to replay everything**: stop service → `rm ~/.local/state/homelab-control/llm-calls/.relay-offset` → start service. The PG-side `ON CONFLICT DO NOTHING` makes this safe.
+- **Schema added a column**: update the n8n workflow's INSERT (and re-import); rows already in flight will fail and the relay will retry forever — pause the relay while editing the workflow.
+
+## Past incidents
+
+### 2026-05-16 — Postgres rejected `ALTER TABLE` for `task_intent` column
+
+- **Symptom:** `psql -c '…ALTER…; \d llm_calls'` returned a syntax error
+- **Root cause:** `\d llm_calls` is a psql meta-command, not SQL — it cannot share a `-c` invocation with an SQL statement
+- **Fix:** split into two `-c` flags, one per statement/meta-command
+- **Followup:** the `task_intent` column add is now in this runbook (todo: capture as a one-shot migration script)

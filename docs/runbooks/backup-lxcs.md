@@ -192,3 +192,42 @@ restic snapshots --group-by host,tags       # cleanly grouped per-LXC view
   other retention windows.
 - `/tmp/lxc-backup/` inside each LXC is cleaned up between runs.
   Nothing persistent leaks.
+
+## Symptoms → likely causes
+
+| Symptom | Likely cause | First check |
+|---|---|---|
+| `pct exec <id> -- bash -c '…'` fails with "command not found" for braces | the brace `{{...}}` got eaten by the remote shell before reaching docker | use `--format json` instead of `--format '{{...}}'`, OR wrap in single quotes (see Past incidents 2026-05-17) |
+| Backup runs but the mirror to Alienware never appears | `ssh root@proxmox kenns@alienware` is not authorized | from Proxmox: `ssh -o BatchMode=yes kenns@192.168.1.45 true` — should print no output and exit 0 |
+| Specific LXC fails but the others succeed | service unique to that LXC isn't running (e.g., n8n container down for memory-engine) | `pct exec <id> -- docker ps` |
+| `pg_dumpall` produces an empty file | the LXC's postgres container is using a non-standard user/socket | adjust the `pg_dumpall` invocation in `backup-lxcs.sh` for that LXC |
+
+## Investigation steps
+
+1. On Proxmox: `systemctl status proxmox-backup-lxcs.service` — last exit code + journal tail
+2. `journalctl -u proxmox-backup-lxcs.service -n 200 --no-pager` — full log; failing LXC will be named in the `[lxc <id>]` prefix
+3. `pct exec <id> -- docker ps` — services running?
+4. `pct exec <id> -- ls -la /tmp/lxc-backup/` — does the dump tar exist + non-zero size?
+5. From Proxmox: `restic -r <local-repo> snapshots --tag lxc-<id> --json | jq '.[-1]'` — last successful snapshot timestamp
+6. From Alienware: `restic -r <mirror-repo> snapshots --tag lxc-<id> --json | jq '.[-1]'` — did the mirror catch up?
+
+## Recovery
+
+- **One LXC failing**: rerun just that LXC with `MAINTENANCE_SCAN_LXC_IDS=200 systemctl start proxmox-backup-lxcs.service` (or temporarily edit the script's `LXC_IDS` list). Don't re-run the whole batch unless you need to.
+- **Mirror behind**: trigger a manual restic copy from Proxmox to Alienware — see `backup.md` §Recovery.
+
+## Past incidents
+
+### 2026-05-17 — `docker ps --format '{{...}}'` over SSH ate the braces
+
+- **Symptom:** maintenance scan probe returned 0 containers from every LXC; journal showed `bash: line 1: {{.Names}}: command not found`
+- **Root cause:** when `subprocess` calls `ssh proxmox pct exec 201 -- docker ps --format '{{...}}'`, ssh joins argv with spaces and the remote shell strips the quoting; the brace template is then expanded by bash
+- **Fix:** rewrote the probe to use `docker ps -q` + `docker inspect <ids>` returning JSON — no template syntax to quote-escape
+- **Followup:** documented as a general gotcha; same pattern applied to any future docker-over-ssh code
+
+### 2026-05-15 — Proxmox couldn't SSH-pull the restic password from Alienware
+
+- **Symptom:** initial deploy of `backup-lxcs.sh` failed: `restic init` couldn't read `/etc/homelab-control/restic-password`
+- **Root cause:** Proxmox root had no SSH key on Alienware
+- **Fix:** (temporary) Kevin pushed the password from Mac → Proxmox manually; (permanent) authorized Proxmox root pubkey in Alienware `~kenns/.ssh/authorized_keys`
+- **Followup:** Setup §6 now documents the one-time `ssh-copy-id` from Proxmox; mirror direction (Proxmox→Alienware) requires this key

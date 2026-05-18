@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the homelab health monitor every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+RandomizedDelaySec=30s
+Unit=alienware-health-monitor.service
+
+[Install]
+WantedBy=timers.target

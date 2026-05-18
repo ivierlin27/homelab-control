@@ -105,6 +105,57 @@ Either set `MAINTENANCE_SCAN_LXC_IDS` to include the new ID, or — for a
 brand-new docker host — extend `default_targets()` in
 `apps/maintenance_scan/probe.py` with a new `ProbeTarget` entry.
 
+## Symptoms → likely causes
+
+| Symptom | Likely cause | First check |
+|---|---|---|
+| No Monday Discord post (and no markdown report) | timer skipped (Alienware off when it fired AND not yet caught up); OR `MAINTENANCE_SCAN_DISCORD_WEBHOOK` unset | `systemctl --user list-timers \| grep maintenance`; `cat ~/.config/homelab-control/maintenance-scan.env` |
+| Report wrote but Discord post didn't | webhook 4xx (channel deleted, webhook revoked) | `journalctl --user -u alienware-maintenance-scan.service \| grep discord` |
+| Report shows 0 containers | SSH to Proxmox failed OR podman missing on Alienware | run `apps.maintenance_scan.probe.probe_all` interactively (see Investigation §3) |
+| Every actionable upgrade shows "verifier rejected" | rate-limited by Docker Hub or ghcr; OR registry briefly down between probe and verifier rounds | check `journalctl` for HTTP 429; retry after 60s |
+| Upgrade missed even though I know there's a new version | new version is a non-numeric tag (e.g., `pg17` from `pg16`); we treat those as `floating` by design | see severity legend; v2 will join with Trivy for richer signal |
+| `bash: line 1: {{.Names}}: command not found` in journal | the probe is reaching into a host that doesn't have `docker` JSON output | the probe auto-falls-back to podman; if both are absent, the host is skipped — verify with `pct exec <id> -- command -v docker podman` |
+
+## Investigation steps
+
+1. `systemctl --user status alienware-maintenance-scan.service` — last exit code
+2. `journalctl --user -u alienware-maintenance-scan.service -n 200 --no-pager` — full last-run log; look for `probe <host>: N container(s)` lines and any `verifier_round` audit entries
+3. Interactively re-run the probe alone:
+   ```bash
+   cd ~/git/homelab-control && .venv/bin/python -c "
+   import asyncio, logging
+   logging.basicConfig(level='INFO')
+   from apps.maintenance_scan.probe import probe_all
+   rows = asyncio.run(probe_all())
+   for r in rows: print(r.host, r.container, r.image, ':' + r.tag)
+   "
+   ```
+4. `tail ~/.local/state/homelab-control/agent-homelab-maintainer/audit.jsonl | jq .` — verifier verdicts captured?
+5. `.venv/bin/python -m apps._shared.audit verify ~/.local/state/homelab-control/agent-homelab-maintainer/audit.jsonl` — chain still intact?
+6. Manual dry-run end-to-end: `.venv/bin/python -m apps.maintenance_scan --dry-run -v` (writes nothing, full log)
+
+## Recovery
+
+- **Skipped run**: `systemctl --user start alienware-maintenance-scan.service` — idempotent (the report file is named by date, overwrites only same-day).
+- **Wrong Discord webhook**: edit `~/.config/homelab-control/maintenance-scan.env`, then `systemctl --user daemon-reload` is NOT needed (the service re-reads env on next start).
+- **Rate limited**: do nothing; the verifier will succeed next week. If you need it now, wait 1h then re-trigger manually.
+
+## Past incidents
+
+### 2026-05-17 — `pgvector/pgvector:pg16` reported as actionable upgrade (incorrectly)
+
+- **Symptom:** initial smoke runs suggested upgrading `pgvector:pg16` to `pgvector:17` — that would have been a disastrous Postgres major-version upgrade
+- **Root cause:** original regex `^v?(\d+(?:\.\d+){0,3})([\-+].*)?$` matched `16-alpine` and `pg16` as `(16,)`, then proposed any higher numeric tag as an upgrade
+- **Fix:** tightened to `^v?(\d+(?:\.\d+){0,3})(\+.*)?$` — reject hyphen suffixes; classify them as `floating`
+- **Followup:** added regression tests `test_parse_numeric[16-alpine]`, `test_assess_image_marks_non_numeric_tag_as_floating`; documented severity legend in this runbook
+
+### 2026-05-17 — probe returned 0 containers from every LXC
+
+- **Symptom:** end-to-end test reported `=== 0 containers ===` despite 12+ running on the hosts
+- **Root cause:** the `--format '{{.Names}}'` template was eaten by remote bash when ssh stripped the quoting
+- **Fix:** replaced template format with `docker ps -q` + `docker inspect <ids>` parsing JSON
+- **Followup:** general gotcha documented in `backup-lxcs.md` §Past incidents; same pattern used in any future docker-over-ssh code
+
 ## Future enhancements (v2)
 
 - **CVE feed join** (Trivy as a sidecar): scan each image for known CVEs

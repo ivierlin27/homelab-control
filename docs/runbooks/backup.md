@@ -201,3 +201,53 @@ during a power loss; `restic rebuild-index` typically resolves it.
 - **Adding the off-host target** is a 2-step change once the Proxmox
   firewall opens up: `restic init` against the new repo, then update
   `BACKUP_REPOSITORIES` in `backup.env`. No code changes.
+
+## Symptoms → likely causes
+
+| Symptom | Likely cause | First check |
+|---|---|---|
+| "Backup didn't run last night" | host was off when the timer fired AND `Persistent=true` hasn't caught up yet; OR the unit failed and the timer skipped a cycle | `systemctl --user list-timers \| grep backup`; `systemctl --user status alienware-backup-hot.service` |
+| "Restic complains about cache directory" | systemd-run env has no `XDG_CACHE_HOME` and no `HOME` | service should set `XDG_CACHE_HOME=/var/cache` — see Past incidents 2026-05-15 |
+| "`unbound variable PIPESTATUS`" in journal | `set -u` + pipe error path — common when restic is missing | see Past incidents 2026-05-15; fix is `statuses=(\"${PIPESTATUS[@]}\")` then `${statuses[0]:-0}` |
+| "DR drill couldn't parse `restic snapshots` host" | text output of `restic snapshots` has spaces in the timestamp column | DR drill must use `--json`; see `scripts/backup/dr-drill.sh` Past incidents 2026-05-16 |
+| "SSH push from Proxmox to Alienware: permission denied" | Proxmox root pubkey not in Alienware `~kenns/.ssh/authorized_keys` | fix by appending the key on Alienware once; verify with `ssh -o BatchMode=yes kenns@alienware true` from Proxmox |
+| "Repo is locked, won't run" | a previous run crashed leaving a lock; OR a long-running prune is still going | `restic -r <repo> list locks`; if confirmed stale, `restic -r <repo> unlock` |
+
+## Investigation steps
+
+1. `systemctl --user list-timers \| grep backup` — when did the timer last fire, when's next?
+2. `systemctl --user status alienware-backup-{hot,full}.service` — exit code of the most recent run
+3. `journalctl --user -u alienware-backup-hot.service -n 200 --no-pager` — full last-run log
+4. `restic -r <repo> snapshots --json \| jq '.[-3:]'` — last 3 snapshots, with `time` and `paths`
+5. `restic -r <repo> check` — repo metadata integrity (cheap; run after any suspected corruption)
+6. `df -h /backup` (or wherever the local repo lives) — out of disk?
+
+## Recovery
+
+- **Timer skipped**: `systemctl --user start alienware-backup-hot.service` — runs immediately, idempotent.
+- **Stale lock**: `restic -r <repo> unlock`. NEVER do this if you suspect a real run is in progress; check `ps aux | grep restic` first.
+- **Snapshot integrity break**: `restic -r <repo> check --read-data-subset=5%` to confirm; if data is unrecoverable, restore from the OTHER repo (two-copy redundancy is the whole point).
+- **Off-host target unreachable**: backups still write to the local repo; reachable target catches up on next run with `--no-cache`.
+
+## Past incidents
+
+### 2026-05-16 — DR drill could not parse `restic snapshots` host column
+
+- **Symptom:** drill script crashed inside the host-name extraction loop
+- **Root cause:** plain-text `restic snapshots` puts spaces in the timestamp, breaking awk-based field splitting
+- **Fix:** switched to `restic snapshots --json` and parsed with Python `json.load`
+- **Followup:** committed in `scripts/backup/dr-drill.sh`; documented in this runbook; quarterly drill added to alienware-backup-dr-drill.timer
+
+### 2026-05-15 — `PIPESTATUS[1]: unbound variable` killed LXC backup
+
+- **Symptom:** `backup-lxcs.sh` exited 1 with the message above
+- **Root cause:** `set -u` + reading `PIPESTATUS[1]` when the second command in the pipe never started (e.g., restic missing)
+- **Fix:** snapshot `statuses=("${PIPESTATUS[@]}")` immediately, then dereference as `${statuses[0]:-0}` / `${statuses[1]:-0}`
+- **Followup:** same pattern applied to all `set -u` scripts going forward; covered in this runbook
+
+### 2026-05-15 — restic couldn't find cache dir under systemd
+
+- **Symptom:** `unable to locate cache directory: neither $XDG_CACHE_HOME nor $HOME are defined`
+- **Root cause:** systemd `User=` services don't inherit `HOME`; restic's cache lookup chain failed
+- **Fix:** set `XDG_CACHE_HOME=/var/cache` explicitly in the service unit and in the script
+- **Followup:** every restic-using service now has this env line; documented in §Setup

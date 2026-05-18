@@ -1,0 +1,34 @@
+[Unit]
+Description=Nightly homelab-control unit-test run (catches dependency / API drift)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/homelab-control/health-monitor.env
+WorkingDirectory=%h/git/homelab-control
+# Capture the full pytest output then forward to Discord (via the
+# health-monitor webhook) only on failure. Stdout still goes to journal.
+ExecStart=/bin/bash -lc '\
+  log=$(mktemp); \
+  if .venv/bin/python -m pytest -q --tb=short > "$log" 2>&1; then \
+    echo "OK: $(tail -1 "$log")"; \
+  else \
+    rc=$?; \
+    echo "FAIL rc=$rc"; tail -40 "$log"; \
+    if [ -n "$HEALTH_MONITOR_DISCORD_WEBHOOK" ]; then \
+      body="**Nightly tests failed (rc=$rc)**\n\`\`\`\n$(tail -25 "$log")\n\`\`\`"; \
+      curl -fsS -X POST -H "content-type: application/json" \
+        "$HEALTH_MONITOR_DISCORD_WEBHOOK" \
+        -d "{\\"content\\": \\"$(echo "$body" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read())[1:-1])")\\"}" \
+        || true; \
+    fi; \
+    rm -f "$log"; exit $rc; \
+  fi; \
+  rm -f "$log"; \
+'
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=default.target
