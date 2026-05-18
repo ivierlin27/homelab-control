@@ -23,6 +23,8 @@ from apps._shared.registry import RegistryError, load_registry
 from .issuer import (
     IssuerError,
     issue_principal,
+    plan_principal,
+    render_plan_markdown,
     revoke_component,
     verify_principal,
 )
@@ -82,6 +84,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--note",
         default=None,
         help="optional note to record alongside the confirmation",
+    )
+
+    plan = sub.add_parser(
+        "plan",
+        help="show what `issue` would do for a principal, without any side effects",
+    )
+    plan.add_argument("--principal", required=True)
+    plan.add_argument(
+        "--output",
+        default=None,
+        help="write the rendered markdown runbook to this path "
+             "(default: stdout). Parent dirs are created as needed.",
+    )
+    plan.add_argument(
+        "--ssh-dir",
+        default=None,
+        help="override ~/.ssh/homelab-agents for the 'key already present?' check",
     )
 
     revoke = sub.add_parser("revoke", help="mark a component as revoked")
@@ -175,6 +194,28 @@ def _cmd_confirm(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_plan(args: argparse.Namespace) -> int:
+    try:
+        plan = plan_principal(
+            args.principal,
+            ssh_dir=Path(args.ssh_dir) if args.ssh_dir else None,
+        )
+    except (IssuerError, RegistryError) as exc:
+        print(f"plan error: {exc}", file=sys.stderr)
+        return 2
+    markdown = render_plan_markdown(plan)
+    if args.output:
+        out_path = Path(args.output).expanduser()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(markdown, encoding="utf-8")
+        print(f"wrote: {out_path}")
+        if plan.needs_operator_action():
+            print("note: this principal has operator-mediated steps; see the runbook.")
+    else:
+        print(markdown)
+    return 0
+
+
 def _cmd_revoke(args: argparse.Namespace) -> int:
     store = StateStore(Path(args.state_dir))
     component = Component(args.component)
@@ -222,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_verify(args)
     if args.cmd == "confirm":
         return _cmd_confirm(args)
+    if args.cmd == "plan":
+        return _cmd_plan(args)
     if args.cmd == "revoke":
         return _cmd_revoke(args)
     return 0

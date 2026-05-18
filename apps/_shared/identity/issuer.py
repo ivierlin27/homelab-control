@@ -460,6 +460,234 @@ def _mark_not_required(state: IdentityState, manifest: AgentManifest) -> None:
         state.set_component(Component.INFISICAL_TOKEN, status=ComponentStatus.NOT_REQUIRED)
 
 
+# ---------------------------------------------------------------------------
+# Plan-only path: return what `issue` would do without any side effects.
+#
+# Use cases:
+#   - Producing a per-principal runbook for an operator before any identity
+#     is actually issued (e.g. for `agent:finance` before Phase 1 starts).
+#   - Reviewing what identity work is outstanding without writing state files,
+#     running ssh-keygen, or building sandbox images.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ComponentPlan:
+    """What ``issue_principal`` would do for one component, without doing it."""
+
+    component: Component
+    would_status: ComponentStatus  # what status this component would end up at
+    summary: str                   # one-line human-readable summary
+    next_steps: list[str]          # operator checklist; empty for NOT_REQUIRED
+
+
+@dataclass(frozen=True)
+class PrincipalPlan:
+    """Aggregate plan for one principal."""
+
+    principal: str
+    manifest_path: Path
+    components: list[ComponentPlan]
+
+    def needs_operator_action(self) -> bool:
+        return any(c.would_status == ComponentStatus.OPERATOR_TODO for c in self.components)
+
+    def to_dict(self) -> dict:
+        return {
+            "principal": self.principal,
+            "manifest_path": str(self.manifest_path),
+            "components": [
+                {
+                    "component": c.component.value,
+                    "would_status": c.would_status.value,
+                    "summary": c.summary,
+                    "next_steps": list(c.next_steps),
+                }
+                for c in self.components
+            ],
+        }
+
+
+def plan_principal(
+    principal: str,
+    *,
+    registry: Registry | None = None,
+    ssh_dir: Path | None = None,
+) -> PrincipalPlan:
+    """Compute the issuance plan for ``principal`` without any side effects.
+
+    No state file writes, no ssh-keygen invocation, no podman build, no API
+    calls. The only IO is read-only: loading the registry/manifest YAML and
+    a couple of ``shutil.which`` / ``Path.is_file`` checks to make the plan
+    accurate for the current host.
+    """
+    registry = registry or load_registry()
+    manifest = registry.get(principal)
+    ssh_base = (ssh_dir or _default_ssh_dir()).expanduser()
+    components: list[ComponentPlan] = []
+
+    # --- SSH key ----------------------------------------------------------
+    git_user = manifest.get("identity", "git_user")
+    if not git_user:
+        components.append(ComponentPlan(
+            Component.SSH_KEY, ComponentStatus.NOT_REQUIRED,
+            "manifest has no identity.git_user; no SSH key needed",
+            [],
+        ))
+    else:
+        private_key = ssh_base / git_user
+        public_key = ssh_base / f"{git_user}.pub"
+        keygen_available = shutil.which("ssh-keygen") is not None
+        if private_key.is_file() and public_key.is_file():
+            components.append(ComponentPlan(
+                Component.SSH_KEY, ComponentStatus.ISSUED,
+                f"SSH key already present at {private_key} (would skip)",
+                [
+                    f"Public key contents: `cat {public_key}` — paste into Forgejo "
+                    f"user {git_user}'s SSH keys panel if not already there.",
+                ],
+            ))
+        else:
+            comment = f"{git_user}@{manifest.principal}"
+            cmd = (
+                f"ssh-keygen -t {SSH_KEY_TYPE} -N '' -C '{comment}' "
+                f"-f {private_key}"
+            )
+            steps = [
+                f"Would generate ed25519 keypair at: {private_key} (and .pub)",
+                f"Equivalent command (the issuer runs this for real on `identity issue`): `{cmd}`",
+                f"After generation, add the public key to Forgejo user {git_user} (Settings → SSH Keys).",
+            ]
+            if not keygen_available:
+                steps.insert(0, "WARN: ssh-keygen not found on this host's PATH; "
+                                "`identity issue` will fail here. Run from a host that has openssh-client.")
+            components.append(ComponentPlan(
+                Component.SSH_KEY, ComponentStatus.PENDING,
+                f"would generate {SSH_KEY_TYPE} keypair for {git_user}",
+                steps,
+            ))
+
+    # --- Sandbox image ----------------------------------------------------
+    image_name = manifest.get("sandbox", "base_image")
+    if not image_name:
+        components.append(ComponentPlan(
+            Component.SANDBOX_IMAGE, ComponentStatus.NOT_REQUIRED,
+            "manifest has no sandbox.base_image; no image needed",
+            [],
+        ))
+    else:
+        repo_root = Path(__file__).resolve().parents[3]
+        containerfile_rel = Path(
+            "apps/_shared/sandbox/images"
+        ) / f"{image_name}.Containerfile"
+        containerfile_abs = repo_root / containerfile_rel
+        present = containerfile_abs.is_file()
+        steps: list[str] = []
+        if not present:
+            steps.append(
+                f"Create {containerfile_rel}; FROM agent-base:latest and add agent-specific deps."
+            )
+        steps.append(
+            f"On every runner host, build the image: "
+            f"`python3 -m apps._shared.sandbox build --principal {principal}`"
+        )
+        steps.append(
+            f"Verify: `podman images | grep ^localhost/{image_name}` and "
+            f"`python3 -m apps._shared.sandbox build --principal {principal} --print-only`"
+        )
+        components.append(ComponentPlan(
+            Component.SANDBOX_IMAGE, ComponentStatus.OPERATOR_TODO,
+            f"image tag {image_name}:latest; Containerfile "
+            + ("present" if present else "MISSING — create it first"),
+            steps,
+        ))
+
+    # --- Forgejo account + PAT + Discord bot + Infisical token ------------
+    # These four are entirely operator-mediated; the existing step builders
+    # already produce the right checklists, so we reuse them verbatim.
+    for component, builder, summary_when_required in (
+        (Component.FORGEJO_ACCOUNT, _forgejo_account_steps,
+         "Create the bot Forgejo user"),
+        (Component.FORGEJO_PAT, _forgejo_pat_steps,
+         "Generate scoped Personal Access Token for the bot"),
+        (Component.DISCORD_BOT, _discord_bot_steps,
+         "Create Discord application + bot, invite, store token"),
+        (Component.INFISICAL_TOKEN, _infisical_steps,
+         "Provision Infisical project + scoped access token"),
+    ):
+        steps = builder(manifest)
+        if steps is None:
+            components.append(ComponentPlan(
+                component, ComponentStatus.NOT_REQUIRED,
+                "not required by manifest",
+                [],
+            ))
+        else:
+            components.append(ComponentPlan(
+                component, ComponentStatus.OPERATOR_TODO,
+                summary_when_required,
+                steps,
+            ))
+
+    return PrincipalPlan(
+        principal=principal,
+        manifest_path=manifest.path,
+        components=components,
+    )
+
+
+def render_plan_markdown(plan: PrincipalPlan) -> str:
+    """Render a :class:`PrincipalPlan` as a runbook-style markdown document.
+
+    Pure function — useful for tests and for piping plan output to disk.
+    """
+    glyph = {
+        ComponentStatus.NOT_REQUIRED: "—",
+        ComponentStatus.PENDING: "·",
+        ComponentStatus.ISSUED: "✓",
+        ComponentStatus.OPERATOR_TODO: "!",
+        ComponentStatus.REVOKED: "✗",
+    }
+    lines: list[str] = []
+    lines.append(f"# Identity issuance runbook — `{plan.principal}`")
+    lines.append("")
+    lines.append(f"Generated by `python -m apps._shared.identity plan --principal {plan.principal}`.")
+    lines.append("")
+    lines.append(f"- Manifest: `{plan.manifest_path}`")
+    needs = "yes" if plan.needs_operator_action() else "no"
+    lines.append(f"- Needs operator action: **{needs}**")
+    lines.append("")
+    lines.append("## Component summary")
+    lines.append("")
+    lines.append("| Component | Would-status | Summary |")
+    lines.append("|---|---|---|")
+    for c in plan.components:
+        lines.append(
+            f"| `{c.component.value}` | {glyph[c.would_status]} `{c.would_status.value}` "
+            f"| {c.summary} |"
+        )
+    lines.append("")
+    lines.append("## Operator checklists")
+    lines.append("")
+    for c in plan.components:
+        if not c.next_steps:
+            continue
+        lines.append(f"### `{c.component.value}`  ({c.would_status.value})")
+        lines.append("")
+        for step in c.next_steps:
+            lines.append(f"- {step}")
+        lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append(
+        "This runbook is generated from the agent manifest and the local host's available tooling. "
+        "Re-run the command to refresh after any change to "
+        f"`{plan.manifest_path.name}` or after ssh-keygen / podman become available."
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _default_ssh_dir() -> Path:
     override = os.environ.get("HOMELAB_IDENTITY_SSH_DIR")
     if override:

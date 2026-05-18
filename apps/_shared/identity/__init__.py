@@ -30,25 +30,33 @@ from .state import (
     default_state_dir,
 )
 from .issuer import (
+    ComponentPlan,
     IssuerError,
+    PrincipalPlan,
     SSH_KEY_TYPE,
     issue_principal,
     issue_ssh_key,
+    plan_principal,
+    render_plan_markdown,
     revoke_component,
     verify_principal,
 )
 
 __all__ = [
     "Component",
+    "ComponentPlan",
     "ComponentStatus",
     "IdentityState",
     "IdentityStateError",
     "IssuerError",
+    "PrincipalPlan",
     "SSH_KEY_TYPE",
     "StateStore",
     "default_state_dir",
     "issue_principal",
     "issue_ssh_key",
+    "plan_principal",
+    "render_plan_markdown",
     "revoke_component",
     "verify_principal",
 ]
