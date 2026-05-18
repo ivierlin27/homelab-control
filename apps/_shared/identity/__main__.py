@@ -18,7 +18,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from apps._shared.registry import RegistryError, load_registry
+from apps._shared.registry import (
+    AgentManifest,
+    RegistryError,
+    load_registry,
+    validate_manifest_shape,
+)
 
 from .issuer import (
     IssuerError,
@@ -90,7 +95,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "plan",
         help="show what `issue` would do for a principal, without any side effects",
     )
-    plan.add_argument("--principal", required=True)
+    plan_principal_group = plan.add_mutually_exclusive_group(required=True)
+    plan_principal_group.add_argument(
+        "--principal",
+        help="planned principal; manifest is read from the registry",
+    )
+    plan_principal_group.add_argument(
+        "--principal-stub",
+        metavar="PATH",
+        help="path to a manifest YAML file (use '-' for stdin) for an agent "
+             "that is NOT yet in the registry. The manifest is shape-validated "
+             "(intrinsic rules only; cross-file rules skipped) and used to "
+             "generate the runbook so the operator can prepare the bot accounts "
+             "before adding the entry to registry.yaml.",
+    )
     plan.add_argument(
         "--output",
         default=None,
@@ -201,9 +219,22 @@ def _cmd_confirm(args: argparse.Namespace) -> int:
 
 
 def _cmd_plan(args: argparse.Namespace) -> int:
+    stub_manifest: AgentManifest | None = None
+    target_principal: str
+    if args.principal_stub:
+        try:
+            stub_manifest = _load_stub_manifest(args.principal_stub)
+        except RegistryError as exc:
+            print(f"plan error: {exc}", file=sys.stderr)
+            return 2
+        target_principal = stub_manifest.principal
+    else:
+        target_principal = args.principal
+
     try:
         plan = plan_principal(
-            args.principal,
+            target_principal,
+            manifest=stub_manifest,
             ssh_dir=Path(args.ssh_dir) if args.ssh_dir else None,
             ignore_state=args.ignore_state,
         )
@@ -221,6 +252,41 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     else:
         print(markdown)
     return 0
+
+
+def _load_stub_manifest(stub_arg: str) -> AgentManifest:
+    """Read + shape-validate a stub manifest YAML for ``plan --principal-stub``.
+
+    ``stub_arg`` is either a filesystem path or ``-`` (stdin). Returns an
+    :class:`AgentManifest` whose ``path`` is the source file (or a synthetic
+    ``<stdin>`` marker) so the rendered runbook can reference it.
+
+    Raises :class:`RegistryError` on missing file, invalid YAML, or any
+    intrinsic-shape violation. Cross-file checks (uniqueness, references) are
+    intentionally skipped because the agent is not yet registered.
+    """
+    import yaml  # local to keep top-of-file imports identical to the rest
+
+    if stub_arg == "-":
+        raw = sys.stdin.read()
+        source_path = Path("<stdin>")
+    else:
+        source_path = Path(stub_arg).expanduser()
+        if not source_path.is_file():
+            raise RegistryError(f"stub manifest not found: {source_path}")
+        raw = source_path.read_text(encoding="utf-8")
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError as exc:
+        raise RegistryError(f"{source_path}: invalid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise RegistryError(f"{source_path}: top-level must be a mapping")
+    validate_manifest_shape(data, source_path)
+    return AgentManifest(
+        principal=data["principal"],
+        path=source_path,
+        data=data,
+    )
 
 
 def _cmd_revoke(args: argparse.Namespace) -> int:

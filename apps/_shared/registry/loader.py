@@ -178,6 +178,22 @@ def _validate_index_shape(data: Any, path: Path) -> None:
         seen_paths.add(manifest)
 
 
+def validate_manifest_shape(data: Any, path: Path) -> None:
+    """Validate one manifest's *intrinsic* shape (per-file rules only).
+
+    Cross-file checks (uniqueness across the whole registry, references to
+    existing files, a2a callee resolution) live in :func:`_validate_cross_file`
+    and are intentionally skipped here so a stub manifest for an agent that is
+    not yet in the registry can still be validated.
+
+    Public so the identity issuer's ``--principal-stub`` path can reuse the
+    exact same intrinsic rules without going through the full registry load.
+
+    Raises :class:`RegistryError` on the first violation found.
+    """
+    _validate_manifest_shape(data, path)
+
+
 def _validate_manifest_shape(data: Any, path: Path) -> None:
     _require(isinstance(data, dict), f"{path}: top-level must be a mapping")
     for required in ("principal", "display_name", "domain", "queue_dir"):

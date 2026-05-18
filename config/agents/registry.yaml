@@ -12,3 +12,5 @@ agents:
     manifest: config/agents/agent-homelab.yaml
   - principal: agent:review
     manifest: config/agents/agent-review.yaml
+  - principal: agent:finance
+    manifest: config/agents/agent-finance.yaml

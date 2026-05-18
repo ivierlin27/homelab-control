@@ -12,6 +12,7 @@ from .loader import (
     Registry,
     RegistryError,
     load_registry,
+    validate_manifest_shape,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "Registry",
     "RegistryError",
     "load_registry",
+    "validate_manifest_shape",
 ]

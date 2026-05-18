@@ -229,6 +229,185 @@ def test_plan_ignore_state_flag_forces_fresh_view(tmp_path, monkeypatch, fail_on
         assert cp.would_status == ComponentStatus.OPERATOR_TODO, comp
 
 
+# ---- --principal-stub path ----------------------------------------------
+#
+# These tests verify that ``plan_principal(manifest=...)`` and the CLI's
+# ``--principal-stub`` flag together let us produce a runbook for an agent
+# that is NOT yet in ``registry.yaml``. This is the workflow the operator
+# uses to provision the bot accounts BEFORE committing the manifest:
+#
+#   1. Draft config/agents/agent-finance.yaml
+#   2. Run: python -m apps._shared.identity plan \
+#        --principal-stub config/agents/agent-finance.yaml \
+#        --output docs/identity-runbook-agent-finance.md
+#   3. Work through the operator checklist
+#   4. THEN add the agent to registry.yaml + run `identity issue`
+#
+# The stub path skips cross-file registry checks (uniqueness, references)
+# but still runs the intrinsic shape validator so we catch typos early.
+
+
+def _write_stub_manifest(path, data):
+    import yaml as _yaml
+    path.write_text(_yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
+def _minimal_finance_stub_data():
+    """A realistic-shape stub for agent:finance, used by the stub-path tests."""
+    return {
+        "principal": "agent:finance",
+        "display_name": "Finance Steward",
+        "domain": "finance",
+        "queue_dir": "~/.local/state/homelab-control/agent-finance",
+        "identity": {
+            "git_user": "agent-finance",
+            "git_email": "agent-finance@forgejo.dev-path.org",
+            "forgejo_account": "agent-finance",
+            "discord_bot_app_name": "agent-finance",
+            "secrets_profile": "finance",
+        },
+        "sandbox": {
+            "base_image": "agent-finance",
+            "network": {"allowed_hosts": []},
+        },
+        "discord": {
+            "bot_app_name": "agent-finance",
+            "channels": [{"name": "#finance", "mode": "read"}],
+        },
+        "trust": {"autonomy_mode": "propose_only"},
+    }
+
+
+def test_plan_principal_accepts_stub_manifest(tmp_path, monkeypatch, fail_on_subprocess):
+    """plan_principal(manifest=...) skips the registry lookup."""
+    from apps._shared.registry import AgentManifest
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+    stub_path = tmp_path / "agent-finance.yaml"
+    data = _minimal_finance_stub_data()
+    _write_stub_manifest(stub_path, data)
+    stub = AgentManifest(
+        principal=data["principal"], path=stub_path, data=data
+    )
+
+    plan = plan_principal("agent:finance", manifest=stub)
+    assert plan.principal == "agent:finance"
+    assert plan.manifest_path == stub_path
+    # All four operator-mediated components should plan as OPERATOR_TODO.
+    operator_mediated = [
+        Component.FORGEJO_ACCOUNT,
+        Component.FORGEJO_PAT,
+        Component.DISCORD_BOT,
+        Component.INFISICAL_TOKEN,
+    ]
+    for c in plan.components:
+        if c.component in operator_mediated:
+            assert c.would_status == ComponentStatus.OPERATOR_TODO, c.component
+
+
+def test_plan_principal_rejects_mismatched_principal(tmp_path):
+    """If manifest.principal != principal arg, we refuse — guards against
+    a CLI bug where the wrong principal string was paired with a stub file."""
+    from apps._shared.registry import AgentManifest
+    from .issuer import IssuerError
+    data = _minimal_finance_stub_data()
+    stub = AgentManifest(
+        principal=data["principal"], path=tmp_path / "stub.yaml", data=data
+    )
+    with pytest.raises(IssuerError, match="does not match"):
+        plan_principal("agent:other", manifest=stub)
+
+
+def test_cli_principal_stub_from_file(tmp_path, monkeypatch, capsys, fail_on_subprocess):
+    """CLI: --principal-stub <PATH> reads the file and emits a runbook."""
+    from .__main__ import main
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+    stub_path = tmp_path / "agent-finance.yaml"
+    _write_stub_manifest(stub_path, _minimal_finance_stub_data())
+
+    output_path = tmp_path / "runbook.md"
+    rc = main(
+        [
+            "plan",
+            "--principal-stub", str(stub_path),
+            "--output", str(output_path),
+        ]
+    )
+    assert rc == 0
+    body = output_path.read_text(encoding="utf-8")
+    assert "agent:finance" in body
+    assert "agent-finance@forgejo.dev-path.org" in body
+    assert "#finance" in body
+
+
+def test_cli_principal_stub_from_stdin(tmp_path, monkeypatch, fail_on_subprocess):
+    """CLI: --principal-stub - reads YAML from stdin."""
+    import io
+    import yaml as _yaml
+    from .__main__ import main
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+
+    stdin_payload = _yaml.safe_dump(_minimal_finance_stub_data(), sort_keys=False)
+    monkeypatch.setattr("sys.stdin", io.StringIO(stdin_payload))
+
+    output_path = tmp_path / "runbook.md"
+    rc = main(
+        [
+            "plan",
+            "--principal-stub", "-",
+            "--output", str(output_path),
+        ]
+    )
+    assert rc == 0
+    body = output_path.read_text(encoding="utf-8")
+    assert "agent:finance" in body
+
+
+def test_cli_principal_stub_missing_required_field(tmp_path, monkeypatch, capsys):
+    """CLI: shape validation catches a missing required key (e.g. queue_dir)."""
+    from .__main__ import main
+    bad = _minimal_finance_stub_data()
+    del bad["queue_dir"]
+    stub_path = tmp_path / "agent-finance.yaml"
+    _write_stub_manifest(stub_path, bad)
+
+    rc = main(["plan", "--principal-stub", str(stub_path)])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "queue_dir" in err
+
+
+def test_cli_principal_stub_invalid_yaml(tmp_path, monkeypatch, capsys):
+    """CLI: surfaces a clear error for a YAML parse failure."""
+    from .__main__ import main
+    stub_path = tmp_path / "bad.yaml"
+    stub_path.write_text(":\n  not yaml: at all: nested:bad", encoding="utf-8")
+    rc = main(["plan", "--principal-stub", str(stub_path)])
+    # Either a YAML error (rc=2) or a shape error if it parses as a dict.
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "plan error" in err
+
+
+def test_cli_principal_stub_missing_file(tmp_path, capsys):
+    """CLI: missing stub file is reported, not silently swallowed."""
+    from .__main__ import main
+    rc = main(["plan", "--principal-stub", str(tmp_path / "nope.yaml")])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "not found" in err
+
+
+def test_cli_plan_requires_principal_or_stub(capsys):
+    """CLI: argparse fails loudly if neither --principal nor --principal-stub
+    is given (mutually exclusive required group)."""
+    from .__main__ import main
+    with pytest.raises(SystemExit):
+        main(["plan"])
+
+
 def test_render_markdown_lists_operator_steps(tmp_path, monkeypatch, fail_on_subprocess):
     """Verifies the full operator checklist makes it into rendered markdown
     when nothing has been confirmed yet. Force ignore_state because this

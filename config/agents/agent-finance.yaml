@@ -1,0 +1,110 @@
+principal: agent:finance
+display_name: Finance Steward
+domain: finance
+queue_dir: ~/.local/state/homelab-control/agent-finance
+
+# Phase 1 MVP-B scope. See docs/plans/phase-1-finance.md for the full design.
+# Posture (locked):
+#   - Advisory only; never autonomous. Every action that mutates the ledger
+#     requires either operator confirmation (categorize) or operator-initiated
+#     ingest (transactions).
+#   - Local-only LLM routing. The gateway (prereq P1) enforces this via
+#     skill manifests; the manifest declares the constraint via the
+#     `skills` list (each finance skill carries local_only=true).
+#   - No network egress from the sandbox. CSV ingest is from disk only; no
+#     bank scraping in MVP-B.
+#   - Read-only Discord posture on #finance. Bidirectional only with Kevin DM.
+
+references:
+  memory_principal: config/memory/principals.yaml
+
+identity:
+  git_user: agent-finance
+  git_email: agent-finance@forgejo.dev-path.org
+  forgejo_account: agent-finance
+  discord_bot_app_name: agent-finance
+  secrets_profile: finance
+
+sandbox:
+  base_image: agent-finance
+  network:
+    # Empty: finance does not call out from the sandbox. CSV/PDF statements
+    # are bind-mounted in from ~/finance/inbox; ledger writes go through the
+    # finance subprocess wrapper. LLM calls go through the host-side LiteLLM
+    # gateway from the agent process (not the sandbox subprocess).
+    allowed_hosts: []
+
+data_scope:
+  memory:
+    read_prefixes: [finance.*]
+    write_prefixes: [finance.*]
+  files:
+    # The agent reads/writes only the finance tree. docs/plans/phase-1-finance.md
+    # is read via the agent process (host-side), not via the sandbox mount.
+    allowed_roots: [finance]
+    blocked_roots: [secrets, compose/secrets, docs, inventory, compose, apps]
+
+tool_grants:
+  memory: { read: true, write: true }
+  queue:
+    enqueue_targets: []        # finance does not enqueue work for other agents in MVP-B
+  forgejo: { enabled: false }  # no PR opens, no Forgejo writes; PAT is used only for cloning the (private) ledger repo from the local Forgejo instance
+  shell:
+    allowed_commands: [git, beancount, bean-check, bean-query, python3]
+  network:
+    # Host-side: the agent process reaches the local LiteLLM gateway via
+    # loopback only. No external hosts.
+    allowed_hosts: []
+
+skills:
+  - finance-ingest         # parse CSV/PDF -> Beancount postings
+  - finance-categorize     # analyst + risk personas propose category, verifier confirms
+  - finance-advise         # MVP-C: full TradingAgents debate (DISABLED in MVP-B)
+
+tools:
+  - memory.write
+  - memory.search
+  - shell.git              # restricted to the ledger repo
+  - shell.beancount        # bean-check, bean-query
+
+a2a:
+  allowed_callees: []      # MVP-B: no agent-to-agent calls
+
+discord:
+  bot_app_name: agent-finance
+  channels:
+    # MVP-B: read-only. Discord is for visibility (weekly digest, alerts on
+    # verifier failures); the categorize loop runs in Kevin DM only.
+    - { name: "#finance", mode: read }
+  default_channel: "#finance"
+  dm_humans: []            # populated from registry-side allowlist by identity issuer
+
+trust:
+  autonomy_mode: propose_only
+  # All ledger mutations are operator-initiated or operator-confirmed.
+  # Promotion to low_risk_auto is deliberately NOT scheduled for MVP-B.
+  promotion_rules: []
+  demotion_rules: [verifier_failed_3x_in_24h, ledger_diverged_from_bank_summary]
+  human_review_triggers:
+    labels: [finance, sensitive, ledger-write]
+    paths: [finance, apps/finance_agent]
+
+escalation_overrides:
+  # Finance escalates fast: any verifier failure on categorize/advise lands in
+  # Kevin DM within 5 minutes. Override applied at the Tier-1/2/3 dispatcher
+  # once prereq P4 (platform_escalation) is wired.
+  tier1_budget_seconds: 30
+  tier2_budget_seconds: 300
+  tier3_dm_after_seconds: 300
+
+surfaces:
+  planka_domain: finance
+  chat_tags: [finance]
+  dashboard_slug: finance
+  weekly_review_enabled: true
+  intake_match_hints:
+    - statement
+    - transaction
+    - budget
+    - ledger
+    - finance

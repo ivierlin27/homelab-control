@@ -512,6 +512,7 @@ def plan_principal(
     principal: str,
     *,
     registry: Registry | None = None,
+    manifest: AgentManifest | None = None,
     ssh_dir: Path | None = None,
     state_store: StateStore | None = None,
     ignore_state: bool = False,
@@ -527,9 +528,23 @@ def plan_principal(
     Pass ``ignore_state=True`` to produce a fresh-provisioning view (every
     component reported as if no prior issuance had happened). Useful for
     publishing a generic onboarding runbook.
+
+    Pass ``manifest=<AgentManifest>`` to bypass the registry lookup entirely.
+    This is how the ``identity plan --principal-stub`` CLI path produces a
+    runbook for an agent that has not yet been added to ``registry.yaml`` —
+    so the operator can read the checklist *before* committing the manifest.
+    When ``manifest`` is provided, ``registry`` is ignored. The caller is
+    responsible for shape-validating the stub manifest first (the CLI does
+    this via :func:`apps._shared.registry.validate_manifest_shape`).
     """
-    registry = registry or load_registry()
-    manifest = registry.get(principal)
+    if manifest is None:
+        registry = registry or load_registry()
+        manifest = registry.get(principal)
+    elif manifest.principal != principal:
+        raise IssuerError(
+            f"plan_principal: manifest.principal={manifest.principal!r} "
+            f"does not match principal argument {principal!r}"
+        )
     ssh_base = (ssh_dir or _default_ssh_dir()).expanduser()
 
     # State-store read is best-effort: a missing or unreadable state file
