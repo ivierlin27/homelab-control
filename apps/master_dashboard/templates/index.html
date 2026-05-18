@@ -21,6 +21,13 @@
     {% include "_tile_schedule.html" %}
   </section>
 
+  <section class="xl:col-span-2 bg-slate-900 rounded-2xl border
+                  {% if maintenance and maintenance.active %}border-amber-700/60{% else %}border-slate-800{% endif %}
+                  overflow-hidden"
+           hx-get="/tiles/maintenance" hx-trigger="every 60s" hx-swap="innerHTML">
+    {% include "_tile_maintenance.html" %}
+  </section>
+
   <section class="xl:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
     {% include "_tile_audit.html" %}
   </section>

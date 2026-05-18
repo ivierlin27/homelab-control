@@ -23,6 +23,21 @@
     </div>
     <div class="text-xs text-slate-400 mono" id="now"></div>
   </header>
+  {% if maintenance and maintenance.active %}
+    <div class="border-b border-amber-700/50 bg-amber-900/40 text-amber-100 px-6 py-2.5
+                flex items-center justify-between text-sm"
+         hx-get="/tiles/maintenance" hx-trigger="every 30s" hx-swap="none">
+      <div class="flex items-center gap-3">
+        <span class="text-base">▲</span>
+        <span class="font-semibold uppercase tracking-wider text-xs text-amber-300">Maintenance</span>
+        <span>{{ maintenance.lock.reason }}</span>
+        <span class="text-amber-300/70 text-xs">scope: <span class="mono">{{ maintenance.scope_display }}</span></span>
+      </div>
+      <div class="text-xs mono text-amber-200">
+        ends {{ maintenance.lock.until_iso }} · {{ maintenance.remaining_human }} left
+      </div>
+    </div>
+  {% endif %}
   <main class="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-screen-2xl mx-auto">
     {% block content %}{% endblock %}
   </main>

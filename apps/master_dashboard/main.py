@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -37,9 +38,20 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+
+# Sibling app imports (audit ledger + maintenance lock). Match the
+# sys.path pattern used by the other apps under apps/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _shared.audit import AuditLog  # noqa: E402
+from maintenance.lock import (  # noqa: E402
+    DEFAULT_LOCK_PATH as MAINTENANCE_LOCK_PATH,
+    end_maintenance,
+    load_lock as load_maintenance_lock,
+    start_maintenance,
+)
 
 log = logging.getLogger("master-dashboard")
 logging.basicConfig(
@@ -57,6 +69,24 @@ AUDIT_ROOT = Path(
 )
 COST_SUMMARY_URL = os.environ.get("DASHBOARD_COST_SUMMARY_URL", "")
 COST_SUMMARY_TOKEN = os.environ.get("DASHBOARD_COST_SUMMARY_TOKEN", "")
+
+# Whether the dashboard accepts maintenance-mode start/end requests.
+# Defaults to True on the deploy host; tests flip to False to confirm
+# the 403 path. Phase 0.12 future work: replace with real OIDC.
+def _flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+DASHBOARD_ALLOW_MAINTENANCE_WRITE = _flag("DASHBOARD_ALLOW_MAINTENANCE_WRITE", True)
+# Audit ledger for dashboard-originated maintenance actions; defaults
+# to the same file the CLI + health-monitor share so the chain stays
+# linear and verifiable end-to-end.
+DASHBOARD_MAINTENANCE_AUDIT = Path(os.environ.get(
+    "DASHBOARD_MAINTENANCE_AUDIT",
+    str(Path.home() / ".local/state/homelab-control/health-monitor/audit.jsonl"),
+))
 
 # Comma-separated restic repos. Same env shape as the backup runner.
 BACKUP_REPOSITORIES = [
@@ -407,6 +437,52 @@ async def _sse_audit_stream() -> AsyncIterator[bytes]:
         await asyncio.sleep(1.0)
 
 
+# ----- maintenance lock --------------------------------------------------
+
+def _fetch_maintenance(lock_path: Path | None = None) -> dict[str, Any]:
+    """Snapshot of the current maintenance lock, for templates.
+
+    Returns ``{active, lock, allow_write, lock_path}``. Always returns a
+    dict (never raises) so the tile renders even if the lock file is
+    corrupt or permissions are off.
+    """
+    p = lock_path or MAINTENANCE_LOCK_PATH
+    try:
+        lock = load_maintenance_lock(p)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("load_maintenance_lock failed: %s", exc)
+        lock = None
+    payload: dict[str, Any] = {
+        "active": lock is not None,
+        "lock": lock.as_dict() if lock else None,
+        "allow_write": DASHBOARD_ALLOW_MAINTENANCE_WRITE,
+        "lock_path": str(p),
+    }
+    if lock is not None:
+        remaining = lock.remaining()
+        # Pretty `HH:MM` for the banner; full ISO is already in lock dict
+        total = int(remaining.total_seconds())
+        h, m = divmod(total // 60, 60)
+        payload["remaining_human"] = f"{h}h{m:02d}m" if h else f"{m}m"
+        payload["scope_display"] = ", ".join(lock.scope) if lock.scope else "[global]"
+    return payload
+
+
+def _audit_maintenance(event: str, payload: dict[str, Any], request: Request) -> None:
+    """Append a row to the maintenance audit chain, tagged with the requester."""
+    actor = f"dashboard:{request.client.host if request.client else 'unknown'}"
+    try:
+        AuditLog(str(DASHBOARD_MAINTENANCE_AUDIT)).append({
+            "principal": "agent:maintenance-mode",
+            "event": event,
+            "actor": actor,
+            "user_agent": request.headers.get("user-agent", "")[:120],
+            **payload,
+        })
+    except Exception as exc:  # noqa: BLE001
+        log.warning("audit append failed for %s: %s", event, exc)
+
+
 # ----- app ---------------------------------------------------------------
 
 @asynccontextmanager
@@ -426,6 +502,7 @@ async def index(request: Request):
     presence = await _presence_cache.get()
     schedule = await _schedule_cache.get()
     audit_events = _read_recent_events()
+    maintenance = _fetch_maintenance()
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -436,6 +513,7 @@ async def index(request: Request):
             "schedule": schedule,
             "audit_events": audit_events,
             "audit_event_count": sum(1 for _ in _list_ledgers()),
+            "maintenance": maintenance,
         },
     )
 
@@ -478,6 +556,70 @@ async def tile_audit(request: Request):
 @app.get("/sse/audit")
 async def sse_audit():
     return StreamingResponse(_sse_audit_stream(), media_type="text/event-stream")
+
+
+@app.get("/tiles/maintenance", response_class=HTMLResponse)
+async def tile_maintenance(request: Request):
+    return templates.TemplateResponse(
+        request, "_tile_maintenance.html",
+        {"maintenance": _fetch_maintenance()},
+    )
+
+
+@app.post("/maintenance/start", response_class=HTMLResponse)
+async def maintenance_start(
+    request: Request,
+    hours: float = Form(...),
+    reason: str = Form(...),
+    scope: str = Form(""),
+):
+    if not DASHBOARD_ALLOW_MAINTENANCE_WRITE:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Maintenance write disabled on this dashboard. "
+                "Use the CLI: `python -m apps.maintenance start ...` on Alienware."
+            ),
+        )
+    # Reject if a window is already open. The user can `end` first.
+    existing = load_maintenance_lock()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"maintenance already active until {existing.as_dict()['until_iso']}; end it first",
+        )
+    try:
+        scope_list = [s.strip() for s in scope.split(",") if s.strip()]
+        lock = start_maintenance(
+            duration_hours=hours, reason=reason, scope=scope_list or None,
+            started_by=f"dashboard:{request.client.host if request.client else 'unknown'}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _audit_maintenance("maintenance_start", lock.as_dict(), request)
+    log.info("maintenance window opened via dashboard: %r scope=%s until=%s",
+             lock.reason, lock.scope or "[global]", lock.until)
+    return templates.TemplateResponse(
+        request, "_tile_maintenance.html",
+        {"maintenance": _fetch_maintenance()},
+    )
+
+
+@app.post("/maintenance/end", response_class=HTMLResponse)
+async def maintenance_end(request: Request):
+    if not DASHBOARD_ALLOW_MAINTENANCE_WRITE:
+        raise HTTPException(status_code=403, detail="Maintenance write disabled on this dashboard.")
+    ended = end_maintenance()
+    if ended is None:
+        # Idempotent: clicking end when nothing is active is a 200, not a 404
+        log.info("maintenance end requested but no window active")
+    else:
+        _audit_maintenance("maintenance_end", ended.as_dict(), request)
+        log.info("maintenance window ended via dashboard (was: %r)", ended.reason)
+    return templates.TemplateResponse(
+        request, "_tile_maintenance.html",
+        {"maintenance": _fetch_maintenance()},
+    )
 
 
 @app.get("/healthz")

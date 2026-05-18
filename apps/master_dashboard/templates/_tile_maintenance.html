@@ -1,0 +1,89 @@
+{# Maintenance-mode tile.
+
+Two states:
+  - inactive: render a small form to start a window (hours / reason / scope)
+  - active:   render the current lock summary + an end button
+
+Both submit via HTMX so the tile swaps inline without a full page reload.
+The banner at the top of the page (in base.html) reads the same data.
+#}
+<div class="p-4 flex items-center justify-between">
+  <h3 class="text-sm font-semibold tracking-wider uppercase text-slate-400">
+    {% if maintenance.active %}
+      <span class="text-amber-300">▲ Maintenance Mode</span>
+    {% else %}
+      Maintenance Mode
+    {% endif %}
+  </h3>
+  <span class="text-xs text-slate-500 mono">{{ maintenance.lock_path }}</span>
+</div>
+
+{% if maintenance.active %}
+  {% set lock = maintenance.lock %}
+  <div class="px-4 pb-4 space-y-2">
+    <div class="rounded-lg border border-amber-700/40 bg-amber-950/30 p-3 text-sm">
+      <div><span class="text-slate-400 text-xs uppercase tracking-wider mr-2">Reason</span>
+        <span class="text-amber-100">{{ lock.reason }}</span></div>
+      <div class="mt-1"><span class="text-slate-400 text-xs uppercase tracking-wider mr-2">Scope</span>
+        <span class="mono text-xs text-amber-200">{{ maintenance.scope_display }}</span></div>
+      <div class="mt-1"><span class="text-slate-400 text-xs uppercase tracking-wider mr-2">Until</span>
+        <span class="mono text-xs">{{ lock.until_iso }}</span>
+        <span class="text-amber-300 text-xs ml-2">({{ maintenance.remaining_human }} remaining)</span></div>
+      <div class="mt-1"><span class="text-slate-400 text-xs uppercase tracking-wider mr-2">Started by</span>
+        <span class="mono text-xs text-slate-300">{{ lock.started_by }}</span></div>
+    </div>
+
+    {% if maintenance.allow_write %}
+      <form hx-post="/maintenance/end" hx-target="closest section" hx-swap="innerHTML"
+            hx-confirm="End the maintenance window now? Alerts resume immediately."
+            class="flex justify-end">
+        <button type="submit"
+                class="px-3 py-1.5 text-sm rounded-md bg-emerald-700/80 hover:bg-emerald-700 text-white">
+          End maintenance now
+        </button>
+      </form>
+    {% else %}
+      <p class="text-xs text-slate-500">Write disabled; end with <span class="mono">python -m apps.maintenance end</span>.</p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="px-4 pb-4 space-y-2">
+    <p class="text-sm text-slate-400">No active window. Alerts are firing normally.</p>
+
+    {% if maintenance.allow_write %}
+      <form hx-post="/maintenance/start"
+            hx-target="closest section" hx-swap="innerHTML"
+            class="grid grid-cols-1 gap-2 text-sm">
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-slate-400 uppercase tracking-wider">Reason (required)</span>
+          <input name="reason" type="text" required
+                 placeholder="e.g. proxmox kernel update"
+                 class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm focus:border-amber-500 outline-none" />
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-slate-400 uppercase tracking-wider">Hours (0.1–168)</span>
+            <input name="hours" type="number" step="0.25" min="0.1" max="168" value="2" required
+                   class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm focus:border-amber-500 outline-none mono" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-slate-400 uppercase tracking-wider">Scope (optional)</span>
+            <input name="scope" type="text"
+                   placeholder="health:memory-engine,timer:"
+                   class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm focus:border-amber-500 outline-none mono" />
+          </label>
+        </div>
+        <div class="text-xs text-slate-500">
+          Empty scope = global (all alerts suppressed). Otherwise comma-separated
+          check-name prefixes; see <a class="text-sky-400 hover:underline" href="https://forgejo.dev-path.org/kevin/homelab-control/src/branch/phase-0-platform/docs/runbooks/maintenance-mode.md" target="_blank" rel="noopener">the runbook</a>.
+        </div>
+        <button type="submit"
+                class="mt-1 px-3 py-1.5 rounded-md bg-amber-700/80 hover:bg-amber-700 text-white text-sm">
+          Start maintenance window
+        </button>
+      </form>
+    {% else %}
+      <p class="text-xs text-slate-500">Write disabled on this dashboard. Use <span class="mono">python -m apps.maintenance start ...</span>.</p>
+    {% endif %}
+  </div>
+{% endif %}
