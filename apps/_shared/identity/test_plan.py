@@ -230,8 +230,12 @@ def test_plan_ignore_state_flag_forces_fresh_view(tmp_path, monkeypatch, fail_on
 
 
 def test_render_markdown_lists_operator_steps(tmp_path, monkeypatch, fail_on_subprocess):
-    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path))
-    p = plan_principal("agent:executive")
+    """Verifies the full operator checklist makes it into rendered markdown
+    when nothing has been confirmed yet. Force ignore_state because this
+    test is about checklist content, not state-aware behaviour."""
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+    p = plan_principal("agent:executive", ignore_state=True)
     md = render_plan_markdown(p)
     # The Forgejo checklist must mention the account name from the manifest.
     assert "agent-executive" in md
