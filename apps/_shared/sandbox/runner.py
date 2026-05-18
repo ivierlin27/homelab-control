@@ -125,6 +125,12 @@ class SandboxRunner:
             "--pids-limit=512",
             "--memory=2g",
             "--workdir=/work",
+            # Rootless podman: map container UID 1000 (the image's `agent`
+            # user) to the host UID running this process, so the bind-mounted
+            # worktree is readable/writable without chown gymnastics. Without
+            # this the container's `agent` user maps to a host subuid in the
+            # /etc/subuid range and can't read host-owned mounts.
+            "--userns=keep-id",
             *self._mount_args(),
             *self._env_args(cid),
             *egress_args,
