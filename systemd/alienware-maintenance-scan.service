@@ -1,0 +1,17 @@
+[Unit]
+Description=Homelab weekly maintenance scan (image freshness + verifier loop)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/homelab-control/maintenance-scan.env
+WorkingDirectory=%h/git/homelab-control
+ExecStart=%h/git/homelab-control/.venv/bin/python -m apps.maintenance_scan
+Nice=10
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=default.target
