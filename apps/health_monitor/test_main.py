@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .core import CheckResult, Status, Transition
@@ -59,6 +60,73 @@ def test_run_writes_state_and_audit_in_dry_run_does_not(tmp_path):
     assert summary["unhealthy"] == 1
     assert not state_path.exists()
     assert not audit_path.exists()
+
+
+def test_run_suppresses_alerts_during_maintenance_but_keeps_audit(tmp_path, monkeypatch):
+    """Maintenance mode must NOT swallow audit/state, only the Discord post."""
+    state_path = tmp_path / "state.json"
+    audit_path = tmp_path / "audit.jsonl"
+    lock_path = tmp_path / "maint.lock"
+
+    from apps.maintenance.lock import start_maintenance
+    start_maintenance(duration_hours=1, reason="testing", path=lock_path,
+                      scope=["health:foo"])
+
+    posted: list[str] = []
+    def notifier(url, msg):
+        posted.append(msg)
+
+    seq = [
+        [CheckResult(name="health:foo:bar", status=Status.HEALTHY, detail="ok")],
+        [CheckResult(name="health:foo:bar", status=Status.UNHEALTHY, detail="down")],
+    ]
+    calls = {"n": 0}
+
+    def fake_check():
+        out = seq[calls["n"]]; calls["n"] += 1; return out
+
+    run(state_path=state_path, audit_path=audit_path,
+        discord_webhook="https://example.invalid/hook",
+        checks=[fake_check], notifier=notifier,
+        maintenance_lock_path=lock_path)  # seed healthy
+    s2 = run(state_path=state_path, audit_path=audit_path,
+             discord_webhook="https://example.invalid/hook",
+             checks=[fake_check], notifier=notifier,
+             maintenance_lock_path=lock_path)
+    assert s2["transitions"] == 1
+    assert s2["transitions_suppressed"] == 1
+    assert s2["maintenance_active"] is True
+    assert posted == []  # no Discord post
+    # Audit still has the transition row (with suppressed flag) + summary
+    audit_lines = [json.loads(l) for l in audit_path.read_text().splitlines() if l.strip()]
+    flips = [l for l in audit_lines if l.get("event") == "health_transition"]
+    assert len(flips) == 1
+    assert flips[0]["alert_suppressed"] is True
+
+
+def test_run_alerts_for_out_of_scope_checks_during_maintenance(tmp_path, monkeypatch):
+    state_path = tmp_path / "state.json"
+    audit_path = tmp_path / "audit.jsonl"
+    lock_path = tmp_path / "maint.lock"
+    from apps.maintenance.lock import start_maintenance
+    start_maintenance(duration_hours=1, reason="proxmox only",
+                      path=lock_path, scope=["timer:"])
+    posted: list[str] = []
+    def notifier(url, msg):
+        posted.append(msg)
+
+    def fake_check():
+        return [
+            CheckResult(name="timer:foo", status=Status.UNHEALTHY, detail="planned"),
+            CheckResult(name="service:bar", status=Status.UNHEALTHY, detail="UNRELATED"),
+        ]
+    run(state_path=state_path, audit_path=audit_path,
+        discord_webhook="https://example.invalid/hook",
+        checks=[fake_check], notifier=notifier,
+        maintenance_lock_path=lock_path)
+    assert len(posted) == 1  # service:bar alerted; timer:foo suppressed
+    assert "service:bar" in posted[0]
+    assert "timer:foo" not in posted[0]
 
 
 def test_run_persists_state_and_audits_transition(tmp_path):

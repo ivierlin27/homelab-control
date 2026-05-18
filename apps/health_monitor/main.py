@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps"))
 
 from _shared.audit import AuditLog  # noqa: E402
+from maintenance.lock import DEFAULT_LOCK_PATH as MAINTENANCE_LOCK  # noqa: E402
+from maintenance.lock import load_lock as load_maintenance_lock  # noqa: E402
 
 from .checks import ALL_CHECKS  # noqa: E402
 from .core import CheckResult, StateStore, Status, Transition  # noqa: E402
@@ -92,7 +94,16 @@ def run(
     discord_webhook: str = DEFAULT_DISCORD,
     dry_run: bool = False,
     checks: Iterable | None = None,
+    notifier=None,
+    maintenance_lock_path: Path | None = None,
 ) -> dict:
+    """Run one health-check pass.
+
+    ``notifier`` is a ``(webhook_url, content) -> None`` callable; defaults
+    to :func:`post_discord`. Tests inject a recorder. Pass-through value
+    ``False`` disables posting entirely (used by ``--dry-run``).
+    """
+    notify = notifier if notifier is not None else post_discord
     started = time.monotonic()
     results = collect_all(checks)
     log.info("collected %d check results", len(results))
@@ -101,24 +112,39 @@ def run(
     transitions = store.transitions(results)
     log.info("transitions to alert: %d", len(transitions))
 
+    # Consult the maintenance lock (if any) — alerts for in-scope checks
+    # are suppressed, but state and audit are still recorded so we have
+    # a complete trail of what happened during the window.
+    lock = load_maintenance_lock(maintenance_lock_path or MAINTENANCE_LOCK)
+    suppressed: list[Transition] = []
+    alertable: list[Transition] = transitions
+    if lock is not None:
+        suppressed = [t for t in transitions if lock.covers(t.name)]
+        alertable = [t for t in transitions if not lock.covers(t.name)]
+        if suppressed:
+            log.info("maintenance mode active (reason=%r); suppressing %d/%d alerts",
+                     lock.reason, len(suppressed), len(transitions))
+
     if not dry_run:
         store.save()
         audit = AuditLog(str(audit_path))
-        # One ledger row per RUN (summary) + one per TRANSITION (so we can grep)
         for t in transitions:
             audit.append({
                 "principal": PRINCIPAL, "event": "health_transition",
+                "alert_suppressed": lock is not None and lock.covers(t.name),
                 **t.as_dict(),
             })
         audit.append({
             "principal": PRINCIPAL, "event": "health_run",
             "checks": len(results),
             "transitions": len(transitions),
+            "transitions_suppressed": len(suppressed),
             "unhealthy_now": sum(1 for r in results if r.status is Status.UNHEALTHY),
+            "maintenance_active": lock is not None,
             "duration_s": round(time.monotonic() - started, 2),
         })
-        if discord_webhook and transitions:
-            post_discord(discord_webhook, format_discord(transitions))
+        if discord_webhook and alertable and notify:
+            notify(discord_webhook, format_discord(alertable))
 
     summary = {
         "checks": len(results),
@@ -126,6 +152,8 @@ def run(
         "unhealthy": sum(1 for r in results if r.status is Status.UNHEALTHY),
         "unknown": sum(1 for r in results if r.status is Status.UNKNOWN),
         "transitions": len(transitions),
+        "transitions_suppressed": len(suppressed),
+        "maintenance_active": lock is not None,
         "duration_s": round(time.monotonic() - started, 2),
     }
     return summary

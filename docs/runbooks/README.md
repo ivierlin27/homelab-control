@@ -31,6 +31,7 @@ on-call agent) will thank present-you.
 | Master dashboard | _todo_ | FastAPI + HTMX status board (Phase 0.12) |
 | Discord agent bridges | _todo_ | Per-agent inbound Discord bots (Phase 0.7) |
 | Health monitor | [health-monitor.md](health-monitor.md) | 15-min poller; alerts on state flips |
+| Maintenance mode | [maintenance-mode.md](maintenance-mode.md) | Time-bound, scoped alert suppression for planned outages |
 | CI (GitHub + Forgejo Actions) | [ci.md](ci.md) | On-push test runs + nightly canary |
 
 ### By symptom
@@ -45,6 +46,7 @@ on-call agent) will thank present-you.
 | "Cost numbers stopped updating on the dashboard" | `journalctl --user -u alienware-litellm-cost-relay.service -n 50` | [litellm-cost-relay.md](litellm-cost-relay.md) §Symptoms |
 | "Health monitor pinged #ops-alerts" | open the alert; it cites the failing check by name | [health-monitor.md](health-monitor.md) §Symptoms |
 | "CI is red on phase-0-platform" | open the Actions tab on github.com or forgejo.dev-path.org | [ci.md](ci.md) §Symptoms |
+| "About to take something down for planned work — don't want to page myself" | `python -m apps.maintenance start --hours N --reason "..." --scope "..."` | [maintenance-mode.md](maintenance-mode.md) |
 | "An audit chain verify failed" | `python -m apps._shared.audit verify <file>` and note the first broken seq | docs/AUDIT_RECOVERY.md (todo) — DO NOT touch the file before snapshotting it |
 
 ### By host
