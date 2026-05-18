@@ -15,6 +15,7 @@ PyYAML==6.0.3
 # Dashboard tests pull in starlette test client (FastAPI is its own ladder)
 fastapi==0.136.1
 starlette==1.0.0
+jinja2==3.1.6
 
 # Pydantic used by a handful of agent tests
 pydantic==2.13.4
