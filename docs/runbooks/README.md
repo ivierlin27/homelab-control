@@ -32,6 +32,7 @@ on-call agent) will thank present-you.
 | Discord agent bridges | _todo_ | Per-agent inbound Discord bots (Phase 0.7) |
 | Health monitor | [health-monitor.md](health-monitor.md) | 15-min poller; alerts on state flips |
 | Maintenance mode | [maintenance-mode.md](maintenance-mode.md) | Time-bound, scoped alert suppression for planned outages |
+| Author-agent sandbox | [author-sandbox.md](author-sandbox.md) | Routes job `checks` through rootless podman under `AUTHOR_AGENT_SANDBOX_CHECKS=1` |
 | CI (GitHub + Forgejo Actions) | [ci.md](ci.md) | On-push test runs + nightly canary |
 
 ### By symptom
