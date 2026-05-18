@@ -125,6 +125,96 @@ class SubCallInvokerTests(unittest.TestCase):
         self.assertEqual("agent:executive", headers.get("X-agent-principal"))
         self.assertEqual("classify", headers.get("X-task-intent"))
 
+    def test_http_post_sends_x_skill_header_when_provided(self) -> None:
+        """Phase 1 P1: x-skill must reach the gateway so the LocalOnlyGuard
+        can attribute the call to a specific skill manifest."""
+        from unittest import mock
+
+        captured_request: dict = {}
+
+        class _FakeResp:
+            def read(self) -> bytes:
+                return b'{"choices":[{"message":{"content":"{\\"summary\\":\\"ok\\",\\"citations\\":[],\\"confidence\\":\\"low\\",\\"open_questions\\":[]}"}}],"usage":{}}'
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def _fake_urlopen(req, timeout=None):
+            captured_request["headers"] = dict(req.headers)
+            return _FakeResp()
+
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "AGENT_PRINCIPAL": "agent:finance",
+                "MODEL_GATEWAY_BASE_URL": "http://gw",
+                # Empty snapshot path = no enforcement; we're testing header
+                # injection only here, not the caller-side gate.
+                "SKILL_POLICY_SNAPSHOT": "/nonexistent/policy.json",
+            },
+        ):
+            with mock.patch("apps._shared.rlm.subcall.request.urlopen", _fake_urlopen):
+                invoker = SubCallInvoker()
+                invoker.call(
+                    intent="classify",
+                    sub_prompt="x",
+                    context={},
+                    skill_id="finance-categorize",
+                )
+
+        headers = captured_request["headers"]
+        self.assertEqual("finance-categorize", headers.get("X-skill"))
+
+    def test_caller_side_local_only_blocks_cloud_model(self) -> None:
+        """Phase 1 P1: when AGENT_SKILL points at a local_only skill, the
+        invoker refuses to dispatch to a non-local model BEFORE the HTTP
+        request is built. The gateway is the canonical gate, but failing
+        fast here gives the agent a clean Python exception to handle."""
+        import json as _json
+        import tempfile
+        from unittest import mock
+        from apps._shared.litellm_callbacks.local_only_policy import (
+            LocalOnlyViolation,
+        )
+
+        # Snapshot: one local_only skill.
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False
+        ) as fh:
+            _json.dump(
+                {
+                    "schema": 1,
+                    "skills": {
+                        "finance-categorize": {"local_only": True, "version": 1}
+                    },
+                },
+                fh,
+            )
+            snap_path = fh.name
+
+        def _fake_urlopen(*a, **kw):  # pragma: no cover - must not be reached
+            raise AssertionError("HTTP must not be attempted on a local_only violation")
+
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "AGENT_PRINCIPAL": "agent:finance",
+                "AGENT_SKILL": "finance-categorize",
+                "MODEL_GATEWAY_BASE_URL": "http://gw",
+                "SKILL_POLICY_SNAPSHOT": snap_path,
+            },
+        ):
+            with mock.patch("apps._shared.rlm.subcall.request.urlopen", _fake_urlopen):
+                # Force a non-local model via intent_to_model mapping.
+                invoker = SubCallInvoker(
+                    intent_to_model={"classify": "openai/gpt-4o-mini"}
+                )
+                with self.assertRaises(LocalOnlyViolation) as cm:
+                    invoker.call(intent="classify", sub_prompt="x", context={})
+        self.assertEqual("finance-categorize", cm.exception.skill_id)
+        self.assertEqual("openai/gpt-4o-mini", cm.exception.model)
+
 
 class HarnessTests(unittest.TestCase):
     def setUp(self) -> None:

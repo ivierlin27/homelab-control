@@ -144,3 +144,188 @@ def test_append_writes_jsonl_under_env_path(tmp_path: Path, monkeypatch: pytest.
 def test_append_never_raises_on_unwritable_path(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LLM_CALLS_JSONL", "/dev/full/cannot-write/calls.jsonl")
     _append({"schema": SCHEMA_VERSION})
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 P1: local-only enforcement (pre-call hook)
+# ---------------------------------------------------------------------------
+#
+# The hook intercepts every proxy call before dispatch, reads ``x-skill``
+# from the incoming headers, looks up the skill in a JSON snapshot of
+# config/skills/, and rejects with HTTP 403 if the skill is local_only=true
+# AND the requested model is not on a local route. A rejection JSONL row is
+# appended to the cost log so the cost relay surfaces it.
+#
+# We test the hook synchronously by driving the awaitable in a fresh event
+# loop, so the test file remains pytest-stdlib (no pytest-asyncio).
+
+
+import asyncio
+
+from .custom_callbacks import (
+    CostJsonlHandler,
+    HTTPException,
+    _reset_policy_snapshot_for_tests,
+)
+
+
+def _snapshot_payload(skills: dict) -> dict:
+    return {"schema": 1, "skills": skills}
+
+
+def _pre_call_data(*, model: str, headers: dict[str, str]) -> dict:
+    """Build the dict-ish payload LiteLLM passes to async_pre_call_hook."""
+    return {
+        "model": model,
+        "proxy_server_request": {"headers": headers},
+    }
+
+
+def _run(coro):
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+
+def test_pre_call_hook_allows_when_no_x_skill_header(tmp_path, monkeypatch):
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(
+        json.dumps(_snapshot_payload({"finance-categorize": {"local_only": True}})),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(model="openai/gpt-4o", headers={})
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data  # passes through
+
+
+def test_pre_call_hook_allows_local_only_skill_with_local_model(tmp_path, monkeypatch):
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(
+        json.dumps(_snapshot_payload({"intake-classify": {"local_only": True}})),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="homelab-strong",
+        headers={"x-skill": "intake-classify"},
+    )
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data
+
+
+def test_pre_call_hook_rejects_local_only_skill_with_cloud_model(tmp_path, monkeypatch):
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(
+        json.dumps(_snapshot_payload({"intake-classify": {"local_only": True}})),
+        encoding="utf-8",
+    )
+    calls_log = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(calls_log))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="openai/gpt-4o-mini",
+        headers={
+            "x-skill": "intake-classify",
+            "x-agent-principal": "agent:finance",
+            "x-litellm-call-id": "test-call-1",
+        },
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        _run(handler.async_pre_call_hook(data=data))
+    assert exc_info.value.status_code == 403
+    assert "intake-classify" in exc_info.value.detail
+    assert "openai/gpt-4o-mini" in exc_info.value.detail
+
+    # An audit row was appended with status="rejected_local_only".
+    line = calls_log.read_text(encoding="utf-8").splitlines()[-1]
+    row = json.loads(line)
+    assert row["status"] == "rejected_local_only"
+    assert row["rejected_skill"] == "intake-classify"
+    assert row["model"] == "openai/gpt-4o-mini"
+    assert row["agent_principal"] == "agent:finance"
+    assert row["request_id"] == "test-call-1"
+
+
+def test_pre_call_hook_allows_non_local_only_skill_with_cloud_model(tmp_path, monkeypatch):
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(
+        json.dumps(_snapshot_payload({"execute-task": {"local_only": False}})),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="openai/gpt-4o",
+        headers={"x-skill": "execute-task"},
+    )
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data
+
+
+def test_pre_call_hook_unknown_skill_id_fails_open(tmp_path, monkeypatch):
+    """An x-skill we don't recognize is allowed (companion mitigation: the
+    skills_for_agent boot-time gate already restricts which skill_ids can
+    legitimately reach here)."""
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(json.dumps(_snapshot_payload({})), encoding="utf-8")
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="openai/gpt-4o",
+        headers={"x-skill": "skill-that-does-not-exist"},
+    )
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data
+
+
+def test_pre_call_hook_missing_snapshot_fails_open(tmp_path, monkeypatch):
+    """No snapshot file => empty policy => every call allowed."""
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(tmp_path / "does-not-exist.json"))
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="openai/gpt-4o",
+        headers={"x-skill": "intake-classify"},
+    )
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data
+
+
+def test_pre_call_hook_respects_local_prefix_env(tmp_path, monkeypatch):
+    """A custom LITELLM_LOCAL_MODEL_PREFIXES makes an otherwise-cloud-looking
+    model name local."""
+    snap_file = tmp_path / "policy.json"
+    snap_file.write_text(
+        json.dumps(_snapshot_payload({"intake-classify": {"local_only": True}})),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SKILL_POLICY_SNAPSHOT", str(snap_file))
+    monkeypatch.setenv("LITELLM_LOCAL_MODEL_PREFIXES", "secretcorp-")
+    monkeypatch.setenv("LLM_CALLS_JSONL", str(tmp_path / "calls.jsonl"))
+    _reset_policy_snapshot_for_tests()
+
+    handler = CostJsonlHandler()
+    data = _pre_call_data(
+        model="secretcorp-strong",
+        headers={"x-skill": "intake-classify"},
+    )
+    result = _run(handler.async_pre_call_hook(data=data))
+    assert result is data

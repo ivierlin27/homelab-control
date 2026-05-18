@@ -6,18 +6,32 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=LLM_CALLS_DIR=%h/.local/state/homelab-control/llm-calls
+Environment=HOMELAB_CONTROL_DIR=%h/git/homelab-control
 ExecStartPre=/usr/bin/install -d -m 0777 ${LLM_CALLS_DIR}
+# Phase 1 P1: regenerate the skill-policy snapshot the LocalOnlyGuard reads.
+# Walks config/skills/*/SKILL.md and writes a flat JSON keyed by skill id.
+# Fail-open on loader errors (writes an empty snapshot rather than wedging
+# the gateway). See apps/_shared/litellm_callbacks/generate_skill_policy.py.
+ExecStartPre=/usr/bin/env PYTHONPATH=${HOMELAB_CONTROL_DIR} /usr/bin/python3 \
+  -m apps._shared.litellm_callbacks.generate_skill_policy \
+  --output ${LLM_CALLS_DIR}/skill-policy.json
 ExecStartPre=/usr/bin/podman rm -f homelab-model-gateway
 # Mounts:
 #  - config.yaml          (LiteLLM proxy config; Phase 0.6 enables the JSONL callback)
-#  - custom_callbacks.py  (cost/latency JSONL writer, see apps/_shared/litellm_callbacks/)
-#  - LLM_CALLS_DIR        (host-writable JSONL output; relay daemon ships to memory-engine)
+#  - custom_callbacks.py  (cost/latency JSONL writer + LocalOnlyGuard pre-call hook)
+#  - local_only_policy.py (pure decision module imported by custom_callbacks.py)
+#  - LLM_CALLS_DIR        (host-writable JSONL output AND skill-policy.json snapshot;
+#                          the cost relay ships JSONL to memory-engine, and the
+#                          gateway's LocalOnlyGuard reads skill-policy.json from
+#                          /var/log/llm-calls/ inside the container)
 ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
   -p 0.0.0.0:4000:4000 \
   --env-file %h/.config/homelab-control/model-gateway.env \
   -e LLM_CALLS_JSONL=/var/log/llm-calls/llm-calls.jsonl \
+  -e SKILL_POLICY_SNAPSHOT=/var/log/llm-calls/skill-policy.json \
   -v %h/git/homelab-control/config/model-gateway/litellm.config.yaml:/app/config.yaml:ro,Z \
   -v %h/git/homelab-control/apps/_shared/litellm_callbacks/custom_callbacks.py:/app/custom_callbacks.py:ro,Z \
+  -v %h/git/homelab-control/apps/_shared/litellm_callbacks/local_only_policy.py:/app/local_only_policy.py:ro,Z \
   -v ${LLM_CALLS_DIR}:/var/log/llm-calls:Z \
   ghcr.io/berriai/litellm:main-latest \
   --config /app/config.yaml --port 4000 --num_workers 2

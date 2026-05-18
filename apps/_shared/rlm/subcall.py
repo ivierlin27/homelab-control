@@ -112,14 +112,35 @@ class SubCallInvoker:
         intent: str,
         sub_prompt: str,
         context: dict[str, Any],
+        skill_id: str | None = None,
     ) -> SubCallResult:
         model = self.model_for_intent(intent)
+        # Phase 1 P1: defense-in-depth local-only check on the caller side.
+        # The gateway is the canonical security gate (LocalOnlyGuard in
+        # custom_callbacks), but checking here too lets a buggy / malicious
+        # caller fail fast with a clear Python exception instead of seeing
+        # an opaque HTTP 403. ``skill_id`` argument wins; falls back to
+        # the ``AGENT_SKILL`` env var so simple callers can set it once
+        # via a context manager rather than threading it through every call.
+        active_skill = skill_id or os.environ.get("AGENT_SKILL", "").strip() or None
+        if active_skill is not None:
+            try:
+                from apps._shared.litellm_callbacks.local_only_policy import (
+                    check_call,
+                    load_snapshot,
+                )
+                check_call(skill_id=active_skill, model=model, snapshot=load_snapshot())
+            except ImportError:
+                # The callback module isn't on the path (e.g. older worker
+                # image). Fail-open with a warning; the gateway will still
+                # reject if it must.
+                pass
         payload = self._build_payload(model=model, sub_prompt=sub_prompt, context=context)
         start = time.monotonic()
         if self.transport is not None:
             response = self.transport(intent, model, payload)
         else:
-            response = self._http_post(payload, intent=intent)
+            response = self._http_post(payload, intent=intent, skill_id=active_skill)
         latency_ms = int((time.monotonic() - start) * 1000)
         text = self._extract_text(response)
         parsed = _parse_schema(text)
@@ -151,7 +172,13 @@ class SubCallInvoker:
             "response_format": {"type": "json_object"},
         }
 
-    def _http_post(self, payload: dict[str, Any], *, intent: str | None = None) -> dict[str, Any]:
+    def _http_post(
+        self,
+        payload: dict[str, Any],
+        *,
+        intent: str | None = None,
+        skill_id: str | None = None,
+    ) -> dict[str, Any]:
         if not self.base_url:
             raise RuntimeError("MODEL_GATEWAY_BASE_URL is not configured for sub-calls")
         body = json.dumps(payload).encode("utf-8")
@@ -168,6 +195,12 @@ class SubCallInvoker:
         # code / plan / ...) so the gateway can group cost/latency by task class.
         if intent:
             headers["x-task-intent"] = intent
+        # Phase 1 P1: surface the active skill so the gateway's LocalOnlyGuard
+        # can enforce local_only=true policies. Empty/unset means "no skill
+        # claimed" — the gateway treats that as unattributed and allows the
+        # call (legacy callers, cost relay self-tests).
+        if skill_id:
+            headers["x-skill"] = skill_id
         req = request.Request(f"{self.base_url}/chat/completions", data=body, headers=headers, method="POST")
         with request.urlopen(req, timeout=int(os.environ.get("RLM_SUBCALL_TIMEOUT", "120"))) as response:
             raw = response.read().decode("utf-8")
