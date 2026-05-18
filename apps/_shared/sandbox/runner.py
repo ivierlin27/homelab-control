@@ -59,7 +59,7 @@ def _default_resolver(hostname: str) -> str:
 def _resolve_allowed_hosts(
     allowed_hosts: Sequence[str],
     *,
-    resolver: Resolver = _default_resolver,
+    resolver: Resolver | None = None,
 ) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
     """Resolve every host in ``allowed_hosts`` to a single IPv4 address.
 
@@ -78,7 +78,17 @@ def _resolve_allowed_hosts(
     setting by default — operators should set it deliberately when they
     know upstream resolution is flaky and would rather let the agent fail
     on the actual request than on launch.
+
+    ``resolver`` defaults to None, in which case the function looks up
+    the module-level ``_default_resolver`` at CALL TIME. That's critical
+    for test monkeypatching: a default-arg of ``_default_resolver``
+    would capture the original function object at def time and make
+    ``monkeypatch.setattr(runner_mod, '_default_resolver', ...)`` a
+    no-op (see CI failure 26045493776 on 2026-05-18).
     """
+    if resolver is None:
+        # Late-bound lookup so monkeypatching the module-level name works.
+        resolver = _default_resolver
     skip = os.environ.get(SKIP_UNRESOLVED_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
     resolved: list[tuple[str, str]] = []
     unresolved: list[str] = []
