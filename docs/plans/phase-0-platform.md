@@ -519,13 +519,17 @@ Follow-ups (not blocking 0.9):
   volumes + `.env`), `forgejo` (PG + data volume), `vaultwarden`
   (data volume with sqlite), `infisical` (PG). Each LXC tagged
   `--host pve-lxc-<id>` for per-service retention scoping. Smoke-run
-  produced 5 snapshots, `restic check` clean, 3.0M on disk after
-  4.4× compression. Single-fault risk today: the LXC-side repo lives
-  on the same physical disk that hosts the LXCs themselves —
-  acceptable for everything currently in there (all reproducible
-  from git except Vaultwarden + Infisical secrets, which we should
-  add an off-host LXC backup target for before going production-
-  critical).
+  produced 4 snapshots per repo, `restic check` clean on both,
+  4.4× compression.
+- ~~**Two-copy redundancy for LXC backups**~~ **(DONE 2026-05-17)** —
+  authorized Proxmox `root` → Alienware `kenns` via SSH so Proxmox
+  can sftp-mirror to Alienware's spinny disk (the reverse of the
+  Alienware → Proxmox direction we set up earlier). LXC backups now
+  land in both `/var/lib/vz/dump/restic-lxcs` (Proxmox local) and
+  `sftp:kenns@192.168.1.45:/mnt/spinny/restic-lxcs-from-proxmox`
+  (Alienware off-host). Each backup machine owns one primary repo on
+  its own disk and mirrors to the other machine's spinny disk —
+  losing either disk leaves a complete copy on the other.
 - ~~**Quarterly DR drill**~~ **(DONE 2026-05-17)** —
   `scripts/backup/dr-drill.sh` restores the latest snapshot from
   every repo in `$BACKUP_REPOSITORIES`, runs `python3 -m

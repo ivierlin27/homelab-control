@@ -48,23 +48,22 @@ trivial.
 ## Targets
 
 `BACKUP_REPOSITORIES` (comma-separated) in
-`/etc/homelab-control/backup-lxcs.env`. Today:
+`/etc/homelab-control/backup-lxcs.env`. Today (two-copy redundancy):
 
 ```
-BACKUP_REPOSITORIES=/var/lib/vz/dump/restic-lxcs
+BACKUP_REPOSITORIES=/var/lib/vz/dump/restic-lxcs,sftp:kenns@192.168.1.45:/mnt/spinny/restic-lxcs-from-proxmox
 ```
 
-The off-host pairing is intentional symmetry with the Alienware side:
-when you want LXC backups off-host too (and you do), point at
-something like an external NAS or an S3 backend. For now the
-Alienware-side `sftp:root@proxmox.dev-path.org:.../restic-homelab-alienware`
-covers the **agent-state** off-host; the **LXC-state** lives only on
-the Proxmox local disk, which is the same physical disk hosting the
-LXCs themselves — so a disk failure is single-fault for the LXC
-backup. Acceptable today (everything in this repo can be redeployed
-from git; the only true secrets that need off-host are Vaultwarden
-and Infisical). Plan to add an off-host target before going to
-production for any of these services.
+Symmetric to the Alienware side:
+
+| Source | Local repo | Off-host repo |
+| --- | --- | --- |
+| Alienware agent state | `/mnt/spinny/restic-homelab` | `sftp:root@proxmox.dev-path.org:/var/lib/vz/dump/restic-homelab-alienware` |
+| Proxmox LXC state | `/var/lib/vz/dump/restic-lxcs` | `sftp:kenns@192.168.1.45:/mnt/spinny/restic-lxcs-from-proxmox` |
+
+Each host owns its own primary repo on its own disk and mirrors to
+the other host's spinny disk over SSH. A loss of either machine's
+disk still leaves a complete copy of all data on the other.
 
 Same passphrase as the Alienware repos for now (one passphrase to
 remember). Stored at `/etc/homelab-control/restic-password` (chmod 600).
@@ -90,20 +89,28 @@ mkdir -p /etc/homelab-control
 #   | ssh root@proxmox 'cat > /etc/homelab-control/restic-password'
 chmod 600 /etc/homelab-control/restic-password
 
-# 3. Env
+# 3. Authorize Proxmox root → Alienware kenns (one-time, for the sftp mirror)
+ssh-copy-id -i /root/.ssh/id_rsa.pub kenns@192.168.1.45
+ssh kenns@192.168.1.45 'mkdir -p /mnt/spinny/restic-lxcs-from-proxmox'
+
+# 4. Env (both targets)
 cat > /etc/homelab-control/backup-lxcs.env <<'EOF'
-BACKUP_REPOSITORIES=/var/lib/vz/dump/restic-lxcs
+BACKUP_REPOSITORIES=/var/lib/vz/dump/restic-lxcs,sftp:kenns@192.168.1.45:/mnt/spinny/restic-lxcs-from-proxmox
 RESTIC_PASSWORD_FILE=/etc/homelab-control/restic-password
 EOF
 chmod 600 /etc/homelab-control/backup-lxcs.env
 
-# 4. Init repo
+# 5. Init both repos (same passphrase secures both)
 mkdir -p /var/lib/vz/dump/restic-lxcs
-RESTIC_REPOSITORY=/var/lib/vz/dump/restic-lxcs \
-  RESTIC_PASSWORD_FILE=/etc/homelab-control/restic-password \
-  restic init
+for repo in /var/lib/vz/dump/restic-lxcs \
+            sftp:kenns@192.168.1.45:/mnt/spinny/restic-lxcs-from-proxmox; do
+  RESTIC_REPOSITORY="$repo" \
+    RESTIC_PASSWORD_FILE=/etc/homelab-control/restic-password \
+    XDG_CACHE_HOME=/var/cache \
+    restic init || true   # idempotent
+done
 
-# 5. Script + units (committed to repo)
+# 6. Script + units (committed to repo)
 cp /root/homelab-control-git/scripts/proxmox-backup/backup-lxcs.sh \
    /usr/local/bin/proxmox-backup-lxcs
 chmod +x /usr/local/bin/proxmox-backup-lxcs
@@ -112,9 +119,11 @@ cp /root/homelab-control-git/systemd/proxmox-backup-lxcs.{service,timer} \
 systemctl daemon-reload
 systemctl enable --now proxmox-backup-lxcs.timer
 
-# 6. Smoke
+# 7. Smoke
 systemctl start proxmox-backup-lxcs.service
 journalctl -u proxmox-backup-lxcs.service -n 60 --no-pager
+# Expect: each `lxc <id>` line appears twice (once per repo), then
+# "all LXC backups OK".
 ```
 
 ## Restore
