@@ -29,7 +29,7 @@ on-call agent) will thank present-you.
 | LiteLLM cost relay (n8n shipper) | [litellm-cost-relay.md](litellm-cost-relay.md) | Tails JSONL → POSTs to n8n → Postgres |
 | Maintenance scan (weekly upgrades) | [maintenance-scan.md](maintenance-scan.md) | Probes containers, picks tags, runs verifier |
 | Master dashboard | _todo_ | FastAPI + HTMX status board (Phase 0.12) |
-| Discord agent bridges | _todo_ | Per-agent inbound Discord bots (Phase 0.7) |
+| Discord agent bridges | [discord-bridge.md](discord-bridge.md) | Per-agent inbound Discord bots; manifest-driven channel allowlist + read/write modes |
 | Health monitor | [health-monitor.md](health-monitor.md) | 15-min poller; alerts on state flips |
 | Maintenance mode | [maintenance-mode.md](maintenance-mode.md) | Time-bound, scoped alert suppression for planned outages |
 | Author-agent sandbox | [author-sandbox.md](author-sandbox.md) | Routes job `checks` through rootless podman under `AUTHOR_AGENT_SANDBOX_CHECKS=1` |

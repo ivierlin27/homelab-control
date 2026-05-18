@@ -17,6 +17,16 @@ Handlers should be small and synchronous-friendly; for heavy work delegate to
 ``asyncio.to_thread`` inside the handler so the event loop stays responsive.
 """
 
-from .bridge import BridgeConfig, MessageContext, run_bridge
+from .bridge import (
+    BridgeConfig,
+    MessageContext,
+    manifest_channel_index,
+    run_bridge,
+)
 
-__all__ = ["BridgeConfig", "MessageContext", "run_bridge"]
+__all__ = [
+    "BridgeConfig",
+    "MessageContext",
+    "manifest_channel_index",
+    "run_bridge",
+]

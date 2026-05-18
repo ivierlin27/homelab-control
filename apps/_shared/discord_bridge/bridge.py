@@ -25,6 +25,52 @@ def _split_ids(value: str) -> set[str]:
     return {item.strip() for item in value.split(",") if item.strip()}
 
 
+def manifest_channel_index(manifest: Any) -> dict[str, dict[str, str]]:
+    """Build a ``{channel_id_str: {"name": str, "mode": str}}`` map from a manifest.
+
+    Only entries that have an ``id:`` field are returned — name-only entries
+    can't be enforced at the bridge level because Discord identifies channels
+    by snowflake, not name. The operator backfills IDs into the manifest via
+    ``scripts/discord/dump-channel-ids.py`` (or by reading them out of the
+    bot's runtime; both follow-ups).
+
+    ``manifest`` is duck-typed so the bridge doesn't hard-import the registry
+    module — pass anything with a ``.get('discord', 'channels', default=[])``
+    method (i.e. ``AgentManifest``) or a plain ``list[dict]``.
+    """
+    if hasattr(manifest, "get"):
+        channels = manifest.get("discord", "channels", default=[]) or []
+    elif isinstance(manifest, list):
+        channels = manifest
+    else:
+        return {}
+    out: dict[str, dict[str, str]] = {}
+    for ch in channels:
+        if not isinstance(ch, dict):
+            continue
+        cid = ch.get("id")
+        if cid is None or cid == "":
+            continue
+        out[str(cid)] = {
+            "name": str(ch.get("name") or f"#{cid}"),
+            "mode": str(ch.get("mode") or "write"),
+        }
+    return out
+
+
+def _try_load_manifest_channels(principal: str) -> dict[str, dict[str, str]]:
+    """Best-effort manifest lookup. Silent on any failure — bridge keeps working
+    via the env-var allowlist (legacy path)."""
+    try:
+        _root = Path(__file__).resolve().parents[3]
+        if str(_root) not in sys.path:
+            sys.path.insert(0, str(_root))
+        from apps._shared.registry import load_registry  # type: ignore
+        return manifest_channel_index(load_registry().get(principal))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _chunk(text: str, limit: int = REPLY_CHUNK_LIMIT) -> list[str]:
     if len(text) <= limit:
         return [text]
@@ -152,9 +198,37 @@ async def run_bridge(config: BridgeConfig) -> int:
         raise ValueError(f"DISCORD_BOT_TOKEN must be configured for {config.principal}")
 
     allowed_users = _split_ids(os.environ.get("DISCORD_ALLOWED_USER_IDS", ""))
-    allowed_channels = _split_ids(os.environ.get("DISCORD_ALLOWED_CHANNEL_IDS", ""))
+    env_allowed_channels = _split_ids(os.environ.get("DISCORD_ALLOWED_CHANNEL_IDS", ""))
+
+    # Manifest is authoritative when populated with IDs. Falls back to env var
+    # for hosts whose manifests don't yet list channel snowflakes — the
+    # registry_followup_discord_channels work item tracks operator backfill.
+    manifest_channels = _try_load_manifest_channels(config.principal)
+    if manifest_channels:
+        manifest_allowed = set(manifest_channels.keys())
+        if env_allowed_channels and env_allowed_channels != manifest_allowed:
+            logging.warning(
+                "%s: DISCORD_ALLOWED_CHANNEL_IDS env (%s) disagrees with manifest "
+                "discord.channels by id (%s); using manifest. Remove the env var "
+                "once the manifest is authoritative.",
+                config.principal,
+                sorted(env_allowed_channels),
+                sorted(manifest_allowed),
+            )
+        allowed_channels = manifest_allowed
+        channel_source = "manifest"
+    else:
+        allowed_channels = env_allowed_channels
+        channel_source = "env" if env_allowed_channels else "unrestricted"
+    read_only_channels = {
+        cid for cid, meta in manifest_channels.items() if meta["mode"] == "read"
+    }
 
     audit = _audit_log(config)
+    logging.info(
+        "%s discord bridge: channel allowlist source=%s, count=%d, read_only=%d",
+        config.principal, channel_source, len(allowed_channels), len(read_only_channels),
+    )
 
     intents = discord.Intents.default()
     intents.message_content = True
@@ -176,6 +250,10 @@ async def run_bridge(config: BridgeConfig) -> int:
         if not ctx.is_dm and allowed_channels and ctx.channel_id not in allowed_channels:
             return
 
+        channel_meta = manifest_channels.get(ctx.channel_id) if not ctx.is_dm else None
+        channel_name = (channel_meta or {}).get("name")
+        channel_mode = (channel_meta or {}).get("mode", "dm" if ctx.is_dm else "unknown")
+
         audit.append(
             {
                 "event": config.audit_event,
@@ -185,6 +263,8 @@ async def run_bridge(config: BridgeConfig) -> int:
                 "source_ref": ctx.source_ref,
                 "source_user": ctx.user_id,
                 "content_len": len(ctx.content),
+                "channel_name": channel_name,
+                "channel_mode": channel_mode,
                 **config.extra_env,
             }
         )
@@ -215,6 +295,27 @@ async def run_bridge(config: BridgeConfig) -> int:
         if reply is None:
             return
 
+        if ctx.channel_id in read_only_channels:
+            audit.append(
+                {
+                    "event": config.audit_event,
+                    "principal": config.principal,
+                    "direction": "write-denied",
+                    "reason": "manifest declares this channel read-only",
+                    "source": ctx.source,
+                    "source_ref": ctx.source_ref,
+                    "channel_name": channel_name,
+                    "channel_mode": channel_mode,
+                    "reply_len": len(reply),
+                    **config.extra_env,
+                }
+            )
+            logging.info(
+                "%s: refusing to post outbound to channel %s (%s) — mode=read",
+                config.principal, ctx.channel_id, channel_name,
+            )
+            return
+
         for chunk in _chunk(reply):
             await message.channel.send(chunk)
 
@@ -226,6 +327,8 @@ async def run_bridge(config: BridgeConfig) -> int:
                 "source": ctx.source,
                 "source_ref": ctx.source_ref,
                 "reply_len": len(reply),
+                "channel_name": channel_name,
+                "channel_mode": channel_mode,
                 **config.extra_env,
             }
         )
