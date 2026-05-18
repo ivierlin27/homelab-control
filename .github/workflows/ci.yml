@@ -35,4 +35,56 @@ jobs:
           pip install -r requirements-test.txt
 
       - name: Run pytest
+        id: pytest
         run: pytest -q
+
+      # Tier-3 visibility hook for CI failures (2026-05-18 follow-up to CI
+      # run 26045493776, where Kevin pointed out he shouldn't be the first
+      # responder for a failing pipeline). The proper autonomous triage
+      # loop is tracked as platform_followup_ci_auto_triage; until then,
+      # this step at minimum routes the failure to #ci-failures Discord so
+      # a downstream agent (or Kevin, eyes-of-last-resort) sees it without
+      # depending on GitHub's notification email.
+      #
+      # Failure is intentionally silenced — if Discord is down, we still
+      # want the rest of the on-failure path (if any) to run, and CI's
+      # exit code already reflects the underlying test failure.
+      - name: Notify Discord on failure
+        if: failure()
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.CI_FAILURE_DISCORD_WEBHOOK }}
+        run: |
+          if [[ -z "${DISCORD_WEBHOOK}" ]]; then
+            echo "::warning::CI_FAILURE_DISCORD_WEBHOOK secret not set; skipping Discord notification."
+            exit 0
+          fi
+          COMMIT_SUBJECT="$(git log -1 --pretty='%s' | head -c 200)"
+          AUTHOR_NAME="$(git log -1 --pretty='%an')"
+          PAYLOAD=$(jq -n \
+            --arg content "CI failed on \`${GITHUB_REPOSITORY}\` \`${GITHUB_REF_NAME}\` — agent triage requested." \
+            --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg subject "$COMMIT_SUBJECT" \
+            --arg author "$AUTHOR_NAME" \
+            --arg event "${GITHUB_EVENT_NAME}" \
+            '{
+              content: $content,
+              embeds: [{
+                title: $subject,
+                url: $run_url,
+                color: 15158332,
+                fields: [
+                  {name: "Repository", value: $env.GITHUB_REPOSITORY, inline: true},
+                  {name: "Branch / Ref", value: $env.GITHUB_REF_NAME, inline: true},
+                  {name: "Event", value: $event, inline: true},
+                  {name: "Commit", value: ("`" + ($commit | .[0:12]) + "`"), inline: true},
+                  {name: "Author", value: $author, inline: true},
+                  {name: "Run", value: ("[#" + $env.GITHUB_RUN_NUMBER + "](" + $run_url + ")"), inline: true}
+                ],
+                footer: {text: "homelab-control CI — see docs/runbooks/ci-failures.md"}
+              }]
+            }')
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_WEBHOOK" \
+            || echo "::warning::Discord webhook POST failed (non-fatal)."

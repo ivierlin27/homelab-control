@@ -25,3 +25,58 @@ jobs:
           pip install -r requirements-test.txt
       - name: Run pytest
         run: pytest -q
+
+      # Tier-3 visibility hook — parallel to .github/workflows/ci.yml.
+      # See docs/runbooks/ci-failures.md for the longer story.
+      # NOTE: the python:3.14-slim container lacks `jq` and `curl` — we
+      # install them here only on the failure path so the happy path
+      # stays fast.
+      - name: Notify Discord on failure
+        if: failure()
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.CI_FAILURE_DISCORD_WEBHOOK }}
+        run: |
+          set +e
+          if [[ -z "${DISCORD_WEBHOOK}" ]]; then
+            echo "::warning::CI_FAILURE_DISCORD_WEBHOOK secret not set; skipping Discord notification."
+            exit 0
+          fi
+          apt-get update -qq && apt-get install -y --no-install-recommends curl jq git ca-certificates >/dev/null 2>&1
+          COMMIT_SUBJECT="$(git log -1 --pretty='%s' 2>/dev/null | head -c 200)"
+          AUTHOR_NAME="$(git log -1 --pretty='%an' 2>/dev/null)"
+          : "${GITHUB_RUN_NUMBER:=unknown}"
+          : "${GITHUB_REPOSITORY:=homelab-control}"
+          : "${GITHUB_REF_NAME:=unknown}"
+          : "${GITHUB_SHA:=unknown}"
+          RUN_URL="https://forgejo.dev-path.org/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID:-0}"
+          PAYLOAD=$(jq -n \
+            --arg content "CI failed on Forgejo \`${GITHUB_REPOSITORY}\` \`${GITHUB_REF_NAME}\` — agent triage requested." \
+            --arg run_url "$RUN_URL" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg subject "$COMMIT_SUBJECT" \
+            --arg author "$AUTHOR_NAME" \
+            --arg event "${GITHUB_EVENT_NAME}" \
+            --arg run_num "${GITHUB_RUN_NUMBER}" \
+            --arg repo "${GITHUB_REPOSITORY}" \
+            --arg ref "${GITHUB_REF_NAME}" \
+            '{
+              content: $content,
+              embeds: [{
+                title: $subject,
+                url: $run_url,
+                color: 15158332,
+                fields: [
+                  {name: "Repository", value: $repo, inline: true},
+                  {name: "Branch / Ref", value: $ref, inline: true},
+                  {name: "Event", value: $event, inline: true},
+                  {name: "Commit", value: ("`" + ($commit | .[0:12]) + "`"), inline: true},
+                  {name: "Author", value: $author, inline: true},
+                  {name: "Run", value: ("[#" + $run_num + "](" + $run_url + ")"), inline: true}
+                ],
+                footer: {text: "homelab-control Forgejo CI — see docs/runbooks/ci-failures.md"}
+              }]
+            }')
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_WEBHOOK" \
+            || echo "::warning::Discord webhook POST failed (non-fatal)."

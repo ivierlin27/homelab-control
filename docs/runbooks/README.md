@@ -34,6 +34,7 @@ on-call agent) will thank present-you.
 | Maintenance mode | [maintenance-mode.md](maintenance-mode.md) | Time-bound, scoped alert suppression for planned outages |
 | Author-agent sandbox | [author-sandbox.md](author-sandbox.md) | Routes job `checks` through rootless podman under `AUTHOR_AGENT_SANDBOX_CHECKS=1` |
 | CI (GitHub + Forgejo Actions) | [ci.md](ci.md) | On-push test runs + nightly canary |
+| CI failure handling + auto-triage plan | [ci-failures.md](ci-failures.md) | Discord visibility hook + roadmap for autonomous triage by `agent:homelab` |
 | Agent identity issuance | [executive](../identity-runbook-agent-executive.md) / [homelab](../identity-runbook-agent-homelab.md) / [homelab-maintainer](../identity-runbook-agent-homelab-maintainer.md) / [review](../identity-runbook-agent-review.md). Regenerate via `python -m apps._shared.identity plan --principal <p> --output docs/identity-runbook-<p>.md` (add `--ignore-state` for a fresh-provisioning view) | Per-principal checklist for SSH keys, Forgejo accounts/PATs, Discord bots, Infisical tokens, sandbox images |
 
 ### By symptom
@@ -48,6 +49,7 @@ on-call agent) will thank present-you.
 | "Cost numbers stopped updating on the dashboard" | `journalctl --user -u alienware-litellm-cost-relay.service -n 50` | [litellm-cost-relay.md](litellm-cost-relay.md) §Symptoms |
 | "Health monitor pinged #ops-alerts" | open the alert; it cites the failing check by name | [health-monitor.md](health-monitor.md) §Symptoms |
 | "CI is red on phase-0-platform" | open the Actions tab on github.com or forgejo.dev-path.org | [ci.md](ci.md) §Symptoms |
+| "I got a #ci-failures Discord alert" | click through to the run URL in the embed | [ci-failures.md](ci-failures.md) §Manual fallback |
 | "About to take something down for planned work — don't want to page myself" | `python -m apps.maintenance start --hours N --reason "..." --scope "..."` | [maintenance-mode.md](maintenance-mode.md) |
 | "An audit chain verify failed" | `python -m apps._shared.audit verify <file>` and note the first broken seq | docs/AUDIT_RECOVERY.md (todo) — DO NOT touch the file before snapshotting it |
 

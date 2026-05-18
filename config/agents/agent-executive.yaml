@@ -78,6 +78,7 @@ discord:
     - { name: "#insights",   mode: write }
     - { name: "#language",   mode: write }
     - { name: "#finance",    mode: read }
+    - { name: "#ci-failures", mode: read }   # 2026-05-18: visibility-only for now; the future autonomous CI triage worker (platform_followup_ci_auto_triage) will read here and write summaries via agent:homelab
     - { name: "#profile",    mode: read }
   default_channel: "#intake"
   dm_humans: []   # populated by identity issuer from registry-side allowlist

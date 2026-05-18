@@ -1,6 +1,10 @@
 # CI (GitHub Actions + nightly Alienware)
 
-Two test-runner tracks keep `homelab-control` honest:
+Two test-runner tracks keep `homelab-control` honest. Failure handling
+(Discord visibility + future autonomous triage) lives in its own
+runbook: see [ci-failures.md](ci-failures.md).
+
+
 
 1. **On every push** — GitHub Actions runs the pytest suite against
    Python 3.14 on `ubuntu-latest`. Configured at
