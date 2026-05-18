@@ -109,14 +109,24 @@ def test_run_records_argv_and_returns_result(tmp_path: Path) -> None:
     assert result.egress_allowed == ()
 
 
-def test_allowed_hosts_changes_network_mode(tmp_path: Path) -> None:
+def test_allowed_hosts_changes_network_mode(tmp_path: Path, monkeypatch) -> None:
+    # Inject a fake resolver so this unit test doesn't depend on real DNS.
+    # The DNS allowlist (FU3c) changed network_mode from 'slirp4netns' to
+    # 'slirp4netns-dns-allowlist' — see test_dns_allowlist.py for the
+    # exhaustive coverage.
+    import apps._shared.sandbox.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_default_resolver", lambda h: "192.168.1.42")
+    # dns_isolation_files needs a writable scratch root; route to tmp_path.
+    monkeypatch.setenv("HOMELAB_SANDBOX_SCRATCH_ROOT", str(tmp_path / "scratch"))
+
     runner = _runner(tmp_path, allowed_hosts=("forgejo.dev-path.org",))
     result = runner.run(command=("true",))
     log = (Path(runner.podman_path).parent / "argv.log").read_text().splitlines()
     assert any(line.startswith("--network=slirp4netns") for line in log)
     assert "--network=none" not in log
-    assert result.network_mode == "slirp4netns"
+    assert result.network_mode == "slirp4netns-dns-allowlist"
     assert result.egress_allowed == ("forgejo.dev-path.org",)
+    assert result.resolved_egress == (("forgejo.dev-path.org", "192.168.1.42"),)
 
 
 def test_session_jsonl_is_appended(tmp_path: Path) -> None:

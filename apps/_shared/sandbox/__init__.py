@@ -21,6 +21,7 @@ from .scratch import (
     ScratchError,
     cleanup_scratch_dir,
     default_scratch_root,
+    dns_isolation_files,
     make_scratch_dir,
 )
 
@@ -32,6 +33,7 @@ __all__ = [
     "ScratchError",
     "cleanup_scratch_dir",
     "default_scratch_root",
+    "dns_isolation_files",
     "make_scratch_dir",
     "run",
 ]

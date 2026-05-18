@@ -15,19 +15,87 @@ unit-testable without a registry on disk.
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import shutil
+import socket
 import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 
 class SandboxError(Exception):
     """Raised on any failure to launch or run a sandbox."""
+
+
+# Type alias for the resolver injection point. Returns the dotted-quad IP
+# string for a given hostname, or raises socket.gaierror on failure. Real
+# callers use socket.gethostbyname; tests inject a dict-based fake.
+Resolver = Callable[[str], str]
+
+
+SKIP_UNRESOLVED_ENV = "HOMELAB_SANDBOX_SKIP_UNRESOLVED"
+
+
+def _default_resolver(hostname: str) -> str:
+    """Resolve ``hostname`` to its first IPv4 address.
+
+    We deliberately prefer IPv4: the runner forces ``enable_ipv6=false`` in
+    slirp4netns, so AAAA-only entries would be unreachable inside the
+    sandbox even if libc handed them back. AF_INET filters them out
+    cleanly. Raises ``socket.gaierror`` on failure (or
+    ``OSError`` subclasses like ``EAI_NONAME``).
+    """
+    infos = socket.getaddrinfo(hostname, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+    if not infos:
+        raise socket.gaierror(socket.EAI_NONAME, f"no IPv4 record for {hostname}")
+    return infos[0][4][0]
+
+
+def _resolve_allowed_hosts(
+    allowed_hosts: Sequence[str],
+    *,
+    resolver: Resolver = _default_resolver,
+) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
+    """Resolve every host in ``allowed_hosts`` to a single IPv4 address.
+
+    Returns ``(resolved, unresolved)`` where ``resolved`` is a tuple of
+    ``(hostname, ip)`` pairs and ``unresolved`` lists hostnames that
+    couldn't be looked up.
+
+    Default behaviour is **fail loud**: a single resolution failure raises
+    ``SandboxError`` before the container starts. Setting the env var
+    ``HOMELAB_SANDBOX_SKIP_UNRESOLVED=1`` flips to soft-skip: the failed
+    host is omitted from the allowlist, the run continues, and the
+    auditing surface reports it via ``unresolved_egress``.
+
+    The soft-skip path exists for the LAN-DNS-briefly-down case the user
+    flagged when picking this option (2026-05-18). It is NOT a production
+    setting by default — operators should set it deliberately when they
+    know upstream resolution is flaky and would rather let the agent fail
+    on the actual request than on launch.
+    """
+    skip = os.environ.get(SKIP_UNRESOLVED_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    resolved: list[tuple[str, str]] = []
+    unresolved: list[str] = []
+    for host in allowed_hosts:
+        try:
+            ip = resolver(host)
+        except (OSError, socket.gaierror) as exc:
+            if not skip:
+                raise SandboxError(
+                    f"failed to resolve allowed host {host!r}: {exc}. "
+                    f"Set {SKIP_UNRESOLVED_ENV}=1 to soft-skip (the run "
+                    f"will continue without this host in the allowlist)."
+                ) from exc
+            unresolved.append(host)
+            continue
+        resolved.append((host, ip))
+    return tuple(resolved), tuple(unresolved)
 
 
 class BranchStrategy(str, Enum):
@@ -51,6 +119,13 @@ class SandboxResult:
     correlation_id: str
     network_mode: str
     egress_allowed: tuple[str, ...]
+    # Strict-DNS allowlist (FU3c, 2026-05-18). Resolved (name, ip) tuples
+    # that the runner injected via --add-host. ``unresolved_egress`` is
+    # populated only when HOMELAB_SANDBOX_SKIP_UNRESOLVED=1 lets a failed
+    # lookup soft-skip; otherwise resolution failure raises SandboxError
+    # before the container starts. Both default to () for back-compat.
+    resolved_egress: tuple[tuple[str, str], ...] = ()
+    unresolved_egress: tuple[str, ...] = ()
 
 
 @dataclass
@@ -125,7 +200,7 @@ class SandboxRunner:
 
         cid = correlation_id or str(uuid.uuid4())
         container_name = f"sb-{self.principal.replace(':', '-')}-{cid[:8]}"
-        network_mode, egress_args = self._network_args()
+        network_mode, egress_args, dns_mount_args, resolved, unresolved = self._egress_plan()
 
         argv: list[str] = [
             self.podman_path,
@@ -152,6 +227,7 @@ class SandboxRunner:
             # /etc/subuid range and can't read host-owned mounts.
             "--userns=keep-id",
             *self._mount_args(),
+            *dns_mount_args,
             *self._env_args(cid),
             *egress_args,
             self.image,
@@ -189,6 +265,8 @@ class SandboxRunner:
             correlation_id=cid,
             network_mode=network_mode,
             egress_allowed=tuple(self.allowed_hosts),
+            resolved_egress=resolved,
+            unresolved_egress=unresolved,
         )
 
         if capture_session_to is not None:
@@ -254,26 +332,65 @@ class SandboxRunner:
             out.extend(["-e", f"{key}={value}"])
         return out
 
-    def _network_args(self) -> tuple[str, list[str]]:
-        """Return (network_mode_label, podman args).
+    def _egress_plan(self) -> tuple[
+        str,
+        list[str],
+        list[str],
+        tuple[tuple[str, str], ...],
+        tuple[str, ...],
+    ]:
+        """Compute the network mode + podman flags + DNS-isolation mounts.
 
-        With no allowed hosts, the container is launched with --network=none.
-        With one or more, we use Podman's pasta/slirp4netns DNS interception
-        via --network=slirp4netns and host-mapped DNS; egress is then
-        further constrained by adding --add-host entries plus an iptables
-        deny rule injected via the agent image's entrypoint (deferred to a
-        later ticket; see TODO below).
+        Returns
+        -------
+        ``(network_mode, podman_network_args, dns_isolation_mount_args,
+        resolved, unresolved)``
 
-        TODO(0.1): wire --network=slirp4netns + per-host DNS allowlist.
-        Until then, declaring allowed_hosts switches to the host network and
-        relies on the OS-level firewall for enforcement. The runner records
-        the chosen mode in SandboxResult.network_mode for audit clarity.
+        With no allowed hosts: ``--network=none`` and no DNS mounts.
+
+        With one or more allowed hosts (FU3c, 2026-05-18): strict DNS
+        allowlist enforced via three layers:
+          1. Each manifest-declared host is resolved on the HOST via libc
+             getaddrinfo and injected into the container's /etc/hosts via
+             ``--add-host=<name>:<ip>``.
+          2. /etc/nsswitch.conf is bind-mounted from the shared
+             ``apps._shared.sandbox.scratch.dns_isolation_files()`` set,
+             configured as ``hosts: files`` only — no DNS, no mdns.
+          3. /etc/resolv.conf is bind-mounted to an empty file so that any
+             code that bypasses nsswitch (e.g., direct UDP to a nameserver
+             from /etc/resolv.conf) has nothing to talk to.
+
+        Failure-mode: a single unresolvable allowed host raises
+        SandboxError unless ``HOMELAB_SANDBOX_SKIP_UNRESOLVED=1`` is set —
+        see :func:`_resolve_allowed_hosts`.
+
+        Known limitation: slirp4netns still NATs to the host LAN. An agent
+        with a hardcoded LAN/WAN IP can still reach it. Closing that gap
+        requires host-side nftables/eBPF egress filtering and is tracked
+        separately (sandbox_followup_nftables).
         """
-
         if not self.allowed_hosts:
-            return "none", ["--network=none"]
-        # TODO: replace with strict per-host DNS allowlist.
-        return "slirp4netns", ["--network=slirp4netns:enable_ipv6=false"]
+            return "none", ["--network=none"], [], (), ()
+
+        resolved, unresolved = _resolve_allowed_hosts(self.allowed_hosts)
+        net_args: list[str] = ["--network=slirp4netns:enable_ipv6=false"]
+        for host, ip in resolved:
+            net_args.append(f"--add-host={host}:{ip}")
+
+        # Lazy import so unit tests on dev laptops without /var/lib access
+        # don't fail at import time. The function creates files under the
+        # scratch root if absent; the SELinux fcontext is set on the dir.
+        from apps._shared.sandbox.scratch import dns_isolation_files
+
+        nsswitch_path, empty_resolv_path = dns_isolation_files()
+        dns_mounts: list[str] = [
+            "--mount",
+            f"type=bind,source={nsswitch_path},target=/etc/nsswitch.conf,ro=true,relabel=shared",
+            "--mount",
+            f"type=bind,source={empty_resolv_path},target=/etc/resolv.conf,ro=true,relabel=shared",
+        ]
+
+        return "slirp4netns-dns-allowlist", net_args, dns_mounts, resolved, unresolved
 
     def _force_stop(self, container_name: str) -> None:
         try:
@@ -352,6 +469,8 @@ def _write_session_jsonl(
         "duration_seconds": result.duration_seconds,
         "network_mode": result.network_mode,
         "egress_allowed": list(result.egress_allowed),
+        "resolved_egress": [list(pair) for pair in result.resolved_egress],
+        "unresolved_egress": list(result.unresolved_egress),
         "stdout_len": len(result.stdout),
         "stderr_len": len(result.stderr),
     }

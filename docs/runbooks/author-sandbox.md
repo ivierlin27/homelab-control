@@ -46,7 +46,8 @@ Every sandboxed check runs with **all** of these podman flags:
 | `--userns=keep-id` | container UID 1000 = host UID, so the bind mount is readable without host chown |
 | `--pids-limit=512` | fork bombs |
 | `--memory=2g` | OOM the host |
-| `--network=none` (default) | egress; flips to `slirp4netns` only if `sandbox.network.allowed_hosts` is set in the agent's manifest |
+| `--network=none` (default) | egress; flips to `slirp4netns-dns-allowlist` only if `sandbox.network.allowed_hosts` is set in the agent's manifest |
+| DNS isolation (added 2026-05-18, FU3c) | when `allowed_hosts` is non-empty, runner pre-resolves each host on the host, injects `--add-host=<name>:<ip>`, and bind-mounts `/etc/nsswitch.conf` (`hosts: files`) + an empty `/etc/resolv.conf`. Any name not in the allowlist NXDOMAINs inside the container. |
 | `--workdir=/work` + the only bind mount | the agent can only write to the bind-mounted worktree |
 
 Mounts: only the job's worktree at `/work` (read-write). Container env
@@ -147,6 +148,7 @@ mode, egress allowlist, exit code, and duration.
 ## Future work / known limitations
 
 - **SELinux**: **re-tightened on 2026-05-18.** Container runs with full SELinux confinement (`container_t`); bind mount uses `relabel=shared` so Podman applies the per-run MCS label to the host path. See Past incidents above for the AVC + diagnosis.
-- **slirp4netns vs. strict DNS allowlist**: when `allowed_hosts` is set, the runner currently uses `slirp4netns` (full slirp networking) rather than a strict per-host allowlist. The host firewall is the de-facto gate. Tracked as the `TODO(0.1)` comment in `apps/_shared/sandbox/runner.py::_network_args`.
+- **Strict DNS allowlist**: **shipped 2026-05-18 (FU3c).** When `allowed_hosts` is non-empty the runner pre-resolves each host on the host via libc `getaddrinfo`, injects `--add-host=<name>:<ip>` for each, and bind-mounts a synthetic `/etc/nsswitch.conf` (`hosts: files`) and an empty `/etc/resolv.conf`. Any name not on the manifest's `allowed_hosts` resolves to NXDOMAIN inside the container — verified live with `wget google.com` returning `bad address` from inside the sandbox while `wget forgejo.dev-path.org` succeeds. Fail-loud on resolution errors by default; `HOMELAB_SANDBOX_SKIP_UNRESOLVED=1` allows soft-skip of individual hosts (useful when LAN DNS is briefly down — the sandbox starts with whatever resolved, audit captures `unresolved_egress`). Resolved IPs are persisted in the per-run audit row's `resolved_egress` field for forensics.
+- **IP-level egress (`sandbox_followup_nftables`)**: The DNS allowlist defeats name-based egress (typosquats, supply-chain "phone home", LLM client libraries hitting public APIs). It does NOT prevent a determined caller with hardcoded IPs from reaching arbitrary hosts the host can route to — rootless slirp4netns inherently NATs to the LAN. Closing that gap requires host-side nftables/eBPF rules and is tracked as a separate sprint.
 - **Other shell-outs not yet wrapped**: `git worktree add`, `git add/commit/push` in `execute_task`, and `git_lines()` still run on the host. They need the agent's SSH key for `push`, so wrapping them requires plumbing SSH credentials into the sandbox — a separate sprint.
 - **Image freshness**: there is no automatic rebuild on `apt` or pip-dep updates. Add to the weekly maintenance scan or a Forgejo Action.

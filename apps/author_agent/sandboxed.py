@@ -129,6 +129,8 @@ def run_command_sandboxed(
                 "image": image,
                 "network_mode": result.network_mode,
                 "egress_allowed": list(result.egress_allowed),
+                "resolved_egress": [list(pair) for pair in result.resolved_egress],
+                "unresolved_egress": list(result.unresolved_egress),
                 "container_name": result.container_name,
                 "correlation_id": result.correlation_id,
                 "exit_code": result.exit_code,
