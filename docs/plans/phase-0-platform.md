@@ -422,9 +422,59 @@ configured budget without bouncing between agents; an `urgent` task DMs Kevin
 within seconds of Tier 3; `verify-ledger` reconstructs the full decision chain
 across all three tiers.
 
-## 0.12 Master dashboard + knowledge browser
+## 0.12 Master dashboard + knowledge browser (MVP DONE — auth + KB browser deferred)
 
-**Dashboard** at `https://home.dev-path.org/` behind Authentik OIDC.
+**MVP shipped 2026-05-17** — `apps/master_dashboard/` is a FastAPI +
+Jinja2 + HTMX + Tailwind app, running at `http://192.168.1.45:8800/`
+on Alienware via `systemd/alienware-master-dashboard.service` (LAN-only;
+no public expose yet). Four tiles, all rendering live data:
+
+- **LLM cost & latency · 24h** — pulls from the new n8n workflow
+  `compose/n8n-workflows/homelab-llm-cost-summary.json` which aggregates
+  the `llm_calls` table (calls, total tokens, p95 latency; per
+  `agent_principal × task_intent` table sorted by call count).
+- **Agent & service presence** — `systemctl --user show` across 14
+  services + 3 timers (gateway, vLLM, cost relay, 4 agent processes,
+  4 Discord bridges, glue, backup timers); green/yellow/red dot per
+  unit.
+- **Backup status** — `restic snapshots --json` across the 3 repos
+  Alienware can reach directly (local hot+full + sftp to Proxmox +
+  inbound LXC mirror); shows the most recent snapshot per
+  `(host, tags)` combo.
+- **Live audit tail** — tails every `agent-*/trust-ledger.jsonl`,
+  initial render shows last 100 events sorted newest-first, color
+  per agent_principal; SSE endpoint `/sse/audit` streams new events
+  within ~1s of write.
+
+Architecture notes:
+
+- **TTLCache primitive** (5 min cost + backup, 30 s presence) is
+  single-flight: concurrent requests coalesce, failures preserve the
+  prior good value, every tile degrades independently — a broken n8n
+  endpoint shows an error band on the cost tile and the other three
+  keep working.
+- **No JS toolchain** — HTMX + Tailwind via CDN, no npm/webpack.
+- **No direct PG conn from Alienware** — LXC isolation kept; the
+  dashboard pulls aggregated cost data through n8n. Means we can
+  re-host the dashboard later without touching firewall.
+- Tests: 5 pass (`apps/master_dashboard/test_main.py`) — tail reader,
+  cross-ledger sort, single-flight + graceful degradation, full page
+  render + every tile endpoint via FastAPI TestClient.
+
+**Deferred (becomes its own ticket each):**
+
+- Authentik OIDC forward-auth + `home.dev-path.org` public hostname.
+  Today the dashboard is LAN-only.
+- Grafana panel iframes for the system-health tile.
+- Quartz v4 KB site at `kb.dev-path.org` + the vault layout
+  (`raw/compiled/notes/published`) + Syncthing two-way to Mac.
+- Khoj chat sibling tab.
+- Queue-depth tile (no queue substrate yet — lands with 0.9 A2A bus).
+- Open-approvals tile (lands with 0.11 tiered escalation).
+- Mobile/narrow layout pass.
+
+**Original full vision (still the target):** dashboard at
+`https://home.dev-path.org/` behind Authentik OIDC.
 
 - **Stack:** FastAPI + Jinja2 + HTMX + Tailwind, server-rendered. Server-Sent
   Events (FastAPI native) drive live tiles. No JS toolchain.

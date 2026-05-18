@@ -335,9 +335,9 @@ async def index(request: Request):
     presence = await _presence_cache.get()
     audit_events = _read_recent_events()
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "cost": cost,
             "backup": backup,
             "presence": presence,
@@ -350,28 +350,27 @@ async def index(request: Request):
 @app.get("/tiles/cost", response_class=HTMLResponse)
 async def tile_cost(request: Request):
     cost = await _cost_cache.get()
-    return templates.TemplateResponse("_tile_cost.html", {"request": request, "cost": cost})
+    return templates.TemplateResponse(request, "_tile_cost.html", {"cost": cost})
 
 
 @app.get("/tiles/backup", response_class=HTMLResponse)
 async def tile_backup(request: Request):
     backup = await _backup_cache.get()
-    return templates.TemplateResponse("_tile_backup.html", {"request": request, "backup": backup})
+    return templates.TemplateResponse(request, "_tile_backup.html", {"backup": backup})
 
 
 @app.get("/tiles/presence", response_class=HTMLResponse)
 async def tile_presence(request: Request):
     presence = await _presence_cache.get()
     return templates.TemplateResponse(
-        "_tile_presence.html", {"request": request, "presence": presence}
+        request, "_tile_presence.html", {"presence": presence}
     )
 
 
 @app.get("/tiles/audit", response_class=HTMLResponse)
 async def tile_audit(request: Request):
     return templates.TemplateResponse(
-        "_tile_audit.html",
-        {"request": request, "audit_events": _read_recent_events()},
+        request, "_tile_audit.html", {"audit_events": _read_recent_events()},
     )
 
 

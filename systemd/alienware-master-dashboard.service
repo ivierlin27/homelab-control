@@ -11,7 +11,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONPATH=%h/git/homelab-control
 # Bind to the LAN address only; no public exposure until Authentik is wired.
 ExecStart=%h/git/homelab-control/.venv/bin/uvicorn apps.master_dashboard.main:app \
-  --host 0.0.0.0 --port 8765 --no-access-log
+  --host 0.0.0.0 --port 8800 --no-access-log
 Restart=on-failure
 RestartSec=5s
 
