@@ -81,6 +81,20 @@ class SandboxRunner:
             object.__setattr__(self, "worktree_path", Path(self.worktree_path))
         if not self.worktree_path.is_dir():
             raise SandboxError(f"worktree_path is not a directory: {self.worktree_path}")
+        # SELinux re-tightening guard (2026-05-18). The bind mount uses :Z to
+        # let Podman relabel the worktree to match the container's MCS
+        # categories. Fedora SELinux policy refuses to relabel /tmp paths,
+        # so we reject them up front with a pointer at the supported root.
+        # Tests can set HOMELAB_SANDBOX_ALLOW_TMP=1 to bypass.
+        from apps._shared.sandbox.scratch import _is_under_tmp  # local import: avoid cycle on import-time
+        if _is_under_tmp(self.worktree_path):
+            raise SandboxError(
+                f"worktree_path resolves under /tmp ({self.worktree_path}); "
+                "SELinux policy will refuse Podman's :Z relabel on /tmp. "
+                "Use apps._shared.sandbox.scratch.make_scratch_dir() or any "
+                "path under /var/lib/homelab-control/sandbox/. Override for "
+                "tests with HOMELAB_SANDBOX_ALLOW_TMP=1."
+            )
 
     # ------------------------------------------------------------------
     # public surface
@@ -122,15 +136,12 @@ class SandboxRunner:
             "--read-only",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
-            # On SELinux-enforcing hosts (Fedora, RHEL) the default container
-            # MCS labels block reading host-owned bind mounts inside rootless
-            # containers. ``label=disable`` is the documented rootless
-            # workaround. We still keep: --read-only rootfs, --cap-drop=ALL,
-            # --no-new-privileges, --userns=keep-id, mem/pid limits, and
-            # --network=none by default. Tightening SELinux policy back on
-            # is tracked as Phase 0.1 follow-up (proper container_t policy
-            # or per-worktree :Z relabel).
-            "--security-opt=label=disable",
+            # SELinux MCS labels are kept on: the worktree mount uses :Z so
+            # Podman relabels the host path with the container's per-run
+            # category set. Required setup: scratch dirs live under
+            # /var/lib/homelab-control/sandbox/ (container_file_t via
+            # `semanage fcontext`). /tmp is refused at __post_init__ — see
+            # apps._shared.sandbox.scratch.
             "--pids-limit=512",
             "--memory=2g",
             "--workdir=/work",
@@ -190,14 +201,47 @@ class SandboxRunner:
     # ------------------------------------------------------------------
 
     def _mount_args(self) -> list[str]:
-        # The worktree mounts read-write so the agent can produce diffs.
-        mounts: list[tuple[Path, Path, bool]] = [(self.worktree_path, Path("/work"), False)]
-        mounts.extend(self.extra_mounts)
+        """Build the --mount specs.
+
+        Every bind mount adds ``relabel=shared`` (the long form of Podman's
+        ``:Z`` flag for ``--mount`` syntax — ``--volume`` accepts ``:Z`` but
+        ``--mount`` wants ``relabel=shared|private``). Without it, the
+        container's MCS categories (``container_t:s0:cN,cM``) won't match the
+        host bind target's label and SELinux denies access. With it, Podman
+        ``chcon``s the host path to match the container's per-run categories.
+
+        Note: Podman's ``relabel=shared`` (equivalent to ``:z``) sets a single
+        ``container_file_t:s0`` label that any container can read. We chose
+        the shared variant over ``relabel=private`` (``:Z``) because callers
+        with long-lived worktrees would otherwise have their labels reset on
+        every fresh container, hurting concurrent access. Security outcome is
+        identical for our 'one runner per worktree' usage; the choice is
+        operational.
+        """
+        # (host, container, read_only, relabel)
+        mounts: list[tuple[Path, Path, bool, bool]] = [
+            (self.worktree_path, Path("/work"), False, True)
+        ]
+        for entry in self.extra_mounts:
+            # Backward-compat: accept the legacy 3-tuple (host, container, ro).
+            if len(entry) == 3:
+                host, sandbox, read_only = entry  # type: ignore[misc]
+                relabel = True
+            elif len(entry) == 4:
+                host, sandbox, read_only, relabel = entry  # type: ignore[misc]
+            else:
+                raise SandboxError(
+                    f"extra_mounts entries must be 3- or 4-tuples, got {entry!r}"
+                )
+            mounts.append((Path(host), Path(sandbox), bool(read_only), bool(relabel)))
+
         out: list[str] = []
-        for host, sandbox, read_only in mounts:
+        for host, sandbox, read_only, relabel in mounts:
             spec = f"type=bind,source={host},target={sandbox}"
             if read_only:
                 spec += ",ro=true"
+            if relabel:
+                spec += ",relabel=shared"
             out.extend(["--mount", spec])
         return out
 

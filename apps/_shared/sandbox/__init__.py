@@ -17,11 +17,21 @@ from .runner import (
     SandboxRunner,
     run,
 )
+from .scratch import (
+    ScratchError,
+    cleanup_scratch_dir,
+    default_scratch_root,
+    make_scratch_dir,
+)
 
 __all__ = [
     "BranchStrategy",
     "SandboxError",
     "SandboxResult",
     "SandboxRunner",
+    "ScratchError",
+    "cleanup_scratch_dir",
+    "default_scratch_root",
+    "make_scratch_dir",
     "run",
 ]

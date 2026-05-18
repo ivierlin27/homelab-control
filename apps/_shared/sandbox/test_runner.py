@@ -76,9 +76,20 @@ def test_run_records_argv_and_returns_result(tmp_path: Path) -> None:
     assert "--read-only" in log
     assert "--cap-drop=ALL" in log
     assert "--security-opt=no-new-privileges" in log
-    assert "--security-opt=label=disable" in log
+    # SELinux re-tightening (2026-05-18): label=disable removed in favor of
+    # per-mount :Z relabel via relabel=shared. This guards against regression.
+    assert "--security-opt=label=disable" not in log
     assert "--userns=keep-id" in log
     assert "--network=none" in log
+    # Worktree mount must carry relabel=shared so Podman gives the bind path
+    # the container's MCS categories. Without this, SELinux denies all reads.
+    mount_specs = [log[i + 1] for i, ln in enumerate(log) if ln == "--mount" and i + 1 < len(log)]
+    assert mount_specs, "runner did not emit any --mount specs"
+    worktree_specs = [s for s in mount_specs if "target=/work" in s]
+    assert worktree_specs, f"no worktree mount spec found in: {mount_specs!r}"
+    assert "relabel=shared" in worktree_specs[0], (
+        f"worktree mount missing relabel=shared: {worktree_specs[0]!r}"
+    )
     assert log[-2] == "echo"
     assert log[-1] == "hi"
     assert result.exit_code == 0
@@ -169,3 +180,110 @@ def test_branch_strategy_enum() -> None:
     assert BranchStrategy.HEAD.value == "head"
     assert BranchStrategy.MERGE_TO_HEAD.value == "merge-to-head"
     assert BranchStrategy.BRANCH.value == "branch"
+
+
+# ---------------------------------------------------------------------------
+# SELinux re-tightening guards (2026-05-18)
+# ---------------------------------------------------------------------------
+
+
+def test_rejects_worktree_under_tmp(tmp_path: Path, monkeypatch) -> None:
+    """Constructor refuses /tmp/... because Podman's :Z can't relabel /tmp."""
+    monkeypatch.delenv("HOMELAB_SANDBOX_ALLOW_TMP", raising=False)
+    bad = Path("/tmp/sandbox-probe-rejected")
+    bad.mkdir(exist_ok=True)
+    try:
+        with pytest.raises(SandboxError, match=r"/tmp.*:Z|policy will refuse"):
+            SandboxRunner(
+                principal="agent:test",
+                image="agent-test:latest",
+                worktree_path=bad,
+                podman_path=str(_fake_podman(tmp_path)),
+            )
+    finally:
+        try:
+            bad.rmdir()
+        except OSError:
+            pass
+
+
+def test_tmp_guard_can_be_overridden_for_tests(tmp_path: Path, monkeypatch) -> None:
+    """HOMELAB_SANDBOX_ALLOW_TMP=1 lets tests + intentional debugging proceed."""
+    monkeypatch.setenv("HOMELAB_SANDBOX_ALLOW_TMP", "1")
+    ok = Path("/tmp/sandbox-probe-allowed")
+    ok.mkdir(exist_ok=True)
+    try:
+        runner = SandboxRunner(
+            principal="agent:test",
+            image="agent-test:latest",
+            worktree_path=ok,
+            podman_path=str(_fake_podman(tmp_path)),
+        )
+        assert runner.worktree_path == ok
+    finally:
+        try:
+            ok.rmdir()
+        except OSError:
+            pass
+
+
+def test_source_file_does_not_reintroduce_label_disable() -> None:
+    """Belt-and-suspenders regression check. If anyone adds back
+    --security-opt=label=disable, this test fails before a smoke does."""
+    from . import runner as runner_mod
+    source = Path(runner_mod.__file__).read_text()
+    # The string may still appear in a comment that documents the historical
+    # workaround, but it must not appear as an unquoted argv element.
+    code_lines = [
+        ln for ln in source.splitlines()
+        if not ln.lstrip().startswith("#") and not ln.lstrip().startswith('"')
+    ]
+    code = "\n".join(code_lines)
+    assert '"--security-opt=label=disable"' not in code, (
+        "label=disable reappeared as an argv element in runner.py; SELinux "
+        "policy was supposed to be re-tightened on 2026-05-18 — see "
+        "docs/runbooks/author-sandbox.md."
+    )
+
+
+def test_extra_mounts_3tuple_backward_compat(tmp_path: Path) -> None:
+    """Legacy callers passing 3-tuples still work (relabel defaults to True)."""
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    extra_host = tmp_path / "extra"
+    extra_host.mkdir()
+    runner = SandboxRunner(
+        principal="agent:test",
+        image="agent-test:latest",
+        worktree_path=wt,
+        extra_mounts=((extra_host, Path("/opt/extra"), True),),  # 3-tuple
+        podman_path=str(_fake_podman(tmp_path)),
+    )
+    runner.run(command=("true",))
+    log = (Path(runner.podman_path).parent / "argv.log").read_text().splitlines()
+    mount_specs = [log[i + 1] for i, ln in enumerate(log) if ln == "--mount" and i + 1 < len(log)]
+    extra_specs = [s for s in mount_specs if "target=/opt/extra" in s]
+    assert extra_specs and "ro=true" in extra_specs[0]
+    assert "relabel=shared" in extra_specs[0]
+
+
+def test_extra_mounts_4tuple_relabel_opt_out(tmp_path: Path) -> None:
+    """4-tuple with relabel=False lets callers mount a path that must NOT be
+    relabeled (e.g. a read-only shared cache)."""
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    runner = SandboxRunner(
+        principal="agent:test",
+        image="agent-test:latest",
+        worktree_path=wt,
+        extra_mounts=((cache, Path("/opt/cache"), True, False),),  # 4-tuple, relabel=False
+        podman_path=str(_fake_podman(tmp_path)),
+    )
+    runner.run(command=("true",))
+    log = (Path(runner.podman_path).parent / "argv.log").read_text().splitlines()
+    mount_specs = [log[i + 1] for i, ln in enumerate(log) if ln == "--mount" and i + 1 < len(log)]
+    cache_specs = [s for s in mount_specs if "target=/opt/cache" in s]
+    assert cache_specs
+    assert "relabel" not in cache_specs[0], cache_specs[0]
