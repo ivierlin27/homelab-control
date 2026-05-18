@@ -1,0 +1,77 @@
+[
+  {
+    "id": "homelab-llm-cost-summary",
+    "name": "Homelab LLM cost summary",
+    "active": true,
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "GET",
+          "path": "llm-calls-summary",
+          "authentication": "headerAuth",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-node",
+        "name": "Webhook GET",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 300],
+        "webhookId": "homelab-llm-calls-summary",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "homelab-cost-bearer",
+            "name": "homelab cost-relay bearer"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "WITH win AS (SELECT * FROM llm_calls WHERE ts > now() - interval '24 hours'), summary AS (SELECT count(*)::int AS calls, coalesce(sum(total_tokens),0)::bigint AS total_tokens, coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms),0)::int AS p95_ms FROM win), per AS (SELECT agent_principal, task_intent, count(*)::int AS calls, coalesce(sum(total_tokens),0)::bigint AS total_tokens, coalesce(round(avg(latency_ms))::int,0) AS avg_latency_ms FROM win GROUP BY agent_principal, task_intent ORDER BY calls DESC LIMIT 25) SELECT json_build_object('summary',(SELECT row_to_json(s) FROM summary s),'by_agent_intent',(SELECT coalesce(json_agg(p),'[]'::json) FROM per p)) AS payload",
+          "options": {}
+        },
+        "id": "pg-node",
+        "name": "Aggregate llm_calls",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.5,
+        "position": [480, 300],
+        "credentials": {
+          "postgres": {
+            "id": "homelab-pg",
+            "name": "memory-engine postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json.payload }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "respond-node",
+        "name": "Respond JSON",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [720, 300]
+      }
+    ],
+    "connections": {
+      "Webhook GET": {
+        "main": [
+          [{ "node": "Aggregate llm_calls", "type": "main", "index": 0 }]
+        ]
+      },
+      "Aggregate llm_calls": {
+        "main": [
+          [{ "node": "Respond JSON", "type": "main", "index": 0 }]
+        ]
+      }
+    }
+  }
+]

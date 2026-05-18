@@ -1,0 +1,53 @@
+<header class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300">LLM cost &amp; latency · 24h</h2>
+    <p class="text-xs text-slate-500 mono">memory-engine ⋅ llm_calls</p>
+  </div>
+  {% if cost.error %}<span class="text-xs text-rose-400 mono">err: {{ cost.error }}</span>{% endif %}
+</header>
+{% set c = cost.value or {} %}
+{% set summary = c.get('summary') or {} %}
+<div class="grid grid-cols-3 gap-px bg-slate-800 text-center">
+  <div class="bg-slate-900 px-4 py-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">calls</div>
+    <div class="text-2xl font-semibold mono">{{ summary.get('calls') or 0 }}</div>
+  </div>
+  <div class="bg-slate-900 px-4 py-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">tokens</div>
+    <div class="text-2xl font-semibold mono">{{ summary.get('total_tokens') or 0 }}</div>
+  </div>
+  <div class="bg-slate-900 px-4 py-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">p95 latency</div>
+    <div class="text-2xl font-semibold mono">{{ summary.get('p95_ms') or 0 }}<span class="text-sm text-slate-500"> ms</span></div>
+  </div>
+</div>
+<div class="px-5 py-4">
+  <h3 class="text-xs text-slate-500 uppercase tracking-wider mb-2">By agent ⋅ task intent</h3>
+  {% set rows = c.get('by_agent_intent') or [] %}
+  {% if rows %}
+  <table class="w-full text-sm">
+    <thead class="text-slate-400 text-xs uppercase">
+      <tr class="border-b border-slate-800">
+        <th class="text-left py-1.5">agent</th>
+        <th class="text-left">intent</th>
+        <th class="text-right">calls</th>
+        <th class="text-right">tokens</th>
+        <th class="text-right">avg ms</th>
+      </tr>
+    </thead>
+    <tbody class="mono">
+      {% for r in rows %}
+      <tr class="border-b border-slate-800/50 hover:bg-slate-800/40">
+        <td class="py-1.5 text-emerald-300">{{ r.agent_principal or '—' }}</td>
+        <td class="text-amber-300">{{ r.task_intent or '—' }}</td>
+        <td class="text-right">{{ r.calls }}</td>
+        <td class="text-right text-slate-300">{{ r.total_tokens }}</td>
+        <td class="text-right text-slate-400">{{ r.avg_latency_ms }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-slate-500 text-sm py-4 text-center">No calls in the window.</p>
+  {% endif %}
+</div>

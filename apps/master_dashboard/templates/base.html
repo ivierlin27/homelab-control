@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}homelab control{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <header class="border-b border-slate-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse"></div>
+      <h1 class="text-lg font-semibold tracking-tight">homelab control</h1>
+      <span class="text-xs text-slate-500 mono">master dashboard · phase 0.12 mvp</span>
+    </div>
+    <div class="text-xs text-slate-400 mono" id="now"></div>
+  </header>
+  <main class="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-screen-2xl mx-auto">
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    const fmt = new Intl.DateTimeFormat([], {dateStyle:'medium', timeStyle:'medium'});
+    function tick() { document.getElementById('now').textContent = fmt.format(new Date()); }
+    tick(); setInterval(tick, 1000);
+  </script>
+</body>
+</html>

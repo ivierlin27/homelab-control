@@ -1,0 +1,28 @@
+<header class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Audit tail · live</h2>
+    <p class="text-xs text-slate-500 mono">hash-chained trust-ledger.jsonl · newest first</p>
+  </div>
+  <span class="text-xs text-emerald-400 mono flex items-center gap-1.5">
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span>
+    sse
+  </span>
+</header>
+<div id="audit-feed" class="max-h-[28rem] overflow-y-auto px-5 py-3 space-y-1 text-xs mono"
+     hx-ext="sse" sse-connect="/sse/audit" sse-swap="audit"
+     hx-swap="afterbegin">
+  {% for ev in audit_events %}
+  {% set agent = ev.get('_source') or '?' %}
+  {% set color = 'text-emerald-300' %}
+  {% if 'review' in agent %}{% set color = 'text-amber-300' %}{% endif %}
+  {% if 'executive' in agent %}{% set color = 'text-sky-300' %}{% endif %}
+  {% if 'homelab-maintainer' in agent %}{% set color = 'text-fuchsia-300' %}{% endif %}
+  <div class="flex gap-2 border-b border-slate-800/30 py-0.5">
+    <span class="text-slate-500 flex-shrink-0">{{ (ev.get('ts') or ev.get('timestamp') or '')[:19].replace('T',' ') }}</span>
+    <span class="{{ color }} flex-shrink-0 w-40 truncate">{{ agent }}</span>
+    <span class="text-slate-300 flex-1 truncate">{{ ev.get('event') or ev.get('type') or ev.get('action') or ev.get('kind') or '·' }}</span>
+    <span class="text-slate-500 truncate max-w-md">{{ ev.get('summary') or ev.get('detail') or ev.get('message') or '' }}</span>
+  </div>
+  {% endfor %}
+  {% if not audit_events %}<p class="text-slate-500 italic">No events yet.</p>{% endif %}
+</div>

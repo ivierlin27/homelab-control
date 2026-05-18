@@ -1,0 +1,42 @@
+<header class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Backup status</h2>
+    <p class="text-xs text-slate-500 mono">restic snapshots ⋅ most recent per host/tag</p>
+  </div>
+  {% if backup.error %}<span class="text-xs text-rose-400 mono">err: {{ backup.error }}</span>{% endif %}
+</header>
+<div class="px-5 py-4 space-y-4">
+  {% for repo in backup.value or [] %}
+  <div>
+    <div class="flex items-baseline justify-between mb-1.5">
+      <h3 class="text-xs text-slate-400 mono truncate" title="{{ repo.repo }}">{{ repo.repo }}</h3>
+      {% if repo.error %}<span class="text-xs text-rose-400 mono">{{ repo.error }}</span>{% endif %}
+    </div>
+    {% if repo.snapshots %}
+    <table class="w-full text-xs mono">
+      <thead class="text-slate-500 uppercase">
+        <tr>
+          <th class="text-left py-1">host</th>
+          <th class="text-left">tags</th>
+          <th class="text-right">latest</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in repo.snapshots[:8] %}
+        <tr class="border-t border-slate-800/50">
+          <td class="py-1 text-emerald-300">{{ s.hostname }}</td>
+          <td class="text-amber-300 truncate">{{ (s.tags or []) | join(',') }}</td>
+          <td class="text-right text-slate-300">{{ (s.time or '')[:19].replace('T',' ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-slate-500 text-sm italic">No snapshots.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if not (backup.value or []) %}
+  <p class="text-slate-500 text-sm py-4 text-center">No backup repositories configured.</p>
+  {% endif %}
+</div>

@@ -1,0 +1,19 @@
+[Unit]
+Description=Homelab control · master dashboard (Phase 0.12 MVP)
+After=network-online.target homelab-model-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=%h/git/homelab-control
+EnvironmentFile=%h/.config/homelab-control/master-dashboard.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/git/homelab-control
+# Bind to the LAN address only; no public exposure until Authentik is wired.
+ExecStart=%h/git/homelab-control/.venv/bin/uvicorn apps.master_dashboard.main:app \
+  --host 0.0.0.0 --port 8765 --no-access-log
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
