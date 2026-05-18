@@ -19,6 +19,17 @@ from .scratch import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _allow_tmp_for_tests(monkeypatch):
+    """Pytest's ``tmp_path`` lives under ``/tmp/pytest-of-<user>/...`` on
+    Fedora/Linux. Without this fixture, every test that uses ``tmp_path`` as
+    a scratch root trips the production guard. Refusal tests opt out by
+    re-deleting the env var inside the test body.
+    """
+    monkeypatch.setenv("HOMELAB_SANDBOX_ALLOW_TMP", "1")
+    yield
+
+
 # ---------------------------------------------------------------------------
 # default_scratch_root
 # ---------------------------------------------------------------------------
@@ -72,6 +83,7 @@ def test_make_scratch_dir_rejects_path_escape(monkeypatch, tmp_path):
 
 
 def test_make_scratch_dir_refuses_tmp_root(monkeypatch):
+    # Opt out of the autouse allow-tmp fixture; this test wants the guard ON.
     monkeypatch.delenv("HOMELAB_SANDBOX_ALLOW_TMP", raising=False)
     monkeypatch.setenv(SCRATCH_ROOT_ENV, "/tmp/sandbox")
     with pytest.raises(ScratchError, match=r"/tmp"):
@@ -144,6 +156,7 @@ def test_cleanup_missing_strict_raises(monkeypatch, tmp_path):
 
 
 def test_is_under_tmp_detects_tmp_paths(monkeypatch):
+    # Opt out of the autouse allow-tmp fixture.
     monkeypatch.delenv("HOMELAB_SANDBOX_ALLOW_TMP", raising=False)
     assert _is_under_tmp(Path("/tmp/x")) is True
     assert _is_under_tmp(Path("/tmp")) is True

@@ -17,6 +17,17 @@ import pytest
 from .runner import BranchStrategy, SandboxError, SandboxRunner
 
 
+@pytest.fixture(autouse=True)
+def _allow_tmp_for_tests(monkeypatch):
+    """Pytest's ``tmp_path`` lives under ``/tmp/`` on Fedora/Linux; without
+    this fixture, every test that uses tmp_path as a worktree trips the
+    SELinux-re-tightening guard added in __post_init__. The two tests that
+    SPECIFICALLY exercise the guard opt out by re-deleting the env var.
+    """
+    monkeypatch.setenv("HOMELAB_SANDBOX_ALLOW_TMP", "1")
+    yield
+
+
 def _fake_podman(tmp_path: Path, *, exit_code: int = 0, stdout: str = "", stderr: str = "") -> Path:
     """Create an executable shim that records its argv to argv.log and exits."""
     log_path = tmp_path / "argv.log"
@@ -188,7 +199,8 @@ def test_branch_strategy_enum() -> None:
 
 
 def test_rejects_worktree_under_tmp(tmp_path: Path, monkeypatch) -> None:
-    """Constructor refuses /tmp/... because Podman's :Z can't relabel /tmp."""
+    """Constructor refuses /tmp/... because Podman's :Z can't relabel /tmp.
+    Opts out of the autouse allow-tmp fixture."""
     monkeypatch.delenv("HOMELAB_SANDBOX_ALLOW_TMP", raising=False)
     bad = Path("/tmp/sandbox-probe-rejected")
     bad.mkdir(exist_ok=True)
