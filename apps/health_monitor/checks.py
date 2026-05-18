@@ -224,8 +224,10 @@ def check_restic_freshness(
         return out  # not installed here — skip silently (we may be in CI)
     now = time.time()
     for repo in repos:
+        # restic 0.17+ renamed --last to --latest; pass --latest=1 which is
+        # accepted by both old and new versions.
         rc, stdout, stderr = _run(
-            ["restic", "-r", repo, "snapshots", "--json", "--last", "1"],
+            ["restic", "-r", repo, "snapshots", "--json", "--latest", "1"],
             timeout=30.0,
         )
         name = f"restic:{repo.split('/')[-1] or repo}"

@@ -71,6 +71,13 @@ The transition engine handles state, alerts, and audit automatically.
 
 ## Past incidents
 
+### 2026-05-18 — restic check reported "no snapshots" on a healthy repo
+
+- **Symptom:** restic-lxcs-from-proxmox reported `unhealthy: no snapshots in repo` despite 8 visible snapshots
+- **Root cause:** the check passed `--last 1` to restic; restic 0.17.3 deprecated `--last` in favour of `--latest 1`. Old flag now ignored, returns empty result.
+- **Fix:** swapped to `--latest 1` (accepted by both old and new restic)
+- **Followup:** anytime you bump restic across a major (0.16 → 0.17), re-run `python -m apps.health_monitor --show-results` once to surface deprecated-flag regressions
+
 ### 2026-05-17 — initial deploy: false-positive "timer never fired" alerts
 
 - **Symptom:** first health-monitor run alerted on 3 timers that had been enabled minutes prior

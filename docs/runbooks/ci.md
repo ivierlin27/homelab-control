@@ -68,6 +68,13 @@ systemctl --user list-timers alienware-nightly-tests.timer
 
 ## Future work
 
-- **Forgejo act_runner**: provision one (LXC or Alienware service) so PRs on Forgejo get CI feedback too. Today we rely on GitHub.
+- **Forgejo act_runner**: provision one (LXC or Alienware service) so PRs on Forgejo get CI feedback too. Today we rely on GitHub. Recipe when ready:
+  1. Pick a host (Alienware fine; a dedicated LXC is cleaner — needs docker).
+  2. Download `act_runner` from `code.forgejo.org/forgejo/runner/releases`.
+  3. Forgejo admin → Site Administration → Runners → Create new runner; copy the token.
+  4. `act_runner register --no-interactive --instance https://forgejo.dev-path.org --token <token> --name <hostname>`.
+  5. Wrap in a systemd service (the binary supports `daemon` mode). Same pattern as other `alienware-*.service` units.
+  6. Verify by pushing any commit to phase-0-platform — `.forgejo/workflows/ci.yml` should dispatch automatically.
+  7. Add `act_runner` to inventory + a check to `apps/health_monitor` so we notice if it dies.
 - **Coverage report**: nice-to-have but not essential — we'd want it surfaced on the dashboard.
 - **Lint job**: ruff/mypy gates would catch a lot of "works in unit tests but breaks in live" issues. Defer until we have more code.
