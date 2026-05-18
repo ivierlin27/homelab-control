@@ -513,17 +513,36 @@ def plan_principal(
     *,
     registry: Registry | None = None,
     ssh_dir: Path | None = None,
+    state_store: StateStore | None = None,
+    ignore_state: bool = False,
 ) -> PrincipalPlan:
     """Compute the issuance plan for ``principal`` without any side effects.
 
     No state file writes, no ssh-keygen invocation, no podman build, no API
-    calls. The only IO is read-only: loading the registry/manifest YAML and
-    a couple of ``shutil.which`` / ``Path.is_file`` checks to make the plan
-    accurate for the current host.
+    calls. The only IO is read-only: loading the registry/manifest YAML, a
+    couple of ``shutil.which`` / ``Path.is_file`` checks, and a read of the
+    issuer's state store so already-confirmed operator-mediated components
+    aren't re-reported as work.
+
+    Pass ``ignore_state=True`` to produce a fresh-provisioning view (every
+    component reported as if no prior issuance had happened). Useful for
+    publishing a generic onboarding runbook.
     """
     registry = registry or load_registry()
     manifest = registry.get(principal)
     ssh_base = (ssh_dir or _default_ssh_dir()).expanduser()
+
+    # State-store read is best-effort: a missing or unreadable state file
+    # collapses to "nothing issued yet," matching the issuer's own assumption.
+    if ignore_state:
+        state = IdentityState(principal=principal)
+    else:
+        try:
+            store = state_store or StateStore(default_state_dir())
+            state = store.load(principal)
+        except Exception:  # noqa: BLE001
+            state = IdentityState(principal=principal)
+
     components: list[ComponentPlan] = []
 
     # --- SSH key ----------------------------------------------------------
@@ -575,6 +594,16 @@ def plan_principal(
             "manifest has no sandbox.base_image; no image needed",
             [],
         ))
+    elif state.status(Component.SANDBOX_IMAGE) == ComponentStatus.ISSUED:
+        components.append(ComponentPlan(
+            Component.SANDBOX_IMAGE, ComponentStatus.ISSUED,
+            f"image tag {image_name}:latest — already built and confirmed (would skip)",
+            [
+                f"Rebuild on this host: `python3 -m apps._shared.sandbox build "
+                f"--principal {principal}`",
+                f"Verify: `podman images | grep ^localhost/{image_name}`",
+            ],
+        ))
     else:
         repo_root = Path(__file__).resolve().parents[3]
         containerfile_rel = Path(
@@ -604,7 +633,11 @@ def plan_principal(
 
     # --- Forgejo account + PAT + Discord bot + Infisical token ------------
     # These four are entirely operator-mediated; the existing step builders
-    # already produce the right checklists, so we reuse them verbatim.
+    # already produce the right checklists, so we reuse them verbatim. For
+    # each, the issuer's state file is the source of truth for whether the
+    # operator has already run `identity confirm` — if so, we report ISSUED
+    # (with a one-line "already confirmed" note) instead of re-emitting the
+    # full checklist.
     for component, builder, summary_when_required in (
         (Component.FORGEJO_ACCOUNT, _forgejo_account_steps,
          "Create the bot Forgejo user"),
@@ -621,6 +654,24 @@ def plan_principal(
                 component, ComponentStatus.NOT_REQUIRED,
                 "not required by manifest",
                 [],
+            ))
+            continue
+        recorded = state.status(component)
+        if recorded == ComponentStatus.ISSUED:
+            components.append(ComponentPlan(
+                component, ComponentStatus.ISSUED,
+                "already confirmed via `identity confirm` (would skip)",
+                [
+                    f"To re-issue: `python -m apps._shared.identity revoke "
+                    f"--principal {principal} --component {component.value}` "
+                    f"then re-run `identity issue`.",
+                ],
+            ))
+        elif recorded == ComponentStatus.REVOKED:
+            components.append(ComponentPlan(
+                component, ComponentStatus.REVOKED,
+                "previously revoked; rotate per checklist before reissue",
+                steps,
             ))
         else:
             components.append(ComponentPlan(

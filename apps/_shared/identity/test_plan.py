@@ -127,8 +127,10 @@ def test_plan_marks_ssh_issued_if_key_already_present(tmp_path, monkeypatch, fai
 
 def test_plan_marks_sandbox_image_present(tmp_path, monkeypatch, fail_on_subprocess):
     """All shipped agent manifests reference Containerfiles that exist in
-    apps/_shared/sandbox/images/. The plan should report present."""
-    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path))
+    apps/_shared/sandbox/images/. With an empty state store (no ISSUED record)
+    the plan reports OPERATOR_TODO + 'present'."""
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
     plan = plan_principal("agent:executive")
     img = next(c for c in plan.components if c.component == Component.SANDBOX_IMAGE)
     assert img.would_status == ComponentStatus.OPERATOR_TODO
@@ -154,6 +156,77 @@ def test_render_markdown_is_deterministic(tmp_path, monkeypatch, fail_on_subproc
     # Every component appears in the summary table.
     for c in p.components:
         assert f"`{c.component.value}`" in a
+
+
+def test_plan_reports_issued_when_state_file_says_so(tmp_path, monkeypatch, fail_on_subprocess):
+    """If the issuer's state store records ISSUED for an operator-mediated
+    component, the plan should report would_status=ISSUED with a one-line
+    'already confirmed' note instead of re-emitting the full checklist."""
+    from .state import Component, ComponentStatus, StateStore
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+
+    store = StateStore(tmp_path / "state")
+    s = store.load("agent:executive")
+    fully_provisioned = (
+        Component.SANDBOX_IMAGE,
+        Component.FORGEJO_ACCOUNT,
+        Component.FORGEJO_PAT,
+        Component.DISCORD_BOT,
+        Component.INFISICAL_TOKEN,
+    )
+    for comp in fully_provisioned:
+        s.set_component(comp, status=ComponentStatus.ISSUED)
+    store.save(s)
+
+    plan = plan_principal("agent:executive")
+    for comp in (
+        Component.FORGEJO_ACCOUNT,
+        Component.FORGEJO_PAT,
+        Component.DISCORD_BOT,
+        Component.INFISICAL_TOKEN,
+    ):
+        cp = next(c for c in plan.components if c.component == comp)
+        assert cp.would_status == ComponentStatus.ISSUED, comp
+        assert "already confirmed" in cp.summary, comp
+        # The rotate hint is the only step; not the full operator checklist.
+        assert len(cp.next_steps) == 1
+        assert "revoke" in cp.next_steps[0]
+    sandbox = next(c for c in plan.components if c.component == Component.SANDBOX_IMAGE)
+    assert sandbox.would_status == ComponentStatus.ISSUED
+    assert "already built" in sandbox.summary
+    assert plan.needs_operator_action() is False
+
+
+def test_plan_ignore_state_flag_forces_fresh_view(tmp_path, monkeypatch, fail_on_subprocess):
+    """--ignore-state recovers the 'from scratch' onboarding runbook even
+    when the state file says everything is done."""
+    from .state import Component, ComponentStatus, StateStore
+    monkeypatch.setenv("HOMELAB_IDENTITY_STATE", str(tmp_path / "state"))
+    monkeypatch.setenv("HOMELAB_IDENTITY_SSH_DIR", str(tmp_path / "ssh"))
+
+    store = StateStore(tmp_path / "state")
+    s = store.load("agent:executive")
+    for comp in (
+        Component.SANDBOX_IMAGE,
+        Component.FORGEJO_ACCOUNT,
+        Component.FORGEJO_PAT,
+        Component.DISCORD_BOT,
+        Component.INFISICAL_TOKEN,
+    ):
+        s.set_component(comp, status=ComponentStatus.ISSUED)
+    store.save(s)
+
+    plan = plan_principal("agent:executive", ignore_state=True)
+    for comp in (
+        Component.SANDBOX_IMAGE,
+        Component.FORGEJO_ACCOUNT,
+        Component.FORGEJO_PAT,
+        Component.DISCORD_BOT,
+        Component.INFISICAL_TOKEN,
+    ):
+        cp = next(c for c in plan.components if c.component == comp)
+        assert cp.would_status == ComponentStatus.OPERATOR_TODO, comp
 
 
 def test_render_markdown_lists_operator_steps(tmp_path, monkeypatch, fail_on_subprocess):

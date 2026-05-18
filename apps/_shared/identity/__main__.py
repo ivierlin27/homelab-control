@@ -102,6 +102,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="override ~/.ssh/homelab-agents for the 'key already present?' check",
     )
+    plan.add_argument(
+        "--ignore-state",
+        action="store_true",
+        help="treat the principal as un-provisioned regardless of the issuer's "
+             "state file (produces a generic onboarding runbook).",
+    )
 
     revoke = sub.add_parser("revoke", help="mark a component as revoked")
     revoke.add_argument("--principal", required=True)
@@ -199,6 +205,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         plan = plan_principal(
             args.principal,
             ssh_dir=Path(args.ssh_dir) if args.ssh_dir else None,
+            ignore_state=args.ignore_state,
         )
     except (IssuerError, RegistryError) as exc:
         print(f"plan error: {exc}", file=sys.stderr)
