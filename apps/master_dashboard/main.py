@@ -224,9 +224,100 @@ async def _fetch_presence() -> list[dict[str, Any]]:
     return groups
 
 
+# Remote hosts (host, ssh-target, label). Schedule tile pulls timers from each.
+# ssh-target must be batch-mode-reachable from the dashboard host's account.
+REMOTE_SCHEDULE_HOSTS = [
+    t.strip() for t in
+    os.environ.get("DASHBOARD_REMOTE_TIMER_HOSTS", "root@proxmox.dev-path.org").split(",")
+    if t.strip()
+]
+
+
+def _parse_timer_json(blob: str, host: str) -> list[dict[str, Any]]:
+    """systemd ts fields are microseconds since epoch, 0 == never/unscheduled."""
+    try:
+        items = json.loads(blob)
+    except json.JSONDecodeError:
+        return []
+    out: list[dict[str, Any]] = []
+    for it in items:
+        next_us = it.get("next") or 0
+        last_us = it.get("last") or 0
+        out.append({
+            "host": host,
+            "unit": it.get("unit", "?"),
+            "activates": it.get("activates", "") or "",
+            "next_epoch": next_us / 1_000_000.0 if next_us else None,
+            "last_epoch": last_us / 1_000_000.0 if last_us else None,
+        })
+    return out
+
+
+async def _list_timers_local() -> list[dict[str, Any]]:
+    proc = await asyncio.create_subprocess_exec(
+        "systemctl", "--user", "list-timers", "--all", "--output=json",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=8)
+    if proc.returncode != 0:
+        return []
+    return _parse_timer_json(stdout.decode(), host="alienware")
+
+
+async def _list_timers_ssh(ssh_target: str) -> list[dict[str, Any]]:
+    proc = await asyncio.create_subprocess_exec(
+        "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4",
+        ssh_target,
+        "systemctl list-timers --all --output=json",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        return [{"host": ssh_target, "unit": "<ssh timeout>", "activates": "",
+                 "next_epoch": None, "last_epoch": None}]
+    if proc.returncode != 0:
+        return []
+    # Host label is the short name after the @
+    host = ssh_target.split("@", 1)[-1].split(".", 1)[0]
+    return _parse_timer_json(stdout.decode(), host=host)
+
+
+async def _fetch_schedule() -> list[dict[str, Any]]:
+    tasks: list[Any] = [_list_timers_local()]
+    for tgt in REMOTE_SCHEDULE_HOSTS:
+        tasks.append(_list_timers_ssh(tgt))
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    rows: list[dict[str, Any]] = []
+    for r in results:
+        if isinstance(r, Exception):
+            log.warning("schedule fetch leg failed: %s", r)
+            continue
+        rows.extend(r)
+    # Hide systemd-internal timers; they aren't ours and just add noise
+    rows = [
+        r for r in rows
+        if not r["unit"].startswith(("systemd-", "dnf-", "logrotate", "grub-"))
+    ]
+    # Sort: scheduled (next_epoch != None) first by soonest, then unscheduled
+    now = time.time()
+    rows.sort(key=lambda r: (r["next_epoch"] is None, r["next_epoch"] or 0))
+    for r in rows:
+        r["next_in_seconds"] = (r["next_epoch"] - now) if r["next_epoch"] else None
+        r["last_ago_seconds"] = (now - r["last_epoch"]) if r["last_epoch"] else None
+    return rows
+
+
 _cost_cache = TTLCache(ttl_seconds=300, fetcher=_fetch_cost_summary)
 _backup_cache = TTLCache(ttl_seconds=300, fetcher=_fetch_backup_status)
 _presence_cache = TTLCache(ttl_seconds=30, fetcher=_fetch_presence)
+_schedule_cache = TTLCache(ttl_seconds=60, fetcher=_fetch_schedule)
 
 
 # ----- audit tail (file iteration + SSE) --------------------------------
@@ -333,6 +424,7 @@ async def index(request: Request):
     cost = await _cost_cache.get()
     backup = await _backup_cache.get()
     presence = await _presence_cache.get()
+    schedule = await _schedule_cache.get()
     audit_events = _read_recent_events()
     return templates.TemplateResponse(
         request,
@@ -341,6 +433,7 @@ async def index(request: Request):
             "cost": cost,
             "backup": backup,
             "presence": presence,
+            "schedule": schedule,
             "audit_events": audit_events,
             "audit_event_count": sum(1 for _ in _list_ledgers()),
         },
@@ -364,6 +457,14 @@ async def tile_presence(request: Request):
     presence = await _presence_cache.get()
     return templates.TemplateResponse(
         request, "_tile_presence.html", {"presence": presence}
+    )
+
+
+@app.get("/tiles/schedule", response_class=HTMLResponse)
+async def tile_schedule(request: Request):
+    schedule = await _schedule_cache.get()
+    return templates.TemplateResponse(
+        request, "_tile_schedule.html", {"schedule": schedule}
     )
 
 

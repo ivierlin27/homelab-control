@@ -97,9 +97,18 @@ def test_index_renders_with_stubbed_fetchers(monkeypatch, tmp_path: Path):
              "result": "success", "since": "Sun 2026-05-17 17:00:00 PDT", "description": "x"},
         ]}]
 
+    async def _ok_schedule():
+        return [
+            {"host": "alienware", "unit": "alienware-backup-hot.timer",
+             "activates": "alienware-backup-hot.service",
+             "next_epoch": 9e9, "last_epoch": 9e9 - 600,
+             "next_in_seconds": 600, "last_ago_seconds": 60},
+        ]
+
     monkeypatch.setattr(dash, "_cost_cache", dash.TTLCache(60, _ok_cost))
     monkeypatch.setattr(dash, "_backup_cache", dash.TTLCache(60, _ok_backup))
     monkeypatch.setattr(dash, "_presence_cache", dash.TTLCache(60, _ok_presence))
+    monkeypatch.setattr(dash, "_schedule_cache", dash.TTLCache(60, _ok_schedule))
 
     with TestClient(dash.app) as client:
         resp = client.get("/")
@@ -111,8 +120,34 @@ def test_index_renders_with_stubbed_fetchers(monkeypatch, tmp_path: Path):
         assert "x.service" in body
         assert "hot" in body
 
+        assert "alienware-backup-hot.timer" in body
+
         assert client.get("/healthz").json() == {"status": "ok"}
         assert client.get("/tiles/cost").status_code == 200
         assert client.get("/tiles/presence").status_code == 200
         assert client.get("/tiles/backup").status_code == 200
         assert client.get("/tiles/audit").status_code == 200
+        assert client.get("/tiles/schedule").status_code == 200
+
+
+def test_parse_timer_json_handles_real_systemd_output():
+    blob = (
+        '[{"next":1779065778436277,"left":1779065778436277,'
+        '"last":1779065478434873,"passed":97233505326,'
+        '"unit":"alienware-backup-hot.timer",'
+        '"activates":"alienware-backup-hot.service"},'
+        '{"next":0,"left":0,"last":0,"passed":0,'
+        '"unit":"unscheduled.timer","activates":"unscheduled.service"}]'
+    )
+    rows = dash._parse_timer_json(blob, host="alienware")
+    assert len(rows) == 2
+    assert rows[0]["host"] == "alienware"
+    assert rows[0]["unit"] == "alienware-backup-hot.timer"
+    assert rows[0]["next_epoch"] == pytest.approx(1779065778.436277)
+    assert rows[0]["last_epoch"] == pytest.approx(1779065478.434873)
+    assert rows[1]["next_epoch"] is None
+    assert rows[1]["last_epoch"] is None
+
+
+def test_parse_timer_json_returns_empty_on_garbage():
+    assert dash._parse_timer_json("not json", host="x") == []
