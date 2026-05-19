@@ -107,6 +107,49 @@ def test_main_requires_subcommand() -> None:
 
 # --- subprocess smoke (mirrors the F2 acceptance command line) ------------
 
+# --- ingest subcommand (F4) ---------------------------------------------
+
+def test_main_ingest_list_institutions_prints_known_slugs() -> None:
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = main(["--skip-boot", "ingest", "--list-institutions"])
+    assert rc == 0
+    out = buf.getvalue()
+    assert "bmo-joint-chequing" in out
+
+
+def test_main_ingest_missing_required_flags_exits_2(capsys: pytest.CaptureFixture) -> None:
+    rc = main(["--skip-boot", "ingest"])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "--institution" in err and "--file" in err
+
+
+def test_main_ingest_unknown_institution_exits_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    f = tmp_path / "x.pdf"
+    f.write_bytes(b"%PDF-1.4\n")
+    rc = main(
+        [
+            "--skip-boot",
+            "ingest",
+            "--institution",
+            "not-a-bank",
+            "--file",
+            str(f),
+            "--ledger-dir",
+            str(tmp_path),
+            "--audit-path",
+            str(tmp_path / "audit.jsonl"),
+            "--skip-bean-check",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "unknown institution" in err
+
+
 def test_module_entrypoint_subprocess(tmp_path: Path) -> None:
     """Mirror the acceptance invocation. Validates packaging/__main__-ish wiring.
 

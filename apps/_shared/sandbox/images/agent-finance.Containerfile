@@ -8,6 +8,12 @@
 #     malformed import can't crash the agent process. `smart_importer` is
 #     pinned (it's the categorizer's library; the LLM call is host-side only).
 #   - pandas: CSV statement parsing for the per-institution importers.
+#   - pdfplumber: PDF text + table extraction for historical bank statements
+#     (BMO/RBC online portals only export PDF for older months; recent months
+#     are OFX/CSV which don't need this dep). Pure-Python wrapper over
+#     pdfminer.six — no network. Per-institution importers feed pdfplumber
+#     output through regex/heuristics to produce a normalized CSV that the
+#     smart_importer path consumes.
 #   - No httpx / no urllib3 in PATH for the agent user: the sandbox MUST NOT
 #     reach the network at all (sandbox.network.allowed_hosts = []). Egress is
 #     blocked at the runner level too, but defense-in-depth.
@@ -25,6 +31,7 @@ RUN apt-get update \
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
         "beancount>=3,<4" \
         "smart_importer>=0.5,<1" \
-        "pandas>=2,<3"
+        "pandas>=2,<3" \
+        "pdfplumber>=0.11,<1"
 
 USER agent

@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """agent:finance CLI entrypoint.
 
-Sprint F2 ships only the `status` subcommand — a smoke test that the
-agent process boots, validates against the capability registry, and can
-detect whether the ledger has been initialized.
+Subcommands:
+
+  status   — show agent + ledger health (F2)
+  ingest   — parse a bank statement into Beancount entries (F4)
+
+Examples:
 
   python -m apps.finance_agent status
   python -m apps.finance_agent status --json
-  python -m apps.finance_agent status --ledger-dir /tmp/foo  # for tests
+  python -m apps.finance_agent ingest \\
+      --institution bmo-joint-chequing \\
+      --file ~/finance/fixtures/bmo-joint-chequing-2024-01.pdf
 
-Acceptance (F2): with no ledger present, prints exactly
-  agent:finance v0.1 — no ledger initialized
+Acceptance strings (F2):
+  with no ledger: "agent:finance v0.1 — no ledger initialized"
 """
 
 from __future__ import annotations
@@ -83,6 +88,49 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    from .ingest import DEFAULT_AUDIT_PATH, IngestError, ingest_file
+
+    if args.list_institutions:
+        from .importers import list_institutions
+        for slug in list_institutions():
+            print(slug)
+        return 0
+
+    if not args.institution or not args.file:
+        print("error: --institution and --file are required (or use --list-institutions)", file=sys.stderr)
+        return 2
+
+    try:
+        result = ingest_file(
+            institution=args.institution,
+            file_path=Path(args.file),
+            ledger_dir=Path(args.ledger_dir).expanduser(),
+            audit_path=Path(args.audit_path).expanduser() if args.audit_path else DEFAULT_AUDIT_PATH,
+            run_bean_check=not args.skip_bean_check,
+        )
+    except IngestError as exc:
+        print(f"ingest failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True, default=str))
+    else:
+        print(f"✓ ingested {result.entries_written} entries from {Path(result.file).name}")
+        print(f"  institution    : {result.institution}")
+        print(f"  source account : {result.source_account}")
+        print(f"  ledger file    : {result.ledger_path}")
+        print(f"  audit row      : {result.audit_path}")
+        if result.main_file_updated:
+            print(f"  main.beancount : updated to include transactions.beancount")
+        if result.bean_check_ran:
+            status_str = "passed" if result.bean_check_passed else "FAILED"
+            print(f"  bean-check     : {status_str} — {result.bean_check_message}")
+        else:
+            print(f"  bean-check     : skipped ({result.bean_check_message})")
+    return 0 if (not result.bean_check_ran or result.bean_check_passed) else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="apps.finance_agent",
@@ -90,6 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # status -----------------------------------------------------------------
     status = subparsers.add_parser("status", help="show agent + ledger status")
     status.add_argument(
         "--ledger-dir",
@@ -102,6 +151,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit machine-readable JSON instead of the human one-liner",
     )
     status.set_defaults(func=_cmd_status)
+
+    # ingest -----------------------------------------------------------------
+    ingest = subparsers.add_parser(
+        "ingest",
+        help="parse a bank statement into Beancount entries (F4)",
+    )
+    ingest.add_argument(
+        "--institution",
+        help="institution slug (use --list-institutions to enumerate)",
+    )
+    ingest.add_argument(
+        "--file",
+        help="path to the statement file (PDF/OFX/CSV per institution)",
+    )
+    ingest.add_argument(
+        "--ledger-dir",
+        default=str(DEFAULT_LEDGER_DIR),
+        help=f"ledger directory (default: {DEFAULT_LEDGER_DIR})",
+    )
+    ingest.add_argument(
+        "--audit-path",
+        default=None,
+        help="audit log path (default: ~/.local/state/homelab-control/agent-finance/audit.jsonl)",
+    )
+    ingest.add_argument(
+        "--skip-bean-check",
+        action="store_true",
+        help="skip post-ingest bean-check (default: run if available)",
+    )
+    ingest.add_argument(
+        "--list-institutions",
+        action="store_true",
+        help="print known institution slugs and exit",
+    )
+    ingest.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
+    ingest.set_defaults(func=_cmd_ingest)
 
     return parser
 
