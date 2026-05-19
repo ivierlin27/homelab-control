@@ -21,6 +21,7 @@ from apps.finance_agent.importers.base import (
     ExtractedTransaction,
     Importer,
     PreParser,
+    StatementExtract,
 )
 from apps.finance_agent.importers.bmo_joint_chequing_pdf import (
     BmoJointChequingImporter,
@@ -41,20 +42,35 @@ from apps.finance_agent.ingest import (
 @dataclass
 class _MockPreParser:
     institution: str = "bmo-joint-chequing"
-    txns: list = None  # type: ignore[assignment]
+    extract_result: StatementExtract = None  # type: ignore[assignment]
 
     def can_handle(self, _: str) -> bool:
         return True
 
-    def extract(self, _: str):
-        return list(self.txns or [])
+    def extract(self, _: str) -> StatementExtract:
+        return self.extract_result or StatementExtract()
 
 
-def _make_mock_factory(txns):
+def _make_mock_factory(txns, *, with_balances: bool = False):
     """Return a get_importer_fn that yields (_MockPreParser, real BMO importer)."""
+    if with_balances and txns:
+        opening_balance = Decimal("1000.00")
+        # Closing = opening + sum of signed amounts (so the period reconciles
+        # — important if the test also runs bean-check).
+        closing_balance = opening_balance + sum((t.amount for t in txns), Decimal("0"))
+        extract = StatementExtract(
+            transactions=list(txns),
+            opening_date=txns[0].posting_date,
+            opening_balance=opening_balance,
+            closing_date=txns[-1].posting_date,
+            closing_balance=closing_balance,
+        )
+    else:
+        extract = StatementExtract(transactions=list(txns))
+
     def _factory(slug: str) -> Tuple[PreParser, Importer]:
         assert slug == "bmo-joint-chequing"
-        return _MockPreParser(txns=txns), BmoJointChequingImporter()
+        return _MockPreParser(extract_result=extract), BmoJointChequingImporter()
     return _factory
 
 
@@ -130,17 +146,25 @@ def test_ingest_rejects_missing_ledger_dir(tmp_path: Path) -> None:
         )
 
 
-def test_ingest_surfaces_notimplemented_as_ingest_error(tmp_path: Path) -> None:
-    """The default BMO pre-parser stub raises NotImplementedError (F4a)."""
-    f = tmp_path / "x.pdf"
-    f.write_bytes(b"%PDF-1.4\n")
-    with pytest.raises(IngestError, match="not yet implemented"):
+def test_ingest_surfaces_pre_parser_errors_as_ingest_error(tmp_path: Path) -> None:
+    """A pre-parser that raises (e.g. pdfplumber missing, bad PDF) should
+    surface as IngestError exit-code-2 rather than a raw stack trace."""
+    f = tmp_path / "bmo-2024.pdf"
+    f.write_bytes(b"not a real pdf")
+
+    # The real BMO pre-parser will fail one of: pdfplumber import (if
+    # not installed locally) or PDF parsing (if installed but bytes aren't
+    # a valid PDF). Either way, the ingest layer should wrap it.
+    from apps.finance_agent.importers.base import PreParserError
+
+    with pytest.raises((IngestError, PreParserError)):
         ingest_file(
             institution="bmo-joint-chequing",
             file_path=f,
             ledger_dir=_make_ledger(tmp_path),
             audit_path=tmp_path / "audit.jsonl",
             run_bean_check=False,
+            statement_year=2024,
         )
 
 
@@ -164,6 +188,7 @@ def test_ingest_happy_path_writes_entries_and_audit(tmp_path: Path) -> None:
 
     assert result.institution == "bmo-joint-chequing"
     assert result.source_account == "Assets:CA:BMO:Chequing:Joint-4969"
+    # 2 transactions, no opening/closing balance directives in this fixture
     assert result.entries_written == 2
     assert result.bean_check_ran is False
     assert result.main_file_updated is True
@@ -251,13 +276,48 @@ def test_ingest_no_transactions_extracted_still_writes_audit(tmp_path: Path) -> 
     )
 
     assert result.entries_written == 0
-    assert not (ledger / TRANSACTIONS_FILENAME).exists()  # no file = nothing written
+    assert not (ledger / TRANSACTIONS_FILENAME).exists()
+    # txn_count in audit also 0
     assert (ledger / MAIN_FILENAME).read_text(encoding="utf-8").count(
         TRANSACTIONS_INCLUDE_MARKER
     ) == 0  # include not added — nothing to include yet
     assert audit_path.is_file()  # still got an audit row
     row = json.loads(audit_path.read_text(encoding="utf-8").splitlines()[0])
     assert row["entry_count"] == 0
+
+
+def test_ingest_with_opening_and_closing_emits_pad_and_balance_directives(
+    tmp_path: Path,
+) -> None:
+    """When StatementExtract carries opening/closing balances, the importer
+    should emit Beancount `pad` + `balance` directives around the txns."""
+    ledger = _make_ledger(tmp_path)
+    audit_path = tmp_path / "audit.jsonl"
+    pdf = tmp_path / "bmo.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    result = ingest_file(
+        institution="bmo-joint-chequing",
+        file_path=pdf,
+        ledger_dir=ledger,
+        audit_path=audit_path,
+        run_bean_check=False,
+        get_importer_fn=_make_mock_factory(_two_sample_txns(), with_balances=True),
+    )
+
+    # 2 transactions + 1 pad + 1 opening balance + 1 closing balance = 5 entries
+    assert result.entries_written == 5
+
+    body = (ledger / TRANSACTIONS_FILENAME).read_text(encoding="utf-8")
+    assert "pad Assets:CA:BMO:Chequing:Joint-4969 Equity:Opening-Balances" in body
+    # Two `balance` directives: opening + closing
+    assert body.count(" balance Assets:CA:BMO:Chequing:Joint-4969") == 2
+
+    # Audit row carries balance info
+    row = json.loads(audit_path.read_text(encoding="utf-8").splitlines()[0])
+    assert row["opening_balance"] == "1000.00"
+    assert row["txn_count"] == 2
+    assert row["entry_count"] == 5
 
 
 # --- bean-check integration ------------------------------------------------

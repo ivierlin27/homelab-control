@@ -3,7 +3,8 @@
 Design constraints driving these types:
 
 1. PreParser output is fully testable WITHOUT pdfplumber. Tests construct
-   ExtractedTransaction objects directly and feed them to the Importer.
+   StatementExtract / ExtractedTransaction objects directly and feed
+   them to the Importer.
 2. Importer output is fully testable WITHOUT beancount. We emit Beancount
    syntax as text (BeancountEntry); validation via `bean-check` is a
    downstream verifier step, not part of the importer contract.
@@ -11,6 +12,10 @@ Design constraints driving these types:
    layer (apps/finance_agent/ingest.py) owns all side effects.
 4. ExtractedTransaction is currency-aware (CAD vs USD savings account 6863).
    Amounts use Decimal — float arithmetic on money is unacceptable.
+5. StatementExtract carries the (optional) opening and closing balances
+   so the Importer can emit Beancount `pad` + `balance` assertions that
+   self-validate the period via bean-check. If a transaction was missed
+   in parsing, the closing-balance assertion will fail loudly.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 class PreParserError(Exception):
@@ -59,6 +64,25 @@ class ExtractedTransaction:
 
 
 @dataclass(frozen=True)
+class StatementExtract:
+    """Everything one statement file yields, pre-import.
+
+    PreParsers return this; Importers consume it. The opening/closing
+    balance fields are optional (some sources — e.g. a hand-edited CSV —
+    won't supply them) but PDF importers should produce them whenever
+    the statement carries them, because they unlock self-validation via
+    Beancount `pad`/`balance` directives.
+    """
+
+    transactions: list[ExtractedTransaction] = field(default_factory=list)
+    opening_date: Optional[date] = None
+    opening_balance: Optional[Decimal] = None
+    closing_date: Optional[date] = None
+    closing_balance: Optional[Decimal] = None
+    statement_id: str = ""  # arbitrary identifier (e.g. period label) for audit
+
+
+@dataclass(frozen=True)
 class BeancountEntry:
     """One Beancount entry rendered as text (newline-terminated)."""
 
@@ -76,27 +100,33 @@ class BeancountEntry:
 
 
 class PreParser(Protocol):
-    """Per-institution PDF/CSV → ExtractedTransaction[] adapter."""
+    """Per-institution PDF/CSV → StatementExtract adapter."""
 
     institution: str  # institution slug, must match registry key
 
     def can_handle(self, path_or_bytes: bytes | str) -> bool:
         """Cheap sniff: filename heuristic or first-page magic bytes."""
 
-    def extract(self, path_or_bytes: bytes | str) -> list[ExtractedTransaction]:
+    def extract(self, path_or_bytes: bytes | str) -> StatementExtract:
         """Parse the input and return all transactions in posting-date order."""
 
 
 class Importer(Protocol):
-    """Per-account ExtractedTransaction[] → BeancountEntry[] adapter."""
+    """Per-account StatementExtract → BeancountEntry[] adapter."""
 
     institution: str
     source_account: str  # e.g. "Assets:CA:BMO:Chequing:Joint-4969"
     currency: str  # CAD or USD — must match the source account's declared currency
     counter_account: str = "Expenses:Uncategorized"
 
-    def render(self, txns: list[ExtractedTransaction]) -> list[BeancountEntry]:
-        """Render the extracted txns as Beancount entries (no I/O)."""
+    def render(self, extract: StatementExtract) -> list[BeancountEntry]:
+        """Render the statement as Beancount entries (no I/O).
+
+        Entries include any pad+balance assertions for opening balance
+        (if present) and a balance assertion for closing balance (if
+        present), interleaved chronologically with the transaction
+        entries. bean-check then validates the period end-to-end.
+        """
 
 
 # ---------------------------------------------------------------------------
@@ -148,3 +178,82 @@ def render_simple_entry(
 
 def _escape_metadata(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', "'").replace("\n", " ")[:200]
+
+
+def render_pad_balance(
+    *,
+    opening_date: date,
+    source_account: str,
+    opening_balance: Decimal,
+    currency: str,
+    pad_from_account: str = "Equity:Opening-Balances",
+) -> list[BeancountEntry]:
+    """Render the two directives that anchor an account's opening balance.
+
+    Beancount semantics: a ``pad`` directive at date D inserts a balancing
+    transaction *immediately before* the following ``balance`` assertion
+    on the same account. So we emit:
+
+        D-1 pad     <account>  <pad_from_account>
+        D   balance <account>  <opening_balance> <currency>
+
+    The pad is dated one day before the balance to ensure Beancount inserts
+    the synthetic transaction before any other postings on date D. Both
+    directives are returned as separate BeancountEntry objects so the
+    ingest layer can sort them with everything else by posting_date.
+    """
+    pad_date = date.fromordinal(opening_date.toordinal() - 1)
+    pad_text = (
+        f"{pad_date.isoformat()} pad {source_account} {pad_from_account}\n"
+    )
+    balance_text = (
+        f"{opening_date.isoformat()} balance {source_account:<55} "
+        f"{opening_balance:>14.2f} {currency}\n"
+    )
+    return [
+        BeancountEntry(
+            text=pad_text,
+            posting_date=pad_date,
+            source_account=source_account,
+            counter_account=pad_from_account,
+            amount=None,
+            currency=currency,
+        ),
+        BeancountEntry(
+            text=balance_text,
+            posting_date=opening_date,
+            source_account=source_account,
+            counter_account="",
+            amount=opening_balance,
+            currency=currency,
+        ),
+    ]
+
+
+def render_closing_balance_assertion(
+    *,
+    closing_date: date,
+    source_account: str,
+    closing_balance: Decimal,
+    currency: str,
+) -> BeancountEntry:
+    """Render a `balance` directive that asserts the period-end balance.
+
+    Dated the day AFTER the closing date, because Beancount's `balance`
+    assertion checks the balance AT THE START OF THE GIVEN DAY, which
+    means we want it to fire after all of the closing-day transactions
+    have settled.
+    """
+    assert_date = date.fromordinal(closing_date.toordinal() + 1)
+    text = (
+        f"{assert_date.isoformat()} balance {source_account:<55} "
+        f"{closing_balance:>14.2f} {currency}\n"
+    )
+    return BeancountEntry(
+        text=text,
+        posting_date=assert_date,
+        source_account=source_account,
+        counter_account="",
+        amount=closing_balance,
+        currency=currency,
+    )

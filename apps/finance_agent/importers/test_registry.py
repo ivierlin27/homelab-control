@@ -40,11 +40,9 @@ def test_get_importer_unknown_slug_raises_keyerror() -> None:
         get_importer("definitely-not-a-real-bank")
 
 
-def test_pre_parser_stub_raises_notimplemented_on_extract(tmp_path) -> None:
-    """F4a stub: BMO PDF extraction is deferred to F4b."""
+def test_pre_parser_can_handle_only_pdf_files() -> None:
     pre_parser, _ = get_importer(INSTITUTION_BMO_JOINT_CHEQUING)
-    # can_handle returns False until F4b implements it
-    assert pre_parser.can_handle("anything.pdf") is False
-    # extract explicitly says "F4b"
-    with pytest.raises(NotImplementedError, match="F4b"):
-        pre_parser.extract(str(tmp_path / "fake.pdf"))
+    assert pre_parser.can_handle("statement.pdf") is True
+    assert pre_parser.can_handle("statement.PDF") is True
+    assert pre_parser.can_handle("statement.csv") is False
+    assert pre_parser.can_handle(b"%PDF-1.4") is False  # bytes not supported

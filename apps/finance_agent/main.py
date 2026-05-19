@@ -108,6 +108,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             ledger_dir=Path(args.ledger_dir).expanduser(),
             audit_path=Path(args.audit_path).expanduser() if args.audit_path else DEFAULT_AUDIT_PATH,
             run_bean_check=not args.skip_bean_check,
+            statement_year=args.statement_year,
         )
     except IngestError as exc:
         print(f"ingest failed: {exc}", file=sys.stderr)
@@ -179,6 +180,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-bean-check",
         action="store_true",
         help="skip post-ingest bean-check (default: run if available)",
+    )
+    ingest.add_argument(
+        "--statement-year",
+        type=int,
+        default=None,
+        help=(
+            "year to anchor undated transactions (e.g. BMO PDFs don't put "
+            "year on each line). Default: inferred from filename if it "
+            "contains exactly one 20xx token."
+        ),
     )
     ingest.add_argument(
         "--list-institutions",

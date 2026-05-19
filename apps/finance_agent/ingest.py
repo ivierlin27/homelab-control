@@ -86,6 +86,7 @@ def ingest_file(
     ledger_dir: Path = DEFAULT_LEDGER_DIR,
     audit_path: Path = DEFAULT_AUDIT_PATH,
     run_bean_check: bool = True,
+    statement_year: int | None = None,
     # Injection points for tests:
     get_importer_fn: Callable[[str], tuple[PreParser, Importer]] = get_importer,
     bean_check_cmd: str = "bean-check",
@@ -108,15 +109,22 @@ def ingest_file(
 
     pre_parser, importer = get_importer_fn(institution)
 
+    # F4b: allow CLI to push a statement_year override down into pre-parsers
+    # that need it. We only set the attribute if the pre-parser declares it
+    # (duck-typed); pre-parsers that don't need a year just ignore us.
+    if statement_year is not None and hasattr(pre_parser, "statement_year"):
+        pre_parser.statement_year = statement_year
+
     try:
-        txns = pre_parser.extract(str(file_path))
+        extract = pre_parser.extract(str(file_path))
     except NotImplementedError as exc:
-        # F4a stub path. Re-raise as IngestError so the CLI surfaces it
-        # cleanly with exit code 2 (operator should know this is expected
-        # for institutions whose PDF extractor isn't written yet).
+        # Stub path: surface as IngestError with a friendly message and
+        # exit code 2 so the operator knows this is a "not yet wired"
+        # situation, not a runtime failure.
         raise IngestError(f"{institution}: pre-parser not yet implemented — {exc}") from exc
 
-    entries = importer.render(txns)
+    entries = importer.render(extract)
+    txn_count = len(extract.transactions)
 
     transactions_path = ledger_dir / TRANSACTIONS_FILENAME
     _append_entries(transactions_path, entries)
@@ -137,6 +145,9 @@ def ingest_file(
         source_account=importer.source_account,
         file_path=file_path,
         entry_count=len(entries),
+        txn_count=txn_count,
+        opening_balance=str(extract.opening_balance) if extract.opening_balance is not None else None,
+        closing_balance=str(extract.closing_balance) if extract.closing_balance is not None else None,
         bean_check_passed=bean_ok if bean_ran else None,
         ts=now(),
     )
@@ -236,6 +247,9 @@ def _write_audit_row(
     source_account: str,
     file_path: Path,
     entry_count: int,
+    txn_count: int = 0,
+    opening_balance: str | None = None,
+    closing_balance: str | None = None,
     bean_check_passed: bool | None,
     ts: datetime,
 ) -> None:
@@ -260,6 +274,9 @@ def _write_audit_row(
             "file": str(file_path),
             "file_name": file_path.name,
             "entry_count": entry_count,
+            "txn_count": txn_count,
+            "opening_balance": opening_balance,
+            "closing_balance": closing_balance,
             "bean_check_passed": bean_check_passed,
             "ingested_at": ts.isoformat(),
         }
