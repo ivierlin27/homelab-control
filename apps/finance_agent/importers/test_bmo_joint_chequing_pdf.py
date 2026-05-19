@@ -29,6 +29,7 @@ from apps.finance_agent.importers.base import PreParserError
 from apps.finance_agent.importers.bmo_joint_chequing_pdf import (
     BmoJointChequingImporter,
     BmoJointChequingPdfPreParser,
+    find_period_end_date,
     infer_statement_year_from_filename,
     parse_statement_text,
     resolve_signs,
@@ -36,6 +37,7 @@ from apps.finance_agent.importers.bmo_joint_chequing_pdf import (
 
 
 FIXTURE_PDF_TEXT = """\
+For the period ending April 1, 2024
 PrimaryChequingAccount#4-969
 Owners:
 MRSJANEDOE,
@@ -156,7 +158,9 @@ def test_resolve_signs_assigns_debit_and_credit_correctly() -> None:
     assert signed[2].amount == Decimal("10000.00")
     # Final closing balance comes from last txn's running balance
     assert closing_balance == Decimal("11649.75")
-    assert closing_date == date(2024, 3, 30)
+    # Closing date prefers the period_end_date from "For the period ending Apr 1, 2024"
+    # over the last txn's date (Mar 30, 2024).
+    assert closing_date == date(2024, 4, 1)
 
 
 def test_resolve_signs_raises_on_balance_drift() -> None:
@@ -178,6 +182,54 @@ def test_resolve_signs_currency_is_propagated() -> None:
     parsed = parse_statement_text(FIXTURE_PDF_TEXT, anchor_year=2024)
     signed, _, _ = resolve_signs(parsed, currency="CAD")
     assert all(t.currency == "CAD" for t in signed)
+
+
+# --- find_period_end_date -------------------------------------------------
+
+
+def test_find_period_end_date_canonical_format() -> None:
+    """The exact line Kevin reported from a real BMO statement."""
+    assert find_period_end_date("For the period ending April 18, 2022") == date(
+        2022, 4, 18
+    )
+
+
+def test_find_period_end_date_no_comma() -> None:
+    assert find_period_end_date("For the period ending May 1 2023") == date(2023, 5, 1)
+
+
+def test_find_period_end_date_case_insensitive() -> None:
+    assert find_period_end_date("for THE period ending MARCH 31, 2024") == date(
+        2024, 3, 31
+    )
+
+
+def test_find_period_end_date_glued_words() -> None:
+    """pdfplumber may strip inter-word spaces in some PDFs."""
+    assert find_period_end_date("Fortheperiodending April1,2024") == date(2024, 4, 1)
+
+
+def test_find_period_end_date_returns_none_when_absent() -> None:
+    assert find_period_end_date("just some other text\nMar20 Openingbalance 1.00") is None
+
+
+def test_find_period_end_date_returns_first_match_when_multiple() -> None:
+    text = "For the period ending April 1, 2024\nFor the period ending May 1, 2024"
+    assert find_period_end_date(text) == date(2024, 4, 1)
+
+
+def test_parse_statement_text_uses_period_year_over_anchor() -> None:
+    """If the period line is present, its year overrides anchor_year."""
+    text = (
+        "For the period ending April 1, 2024\n"
+        "Mar20 Openingbalance 100.00\n"
+        "Mar21 Foo 10.00 90.00\n"
+    )
+    # Operator passes wrong year as anchor; period line wins.
+    result = parse_statement_text(text, anchor_year=1999)
+    assert result.period_end_date == date(2024, 4, 1)
+    assert result.opening_date == date(2024, 3, 20)
+    assert result.raw_txns[0].posting_date == date(2024, 3, 21)
 
 
 # --- infer_statement_year_from_filename -----------------------------------
@@ -232,8 +284,9 @@ def test_importer_render_includes_pad_and_balance_directives() -> None:
 
     # The pad date is one day BEFORE the opening date (Mar 18)
     assert "2024-03-18 pad" in all_text
-    # Closing balance assertion is dated one day AFTER last txn (Mar 31)
-    assert "2024-03-31 balance" in all_text
+    # Closing balance assertion is dated one day AFTER closing_date.
+    # closing_date here is the period_end (Apr 1), so assertion is Apr 2.
+    assert "2024-04-02 balance" in all_text
 
 
 # --- PreParser surface ----------------------------------------------------
@@ -252,9 +305,21 @@ def test_preparser_rejects_bytes_input() -> None:
         p.extract(b"%PDF-1.4")
 
 
-def test_preparser_raises_if_year_cannot_be_inferred(tmp_path) -> None:
+def test_preparser_raises_if_year_cannot_be_inferred(tmp_path, monkeypatch) -> None:
+    """Year inference falls back through period-line → filename → flag.
+    With no period line in the PDF AND no year in the filename, the
+    pre-parser must refuse rather than silently guess.
+    """
     pdf = tmp_path / "no-year-in-name.pdf"
     pdf.write_bytes(b"%PDF-1.4")
+    # Stub PDF extraction to bypass pdfplumber and return text with no
+    # period line, no transactions — just enough to reach year resolution.
+    monkeypatch.setattr(
+        BmoJointChequingPdfPreParser,
+        "_extract_pdf_text",
+        staticmethod(lambda _path: "PrimaryChequingAccount#4-969\n"),
+    )
+
     p = BmoJointChequingPdfPreParser()
     with pytest.raises(PreParserError, match="statement year"):
         p.extract(str(pdf))
@@ -296,12 +361,12 @@ def test_preparser_happy_path_with_stubbed_pdf_text(tmp_path, monkeypatch) -> No
         staticmethod(lambda _path: FIXTURE_PDF_TEXT),
     )
 
-    p = BmoJointChequingPdfPreParser()  # year inferred from filename
+    p = BmoJointChequingPdfPreParser()  # year inferred from period line in PDF
     extract = p.extract(str(pdf))
 
     assert extract.opening_balance == Decimal("1000.00")
     assert extract.opening_date == date(2024, 3, 19)
     assert extract.closing_balance == Decimal("11649.75")
-    assert extract.closing_date == date(2024, 3, 30)
+    assert extract.closing_date == date(2024, 4, 1)  # period_end, not last txn
     assert len(extract.transactions) == 6
     assert extract.statement_id == "bmo-2024-03"

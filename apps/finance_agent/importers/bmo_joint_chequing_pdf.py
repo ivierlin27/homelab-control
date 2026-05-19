@@ -86,6 +86,24 @@ _CLOSING_LINE_RE = re.compile(
     r"Closingtotals\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}\s*$"
 )
 
+# Statement period footer/header: "For the period ending April 18, 2022"
+# pdfplumber may or may not preserve inter-word whitespace; \s* between
+# every word accommodates both layouts. Months are spelled out in full
+# (April, not Apr) per real BMO output. Search (not match) because the
+# line may have leading boilerplate.
+_FULL_MONTHS = {
+    "January": 1, "February": 2, "March": 3, "April": 4, "May": 5,
+    "June": 6, "July": 7, "August": 8, "September": 9, "October": 10,
+    "November": 11, "December": 12,
+}
+_PERIOD_LINE_RE = re.compile(
+    r"For\s*the\s*period\s*ending\s+"
+    r"(?P<month>" + "|".join(_FULL_MONTHS.keys()) + r")\s*"
+    r"(?P<day>\d{1,2}),?\s*"
+    r"(?P<year>\d{4})",
+    re.IGNORECASE,
+)
+
 # Lines that should be silently dropped (statement boilerplate / page chrome).
 # Each entry is a regex that matches the WHOLE line (after .strip()).
 _NOISE_PATTERNS = [
@@ -138,6 +156,25 @@ class _ParseResult:
     opening_date: Optional[date]
     opening_balance: Optional[Decimal]
     raw_txns: list[_RawTxn] = field(default_factory=list)
+    period_end_date: Optional[date] = None  # from "For the period ending ..."
+
+
+def find_period_end_date(text: str) -> Optional[date]:
+    """Return the period-ending date from a 'For the period ending ...' line.
+
+    Searches the whole text (case-insensitive) for the first match.
+    Returns None if not found — caller then falls back to filename year
+    inference or the --statement-year CLI override.
+    """
+    m = _PERIOD_LINE_RE.search(text)
+    if not m:
+        return None
+    month_word = m.group("month").lower().capitalize()
+    return date(
+        int(m.group("year")),
+        _FULL_MONTHS[month_word],
+        int(m.group("day")),
+    )
 
 
 def _is_noise(line: str) -> bool:
@@ -165,12 +202,20 @@ def _derive_year(prior_month: Optional[int], txn_month: int, anchor_year: int) -
 def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
     """Parse the pdfplumber text dump of one BMO chequing statement.
 
-    Returns the opening balance + raw (unsigned) transactions. Sign
-    resolution and conversion to ExtractedTransaction happens in
-    :func:`resolve_signs`.
+    Returns the opening balance + raw (unsigned) transactions + (optionally)
+    the period-end date. Sign resolution and conversion to
+    ExtractedTransaction happens in :func:`resolve_signs`.
+
+    If the text contains a "For the period ending <date>" line, the year
+    from that line overrides ``anchor_year`` (the period line is the
+    authoritative source — filename inference is the fallback).
 
     Raises ``PreParserError`` if no opening balance line is found.
     """
+    period_end_date = find_period_end_date(text)
+    if period_end_date is not None:
+        anchor_year = period_end_date.year
+
     opening_date: Optional[date] = None
     opening_balance: Optional[Decimal] = None
     raw_txns: list[_RawTxn] = []
@@ -239,6 +284,7 @@ def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
         opening_date=opening_date,
         opening_balance=opening_balance,
         raw_txns=raw_txns,
+        period_end_date=period_end_date,
     )
 
 
@@ -282,7 +328,13 @@ def resolve_signs(
         running = raw.balance
 
     closing_balance = parse_result.raw_txns[-1].balance if parse_result.raw_txns else None
-    closing_date = parse_result.raw_txns[-1].posting_date if parse_result.raw_txns else None
+    # Prefer the authoritative period-end date if present; otherwise fall
+    # back to the last transaction's date. The closing balance assertion
+    # in the importer is dated D+1 either way (so bean-check fires after
+    # all postings on the closing day have settled).
+    closing_date = parse_result.period_end_date or (
+        parse_result.raw_txns[-1].posting_date if parse_result.raw_txns else None
+    )
     return signed, closing_balance, closing_date
 
 
@@ -324,14 +376,24 @@ class BmoJointChequingPdfPreParser:
         if not path.is_file():
             raise PreParserError(f"PDF not found: {path}")
 
-        year = self.statement_year or infer_statement_year_from_filename(path.name)
+        text = self._extract_pdf_text(path)
+
+        # Year resolution priority (highest wins):
+        #   1. --statement-year CLI override
+        #   2. "For the period ending <date>" line in the PDF (authoritative)
+        #   3. 4-digit year token in filename (best-effort)
+        year = self.statement_year
+        if year is None:
+            period_end = find_period_end_date(text)
+            if period_end is not None:
+                year = period_end.year
+        if year is None:
+            year = infer_statement_year_from_filename(path.name)
         if year is None:
             raise PreParserError(
-                f"could not infer statement year from filename {path.name!r}; "
-                "pass --statement-year YYYY"
+                f"could not infer statement year from {path.name!r} (no period "
+                "line found in PDF, no 20xx in filename); pass --statement-year YYYY"
             )
-
-        text = self._extract_pdf_text(path)
 
         # Account-number verification: refuse to import if the PDF doesn't
         # contain our expected account suffix. Defense against operator
