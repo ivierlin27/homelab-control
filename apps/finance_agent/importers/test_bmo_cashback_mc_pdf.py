@@ -141,6 +141,28 @@ def test_parse_statement_text_filters_noise() -> None:
     assert "Page" not in descs
 
 
+def test_parse_statement_text_handles_concatenated_dates() -> None:
+    """pdfplumber sometimes joins the trans-date and posting-date into a
+    single token when both days are two digits. Real example from
+    2025-12-19.pdf had 27 such lines. The inter-date whitespace is `\\s*`
+    so the digit→letter boundary acts as the implicit separator."""
+    text = (
+        "PreviousBalance,Nov.19,2025 $0.00\n"
+        "NewBalance,Dec.19,2025 $2,522.59\n"
+        "PERIODCOVEREDBYTHISSTATEMENT\n"
+        "Nov.20,2025-Dec.19,2025\n"
+        "Dec. 10Dec. 10 AUTOMATIC PYMT RECEIVED 2,522.59 CR\n"
+        "Dec. 11Dec. 12 SOME PURCHASE 50.00\n"
+    )
+    result = parse_statement_text(text)
+    assert len(result.raw_txns) == 2
+    assert result.raw_txns[0].posting_date == date(2025, 12, 10)
+    assert result.raw_txns[0].cr_flag is True
+    assert result.raw_txns[0].amount == Decimal("2522.59")
+    assert result.raw_txns[1].posting_date == date(2025, 12, 12)
+    assert result.raw_txns[1].amount == Decimal("50.00")
+
+
 def test_parse_statement_text_handles_txn_without_reference_number() -> None:
     """System-posted lines like INTERESTPURCHASES have no reference number
     — just dates + description + amount. Real example: 2022-10-19.pdf

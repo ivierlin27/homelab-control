@@ -155,7 +155,13 @@ _PERIOD_ANCHOR_RE = re.compile(
 # tokens; ref-no is a long digit string (10-12 digits). Amount has the
 # usual decimal-comma format. CR suffix marks credits/payments.
 _TXN_LINE_RE = re.compile(
-    rf"^(?P<tm>{_MONTH_PATTERN})\.?\s*(?P<td>\d{{1,2}})\s+"
+    # Two dates back-to-back. The space between them is `\s*` (NOT `\s+`)
+    # because pdfplumber sometimes concatenates them when both days are
+    # two digits — real example from 2025-12-19.pdf:
+    # "Dec. 10Dec. 10 AUTOMATIC PYMT RECEIVED 2,522.59 CR" (27 such lines
+    # in that single statement). The digit→letter boundary acts as the
+    # implicit separator in that case.
+    rf"^(?P<tm>{_MONTH_PATTERN})\.?\s*(?P<td>\d{{1,2}})\s*"
     rf"(?P<pm>{_MONTH_PATTERN})\.?\s*(?P<pd>\d{{1,2}})\s+"
     # Non-greedy desc anchored from the right by optional-ref + amount.
     # Ref is alphanumeric 6-20 chars REQUIRING at least one digit (lookahead
