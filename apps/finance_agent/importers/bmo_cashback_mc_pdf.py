@@ -448,7 +448,23 @@ class BmoCashbackMcPdfPreParser:
         # opening/closing in Beancount liability convention (negative).
         opening_balance = -summary.previous_balance if summary.previous_balance is not None else None
         closing_balance = -summary.new_balance if summary.new_balance is not None else None
-        opening_date = summary.previous_date or summary.period_start
+
+        # IMPORTANT date-semantic difference vs the chequing parser:
+        # chequing's "Openingbalance" line is dated the FIRST day of the
+        # new period (so opening assertion fires at start of that day,
+        # before any new-period transactions). MC's "PreviousBalance"
+        # line is dated the LAST day of the PRIOR period (so the value
+        # is end-of-day for that prior day). Beancount assertions fire
+        # at START of the dated day, so to assert "balance at end of
+        # PreviousBalance date" we need to date the assertion ONE DAY
+        # LATER — which is exactly the period_start. Without this shift,
+        # the opening assertion overlaps with end-of-day txns on
+        # previous_date and conflicts with the prior statement's
+        # closing assertion (which we DO emit at period_end + 1).
+        opening_date = summary.period_start
+        if opening_date is None and summary.previous_date is not None:
+            from datetime import timedelta
+            opening_date = summary.previous_date + timedelta(days=1)
         closing_date = summary.new_date or summary.period_end
 
         return StatementExtract(

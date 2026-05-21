@@ -236,6 +236,8 @@ def test_preparser_full_pipeline_with_stubbed_pdf(tmp_path, monkeypatch) -> None
     # opening and closing in Beancount liability convention (negative)
     assert extract.opening_balance == Decimal("-402.23")
     assert extract.closing_balance == Decimal("-250.00")
-    assert extract.opening_date == date(2021, 12, 19)
+    # opening_date is period_start (Dec 20), NOT previous_date (Dec 19).
+    # See the PreParser comment for why — Beancount assertion semantics.
+    assert extract.opening_date == date(2021, 12, 20)
     assert extract.closing_date == date(2022, 1, 19)
     assert extract.statement_id == "bmo-mc-2022-01"
