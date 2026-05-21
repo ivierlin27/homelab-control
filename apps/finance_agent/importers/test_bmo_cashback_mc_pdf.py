@@ -201,6 +201,23 @@ Page 3 of 4
 """
 
 
+def test_parse_summary_handles_previous_total_balance_variant() -> None:
+    """Oct 2023+ statements use 'Previous total balance, ...' with an
+    extra 'total' word between 'Previous' and 'balance'. Real example:
+    2023-10-19.pdf."""
+    text = (
+        "Previous total balance, Sep. 19, 2023 $1,223.42 "
+        "Statement date Oct. 19, 2023\n"
+        "Total balance $4,743.65\n"
+        "Statement period Sep. 20, 2023 - Oct. 19, 2023\n"
+    )
+    s = parse_summary(text)
+    assert s.previous_balance == Decimal("1223.42")
+    assert s.previous_date == date(2023, 9, 19)
+    assert s.new_balance == Decimal("4743.65")
+    assert s.new_date == date(2023, 10, 19)
+
+
 def test_new_template_parse_summary() -> None:
     s = parse_summary(NEW_TEMPLATE_FIXTURE)
     assert s.previous_balance == Decimal("899.74")

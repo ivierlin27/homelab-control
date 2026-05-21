@@ -107,8 +107,11 @@ _MONTH_PATTERN = "|".join(_MONTHS.keys())
 #
 # The `\s*` between label words + `\.?\s*` in every date pattern absorb both
 # the no-spaces (old) and spaced (new) variants in a single regex.
+# BMO also ships a "Previous total balance, ..." variant (seen Oct 2023+)
+# — extra word between "Previous" and "balance". Tolerate optional middle
+# words via `(?:\w+\s+)*`.
 _PREV_BAL_RE = re.compile(
-    rf"Previous\s*Balance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
+    rf"Previous\s*(?:\w+\s+)*Balance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})\s+\$?(?P<amount>[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
