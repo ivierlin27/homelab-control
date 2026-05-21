@@ -141,6 +141,26 @@ def test_parse_statement_text_filters_noise() -> None:
     assert "Page" not in descs
 
 
+def test_parse_statement_text_handles_txn_without_reference_number() -> None:
+    """System-posted lines like INTERESTPURCHASES have no reference number
+    — just dates + description + amount. Real example: 2022-10-19.pdf
+    contains "Oct.19 Oct.19 INTERESTPURCHASES 48.48" which broke the
+    first regex pass."""
+    text = (
+        "PreviousBalance,Sep.19,2022 $100.00\n"
+        "NewBalance,Oct.19,2022 $148.48\n"
+        "PERIODCOVEREDBYTHISSTATEMENT\n"
+        "Sep.20,2022-Oct.19,2022\n"
+        "Oct.19 Oct.19 INTERESTPURCHASES 48.48\n"
+    )
+    result = parse_statement_text(text)
+    assert len(result.raw_txns) == 1
+    assert result.raw_txns[0].description == "INTERESTPURCHASES"
+    assert result.raw_txns[0].amount == Decimal("48.48")
+    assert result.raw_txns[0].cr_flag is False
+    assert result.raw_txns[0].posting_date == date(2022, 10, 19)
+
+
 def test_parse_statement_text_raises_if_no_period_end() -> None:
     bare = (
         "BMOCashBackMastercard\n"

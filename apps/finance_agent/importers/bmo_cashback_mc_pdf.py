@@ -122,12 +122,13 @@ _PERIOD_RANGE_RE = re.compile(
 _TXN_LINE_RE = re.compile(
     rf"^(?P<tm>{_MONTH_PATTERN})\.?\s*(?P<td>\d{{1,2}})\s+"
     rf"(?P<pm>{_MONTH_PATTERN})\.?\s*(?P<pd>\d{{1,2}})\s+"
-    # Greedy desc anchored from the right by ref + amount. The ref token
-    # accepts alphanumerics + hyphens (BMO uses both: pure-digit ref like
-    # "004011680156" for purchases, alphanumeric like "S670159OBPP" for
-    # internal transfers). 6-20 chars covers both.
-    r"(?P<desc>.+)\s+"
-    r"(?P<ref>[A-Za-z0-9]{6,20})\s+"
+    # Greedy desc anchored from the right by optional-ref + amount. Ref is
+    # alphanumeric 6-20 chars (BMO purchases use pure-digit IDs like
+    # "004011680156", internal transfers use mixed like "S670159OBPP").
+    # System-posted lines like INTERESTPURCHASES have NO reference, hence
+    # the (?:...)? wrapper makes the whole ref+space group optional.
+    r"(?P<desc>.+?)"
+    r"\s+(?:(?P<ref>[A-Za-z0-9]{6,20})\s+)?"
     r"(?P<amount>[\d,]+\.\d{2})(?P<cr>CR)?\s*$"
 )
 
