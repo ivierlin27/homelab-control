@@ -91,26 +91,60 @@ _MONTHS = {
 }
 _MONTH_PATTERN = "|".join(_MONTHS.keys())
 
-# Header balance lines.
-# Old RBC layout has labels concatenated (no spaces); newer too. The
-# `\s*` between label words tolerates both forms defensively.
+# Header balance lines. Three real-world variants seen across template
+# generations:
+#
+#   Oct 2022 - Dec 2022 (concatenated labels):
+#     PREVIOUSACCOUNTBALANCE $1,274.94
+#     NEW BALANCE $1,089.09
+#     TOTALACCOUNTBALANCE $1,089.09
+#
+#   Jan 2023 - early 2026 (concatenated labels, same as old):
+#     PREVIOUSACCOUNTBALANCE $...   NEW BALANCE $...
+#
+#   April 2026+ (Visa Infinite redesign — spaced labels, NEW BALANCE
+#   replaced by "Total Account Balance" or "CREDIT BALANCE -$X"; CREDIT
+#   BALANCE appears when overpaid and shows as a NEGATIVE dollar amount):
+#     PREVIOUS ACCOUNT BALANCE $1,589.31
+#     Total Account Balance -$20.46
+#     CREDIT BALANCE -$20.46
+#
+# All three regexes anchor to start-of-line via `^` + re.MULTILINE so
+# they don't false-match body-text phrases like "your New Balance" in
+# disclaimer paragraphs. The amount form `(?:-)?\$?(?:-)?[\d,]+\.\d{2}`
+# accepts $X, -$X, -X (any sign-prefix combination) and the post-capture
+# code normalizes the sign.
+_BALANCE_AMOUNT = r"(?P<sign>-)?\$?(?P<absamount>[\d,]+\.\d{2})"
+
 _PREV_BAL_RE = re.compile(
-    r"PREVIOUS\s*ACCOUNT\s*BALANCE\s+\$?(?P<amount>-?[\d,]+\.\d{2})",
-    re.IGNORECASE,
+    rf"^PREVIOUS\s*ACCOUNT\s*BALANCE\s+{_BALANCE_AMOUNT}",
+    re.IGNORECASE | re.MULTILINE,
 )
-# "NEW BALANCE" (with space) AND "NEWBALANCE" (no space) appear on the same
-# statement — the spaced form is on page 1 in the summary box, the joined
-# form sometimes appears on the payment slip.
 _NEW_BAL_RE = re.compile(
-    r"\bNEW\s*BALANCE\s+\$?(?P<amount>-?[\d,]+\.\d{2})",
-    re.IGNORECASE,
+    rf"^NEW\s*BALANCE\s+{_BALANCE_AMOUNT}",
+    re.IGNORECASE | re.MULTILINE,
 )
-# Fallback: "TOTALACCOUNTBALANCE $X" should equal NEW BALANCE — use only
-# if NEW BALANCE is missing.
+# Fallback closing-balance sources, in order of preference. April 2026+
+# statements have "Total Account Balance" (mixed case) on the summary
+# line instead of "NEW BALANCE". CREDIT BALANCE appears when overpaid
+# (RBC owes you) and the amount is negative — same numeric value as
+# Total Account Balance in that case, so either suffices.
 _TOTAL_BAL_RE = re.compile(
-    r"TOTAL\s*ACCOUNT\s*BALANCE\s+\$?(?P<amount>-?[\d,]+\.\d{2})",
-    re.IGNORECASE,
+    rf"^Total\s*Account\s*Balance\s+{_BALANCE_AMOUNT}",
+    re.IGNORECASE | re.MULTILINE,
 )
+_CREDIT_BAL_RE = re.compile(
+    rf"^CREDIT\s*BALANCE\s+{_BALANCE_AMOUNT}",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _signed_balance(match: "re.Match[str]") -> Decimal:
+    """Apply the optional sign prefix to the absolute amount."""
+    val = _to_decimal(match.group("absamount"))
+    if match.group("sign"):
+        val = -val
+    return val
 
 # Period line — two formats seen in real RBC statements:
 #   Old (Oct 2022-Dec 2022): "STATEMENTFROMSEP21TOOCT11,2022"
@@ -190,15 +224,16 @@ def parse_summary(text: str) -> _Summary:
 
     m = _PREV_BAL_RE.search(text)
     if m:
-        previous_balance = _to_decimal(m.group("amount"))
+        previous_balance = _signed_balance(m)
 
-    m = _NEW_BAL_RE.search(text)
-    if m:
-        new_balance = _to_decimal(m.group("amount"))
-    else:
-        m = _TOTAL_BAL_RE.search(text)
+    # Closing-balance source order: NEW BALANCE → Total Account Balance →
+    # CREDIT BALANCE. Older templates have NEW BALANCE; Apr 2026+ has only
+    # the Total/Credit variants.
+    for regex in (_NEW_BAL_RE, _TOTAL_BAL_RE, _CREDIT_BAL_RE):
+        m = regex.search(text)
         if m:
-            new_balance = _to_decimal(m.group("amount"))
+            new_balance = _signed_balance(m)
+            break
 
     m = _PERIOD_RE.search(text)
     if m:

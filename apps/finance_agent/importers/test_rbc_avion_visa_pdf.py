@@ -103,6 +103,36 @@ def test_parse_summary_falls_back_to_total_account_balance() -> None:
     assert s.new_balance == Decimal("1089.09")
 
 
+def test_parse_summary_handles_apr_2026_visa_infinite_layout() -> None:
+    """The April 2026 Visa Infinite redesign removes the NEW BALANCE line
+    entirely. Closing balance comes from 'Total Account Balance -$20.46'
+    (mixed case, spaced label, NEGATIVE because user has credit on the
+    account from overpayment). Body text contains 'your New Balance...'
+    phrases that must NOT false-match the NEW BALANCE regex."""
+    text = (
+        "PREVIOUS ACCOUNT BALANCE $1,589.31\n"
+        "your New Balance in full by your Payment Due Date\n"  # body noise
+        "Total Account Balance -$20.46\n"
+        "CREDIT BALANCE -$20.46\n"
+    )
+    s = parse_summary(text)
+    assert s.previous_balance == Decimal("1589.31")
+    assert s.new_balance == Decimal("-20.46")    # credit balance — RBC owes us
+
+
+def test_parse_summary_anchors_balance_regexes_to_line_start() -> None:
+    """Disclaimer body text frequently mentions 'New Balance' and
+    'previous account balance' without dollar amounts attached, but
+    sometimes near unrelated numbers. The anchor + amount-required regex
+    must not match those — only the actual summary lines."""
+    text = (
+        "Your previous account balance plus charges equals $999.99 owed\n"
+        "PREVIOUS ACCOUNT BALANCE $42.00\n"
+    )
+    s = parse_summary(text)
+    assert s.previous_balance == Decimal("42.00")  # not 999.99
+
+
 # --- txn parsing ----------------------------------------------------------
 
 
