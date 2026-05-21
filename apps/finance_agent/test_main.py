@@ -150,6 +150,29 @@ def test_main_ingest_unknown_institution_exits_2(
     assert "unknown institution" in err
 
 
+def test_package_entrypoint_subprocess(tmp_path: Path) -> None:
+    """`python -m apps.finance_agent` (no `.main`) works via __main__.py."""
+    repo_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "apps.finance_agent",
+            "--skip-boot",
+            "status",
+            "--ledger-dir",
+            str(tmp_path),
+        ],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == (
+        f"{DEFAULT_PRINCIPAL} {VERSION_LABEL} — no ledger initialized"
+    )
+
+
 def test_module_entrypoint_subprocess(tmp_path: Path) -> None:
     """Mirror the acceptance invocation. Validates packaging/__main__-ish wiring.
 
