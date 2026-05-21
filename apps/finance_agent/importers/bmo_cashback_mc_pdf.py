@@ -85,33 +85,65 @@ _MONTH_PATTERN = "|".join(_MONTHS.keys())
 # Balance summary lines.
 # "PreviousBalance,Oct.19,2021 $402.23"
 # "NewBalance,Nov.19,2021 $2,190.30"
-# BMO is inconsistent about the period after the month abbreviation: most
-# statements use "Oct.19,2021" but some say "May19,2022" (no period). The
-# `\.?\s*` in every date regex makes the period optional.
+# BMO has shipped at least two template generations on the Cash Back MC and
+# is inconsistent within each. To handle both:
+#
+#   Old layout (Sep 2021 - Jan 2023):
+#     PreviousBalance,Oct.19,2021 $402.23
+#     NewBalance,Nov.19,2021 $2,190.30
+#     PERIODCOVEREDBYTHISSTATEMENT
+#     Oct.20,2021-Nov.19,2021
+#     StatementDate Nov.19,2021      (or "May19,2022" without the period)
+#     CardNumber 5191230213430706
+#
+#   New layout (Feb 2023+):
+#     Previous balance, Jan. 19, 2023 $899.74 Statement date Feb. 19, 2023
+#     Total balance $722.04                       (no date, paired with stmt date)
+#     Statement period Jan. 20, 2023 - Feb. 19, 2023
+#     Card number XXXX XXXX XXXX 0706
+#     <txns from card 0706 section>
+#     Card number: XXXX XXXX XXXX 4004 JENNIFER MOORE
+#     <txns from card 4004 section — same source account, joint billing>
+#
+# The `\s*` between label words + `\.?\s*` in every date pattern absorb both
+# the no-spaces (old) and spaced (new) variants in a single regex.
 _PREV_BAL_RE = re.compile(
-    rf"PreviousBalance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
+    rf"Previous\s*Balance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})\s+\$?(?P<amount>[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
 _NEW_BAL_RE = re.compile(
-    rf"NewBalance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
+    rf"New\s*Balance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})\s+\$?(?P<amount>[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
 
-# Statement date line (fallback for closing date if NewBalance line missing).
-# "StatementDate Nov.19,2021" or "StatementDate May19,2022"
+# New-template fallback: "Total balance $722.04" with no date — closing date
+# must be sourced from the Statement-date line instead.
+_TOTAL_BAL_RE = re.compile(
+    r"Total\s+balance\s+\$?(?P<amount>[\d,]+\.\d{2})",
+    re.IGNORECASE,
+)
+
+# Statement date line. Old: "StatementDate Nov.19,2021". New:
+# "Statement date Feb. 19, 2023".
 _STMT_DATE_RE = re.compile(
-    rf"StatementDate\s*:?\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
+    rf"Statement\s*date\s*:?\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})",
     re.IGNORECASE,
 )
 
-# Period line — appears below the literal "PERIODCOVEREDBYTHISSTATEMENT" header.
-# "Oct.20,2021-Nov.19,2021" or "Apr.20,2022-May19,2022"
+# Period range. Old: bare "Oct.20,2021-Nov.19,2021" under the
+# "PERIODCOVEREDBYTHISSTATEMENT" header. New: "Statement period
+# Jan. 20, 2023 - Feb. 19, 2023" inline. Regex matches both anywhere
+# in the text; parse_summary scopes the search to the relevant anchor.
 _PERIOD_RANGE_RE = re.compile(
     rf"(?P<m1>{_MONTH_PATTERN})\.?\s*(?P<d1>\d{{1,2}}),\s*(?P<y1>\d{{4}})\s*-\s*"
     rf"(?P<m2>{_MONTH_PATTERN})\.?\s*(?P<d2>\d{{1,2}}),\s*(?P<y2>\d{{4}})"
+)
+_PERIOD_ANCHOR_RE = re.compile(
+    r"PERIODCOVEREDBYTHISSTATEMENT|Statement\s*period",
+    re.IGNORECASE,
 )
 
 # Transaction line:
@@ -122,72 +154,100 @@ _PERIOD_RANGE_RE = re.compile(
 _TXN_LINE_RE = re.compile(
     rf"^(?P<tm>{_MONTH_PATTERN})\.?\s*(?P<td>\d{{1,2}})\s+"
     rf"(?P<pm>{_MONTH_PATTERN})\.?\s*(?P<pd>\d{{1,2}})\s+"
-    # Greedy desc anchored from the right by optional-ref + amount. Ref is
-    # alphanumeric 6-20 chars (BMO purchases use pure-digit IDs like
-    # "004011680156", internal transfers use mixed like "S670159OBPP").
-    # System-posted lines like INTERESTPURCHASES have NO reference, hence
-    # the (?:...)? wrapper makes the whole ref+space group optional.
+    # Non-greedy desc anchored from the right by optional-ref + amount.
+    # Ref is alphanumeric 6-20 chars REQUIRING at least one digit (lookahead
+    # `(?=[A-Za-z0-9]*\d)`) — without that constraint, pure-letter tokens
+    # like "ADVANCES" or "PURCHASES" would be mis-attributed as ref on
+    # system-posted lines ("INTEREST ADVANCES 0.71"). With it, INTEREST
+    # ADVANCES correctly captures into desc and ref stays empty.
+    # CR suffix may have an optional space before it (new template:
+    # "899.74 CR"; old template: "402.23CR").
     r"(?P<desc>.+?)"
-    r"\s+(?:(?P<ref>[A-Za-z0-9]{6,20})\s+)?"
-    r"(?P<amount>[\d,]+\.\d{2})(?P<cr>CR)?\s*$"
+    r"\s+(?:(?P<ref>(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{6,20})\s+)?"
+    r"(?P<amount>[\d,]+\.\d{2})\s*(?P<cr>CR)?\s*$"
 )
 
-# Lines we deliberately drop. Many of these are page chrome,
-# block headers, or summary/footer rows that look like txns
-# to a naive matcher but aren't.
+# Lines we deliberately drop. The TXN regex requires a line to START with a
+# month abbreviation + day, so most noise (starting with English words like
+# "Total", "Card", "Statement", etc) never even reaches this filter — but
+# we keep an explicit allow-list of label prefixes anyway so any future
+# tightening of _TXN_LINE_RE doesn't introduce silent false-positives.
+#
+# Tokens that vary across templates use `\s*` between words (e.g.
+# `BMO\s*CashBack` matches both "BMOCashBackMastercard" and
+# "BMO CashBack Mastercard").
 _NOISE_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in [
-        r"^BMOCashBackMastercard\b",
-        r"^StatementDate\b",
-        r"^CardNumber\b",
-        r"^CustomerName\b",
+        # Page / template chrome
+        r"^BMO\s*CashBack\s*Mastercard\b",
+        r"^Statement\s*Date\b",
+        r"^Statement\s*period\b",
+        r"^Card\s*Number\b",
+        r"^Card\s*number\b",
+        r"^Customer\s*Name\b",
+        r"^Summary\s+of\b",
         r"^PERIODCOVEREDBYTHISSTATEMENT$",
         r"^TRANS\b.*POSTING\b",
         r"^DATE\s+DATE\s+DESCRIPTION",
-        r"^Continuedon\s*page\s*\d+",
+        r"^Continued\s*on\s*page\s*\d+",
         r"^Page\s*\d+\s*of\s*\d+",
+        # Interest rate tables
         r"^INTEREST\b.*ANNUAL",
         r"^CHARGES",
         r"^Purchases\s+\d+\.\d{2}",
-        r"^CashAdvances\d?\s+\d+\.\d{2}",
-        r"^Bonusreward\b",
-        r"^GroceryBonus\b",
-        r"^RecurringBillBonus\b",
-        r"^PromotionalOffers\b",
-        r"^EstimatedTimeToRepay\b",
-        # Summary-block lines that contain dollar amounts but aren't txns.
-        r"^Purchasesandothercharges\b",
-        r"^TotalInterestCharges\b",
-        r"^PaymentsandCredits\b",
-        r"^YOURREWARDS\b",
-        r"^RewardsEarned\b",
-        r"^Bonusrewardsearned\b",
-        r"^Rewardsadjusted\b",
-        r"^RewardsRedeemed\b",
-        r"^Totalrewardsearned\b",
-        r"^Rewardsbalanceyeartodate\b",
-        r"^Redeemnowat\b",
-        r"^MinimumPaymentDue\b",
-        r"^PaymentDueDate\b",
-        r"^YourCreditLimit\b",
-        r"^YourAvailableCredit\b",
-        r"^AmountOverCreditLimit\b",
-        r"^NewBalance\b",
-        r"^PreviousBalance\b",
-        r"^Fees\b\s+\d+\.\d{2}",
-        # Long boilerplate paragraphs.
-        r"^Importantinformation\b",
-        r"^ImportantPaymentInformation",
-        r"^Interestchargesand",
-        r"^Skipthepublic",
+        r"^Cash\s*Advances\d?\s+\d+\.\d{2}",
+        # Rewards block
+        r"^Bonus\s*reward\b",
+        r"^Grocery\s*Bonus\b",
+        r"^Groceries\b",
+        r"^Recurring\s*[Bb]ill\b",
+        r"^Promotional\s*Offers\b",
+        r"^Estimated\s*Time\s*[Tt]o\s*Repay\b",
+        r"^Subtotal\s+bonus\b",
+        # Summary-block lines that contain dollar amounts but aren't txns
+        r"^Purchases\s*and\s*other\s*charges\b",
+        r"^Total\s*Interest\s*Charges\b",
+        r"^Total\s+interest\s+charges\b",
+        r"^Payments\s*and\s*[Cc]redits\b",
+        r"^YOUR\s*REWARDS\b",
+        r"^Rewards\s*Earned\b",
+        r"^Cashback\s+earned\b",
+        r"^Bonus\s+Cashback\b",
+        r"^Bonus\s*rewards\s*earned\b",
+        r"^Rewards\s*adjusted\b",
+        r"^Cashback\s+adjusted\b",
+        r"^Rewards\s*Redeemed\b",
+        r"^Cashback\s+redee?med\b",
+        r"^Total\s*rewards\s*earned\b",
+        r"^Total\s+Cashback\s+earned\b",
+        r"^Rewards\s*balance\s*year\s*to\s*date\b",
+        r"^Cashback\s+balance\s+year\s+to\s+date\b",
+        r"^Redeem\s*now\s*at\b",
+        r"^Minimum\s*payment\s*due\b",
+        r"^Payment\s*[Dd]ue\s*[Dd]ate\b",
+        r"^Your\s*[Cc]redit\s*[Ll]imit\b",
+        r"^Your\s*[Aa]vailable\s*[Cc]redit\b",
+        r"^Amount\s*[Oo]ver\s*[Cc]redit\s*[Ll]imit\b",
+        r"^New\s*Balance\b",
+        r"^Previous\s*Balance\b",
+        r"^Total\s+balance\b",
+        r"^Balance\s+due\b",
+        r"^Fees?\b\s+\d+\.\d{2}",
+        r"^Includes\s+any\s+installment\b",
+        r"^plan\s+section\b",
+        # Long boilerplate paragraphs
+        r"^Important\s*[Ii]nformation\b",
+        r"^Important\s*Payment\s*Information",
+        r"^Interest\s*charges\s*and",
+        r"^Skip\s*the\s*public",
         r"^Trade-marks\b",
         r"^TM/®",
         r"^®[IiC*]\s+Trademarks",
         r"^®\+\+",
-        r"^Registrationnumbers",
+        r"^Registration\s*numbers",
         r"^GST-R\d+",
-        r"^AmemberofBMO",
-        r"^BMOBANKOFMONTREAL",
+        r"^A\s*member\s*of\s*BMO",
+        r"^BMO\s*BANK\s*OF\s*MONTREAL",
         r"^P\.O\.\s*BOX",
         r"^STATION",
         r"^MONTREAL",
@@ -195,8 +255,10 @@ _NOISE_PATTERNS = [
         r"^MR\s",
         r"^MRS\s",
         r"^MISS\s",
+        r"^Mr\s+",
+        r"^Mrs\s+",
         r"^Owners?:",
-        r"^Amountyou'repaying",
+        r"^Amount\s*you'?re\s*paying",
         r"^\d{16}\s+\d+\s+\d+$",  # MICR-style coupon line
     ]
 ]
@@ -248,20 +310,27 @@ def parse_summary(text: str) -> _Summary:
         new_balance = _to_decimal(m.group("amount"))
         new_date = _parse_date(m.group("month"), m.group("day"), m.group("year"))
 
+    m = _STMT_DATE_RE.search(text)
+    if m:
+        statement_date = _parse_date(m.group("month"), m.group("day"), m.group("year"))
+
+    # New-template fallback: if there's no NewBalance line, try Total balance
+    # and pair its amount with statement_date for the closing date.
+    if new_balance is None:
+        m = _TOTAL_BAL_RE.search(text)
+        if m:
+            new_balance = _to_decimal(m.group("amount"))
+            new_date = statement_date  # may still be None; caller handles
+
     # Period range — first occurrence of MMM.DD,YYYY-MMM.DD,YYYY after the
-    # PERIODCOVEREDBYTHISSTATEMENT marker.
-    period_marker = re.search(
-        r"PERIODCOVEREDBYTHISSTATEMENT", text, re.IGNORECASE,
-    )
+    # period anchor (PERIODCOVEREDBYTHISSTATEMENT in old layout, "Statement
+    # period" in new layout). Both anchors live in _PERIOD_ANCHOR_RE.
+    period_marker = _PERIOD_ANCHOR_RE.search(text)
     search_from = period_marker.end() if period_marker else 0
     m = _PERIOD_RANGE_RE.search(text, search_from)
     if m:
         period_start = _parse_date(m.group("m1"), m.group("d1"), m.group("y1"))
         period_end = _parse_date(m.group("m2"), m.group("d2"), m.group("y2"))
-
-    m = _STMT_DATE_RE.search(text)
-    if m:
-        statement_date = _parse_date(m.group("month"), m.group("day"), m.group("year"))
 
     return _Summary(
         previous_balance=previous_balance,
