@@ -28,17 +28,23 @@ from .bmo_cashback_mc_pdf import (
     IMPORTER_FACTORIES as _BMO_MC_IMPORTER_FACTORIES,
     PRE_PARSER_FACTORIES as _BMO_MC_PRE_PARSER_FACTORIES,
 )
+from .rbc_avion_visa_pdf import (
+    IMPORTER_FACTORIES as _RBC_AVION_IMPORTER_FACTORIES,
+    PRE_PARSER_FACTORIES as _RBC_AVION_PRE_PARSER_FACTORIES,
+)
 
 # Factories return fresh instances per ingest. Importers and PreParsers are
 # stateless today, but keep the indirection so tests can pass in mocks.
 _PRE_PARSER_FACTORIES: dict[str, Callable[[], PreParser]] = {
     **_BMO_CHEQUING_PRE_PARSER_FACTORIES,
     **_BMO_MC_PRE_PARSER_FACTORIES,
+    **_RBC_AVION_PRE_PARSER_FACTORIES,
 }
 
 _IMPORTER_FACTORIES: dict[str, Callable[[], Importer]] = {
     **_BMO_CHEQUING_IMPORTER_FACTORIES,
     **_BMO_MC_IMPORTER_FACTORIES,
+    **_RBC_AVION_IMPORTER_FACTORIES,
 }
 
 
