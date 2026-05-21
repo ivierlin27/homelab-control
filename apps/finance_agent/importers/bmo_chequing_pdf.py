@@ -111,6 +111,38 @@ PROFILES: dict[str, BmoChequingProfile] = {
         source_account="Assets:CA:BMO:Chequing:Ellowyn-Personal-3624",
         account_last4="3624",
     ),
+    # F5b additions — speculative (same statement format as chequing).
+    # Each was validated by inspecting one real PDF (SavingsAmplifierAccount
+    # block has the same Openingbalance / Closingtotals / transaction line
+    # structure as PrimaryChequingAccount, just a different account-name
+    # header). The "education" accounts are joint RESP-style chequing
+    # subaccounts; "Jennifer Books" is the small-business chequing.
+    "bmo-jennifer-books-7179": BmoChequingProfile(
+        slug="bmo-jennifer-books-7179",
+        source_account="Assets:CA:BMO:Chequing:Jennifer-Books-7179",
+        account_last4="7179",
+    ),
+    "bmo-makaely-education-4221": BmoChequingProfile(
+        slug="bmo-makaely-education-4221",
+        source_account="Assets:CA:BMO:Chequing:MaKaely-Education-4221",
+        account_last4="4221",
+    ),
+    "bmo-ellowyn-education-4248": BmoChequingProfile(
+        slug="bmo-ellowyn-education-4248",
+        source_account="Assets:CA:BMO:Chequing:Ellowyn-Education-4248",
+        account_last4="4248",
+    ),
+    "bmo-joint-savings-cad-8327": BmoChequingProfile(
+        slug="bmo-joint-savings-cad-8327",
+        source_account="Assets:CA:BMO:Savings:Joint-CAD-8327",
+        account_last4="8327",
+    ),
+    "bmo-joint-savings-usd-6863": BmoChequingProfile(
+        slug="bmo-joint-savings-usd-6863",
+        source_account="Assets:CA:BMO:Savings:Joint-USD-6863",
+        account_last4="6863",
+        currency="USD",
+    ),
 }
 
 

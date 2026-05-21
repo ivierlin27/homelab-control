@@ -18,6 +18,11 @@ BMO_CHEQUING_SLUGS = (
     "bmo-jennifer-chequing",
     "bmo-makaely-personal-chequing",
     "bmo-ellowyn-personal-chequing",
+    "bmo-jennifer-books-7179",
+    "bmo-makaely-education-4221",
+    "bmo-ellowyn-education-4248",
+    "bmo-joint-savings-cad-8327",
+    "bmo-joint-savings-usd-6863",
 )
 
 
