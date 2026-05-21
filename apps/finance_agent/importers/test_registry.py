@@ -9,6 +9,9 @@ from apps.finance_agent.importers import (
     get_importer,
     list_institutions,
 )
+from apps.finance_agent.importers.bmo_cashback_mc_pdf import (
+    PROFILES as MC_PROFILES,
+)
 from apps.finance_agent.importers.bmo_chequing_pdf import PROFILES
 
 # All BMO chequing slugs currently registered. Add as profiles land.
@@ -60,9 +63,18 @@ def test_get_importer_unknown_slug_raises_keyerror() -> None:
 def test_each_profile_has_unique_source_account() -> None:
     """Catches copy-paste errors where two slugs accidentally point at the
     same Beancount account — that would silently merge two real-world
-    accounts on ingest."""
-    accounts = [p.source_account for p in PROFILES.values()]
-    assert len(accounts) == len(set(accounts)), "duplicate source_account in PROFILES"
+    accounts on ingest. Spans both chequing and MC profile spaces."""
+    all_profiles = list(PROFILES.values()) + list(MC_PROFILES.values())
+    accounts = [p.source_account for p in all_profiles]
+    assert len(accounts) == len(set(accounts)), "duplicate source_account across PROFILES"
+
+
+def test_mastercard_profile_registered() -> None:
+    from apps.finance_agent.importers import KNOWN_INSTITUTIONS, get_importer
+    assert "bmo-cashback-mc-0706" in KNOWN_INSTITUTIONS
+    pre_parser, importer = get_importer("bmo-cashback-mc-0706")
+    assert pre_parser.institution == "bmo-cashback-mc-0706"
+    assert importer.source_account == "Liabilities:CA:BMO:CreditCard:CashbackMC-Joint-0706"
 
 
 @pytest.mark.parametrize("slug", BMO_CHEQUING_SLUGS)
