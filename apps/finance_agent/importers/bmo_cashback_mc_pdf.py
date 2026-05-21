@@ -85,30 +85,33 @@ _MONTH_PATTERN = "|".join(_MONTHS.keys())
 # Balance summary lines.
 # "PreviousBalance,Oct.19,2021 $402.23"
 # "NewBalance,Nov.19,2021 $2,190.30"
+# BMO is inconsistent about the period after the month abbreviation: most
+# statements use "Oct.19,2021" but some say "May19,2022" (no period). The
+# `\.?\s*` in every date regex makes the period optional.
 _PREV_BAL_RE = re.compile(
-    rf"PreviousBalance,\s*(?P<month>{_MONTH_PATTERN})\.\s*"
+    rf"PreviousBalance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})\s+\$?(?P<amount>[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
 _NEW_BAL_RE = re.compile(
-    rf"NewBalance,\s*(?P<month>{_MONTH_PATTERN})\.\s*"
+    rf"NewBalance,\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})\s+\$?(?P<amount>[\d,]+\.\d{2})",
     re.IGNORECASE,
 )
 
 # Statement date line (fallback for closing date if NewBalance line missing).
-# "StatementDate Nov.19,2021" or "StatementDate: Nov.19,2021"
+# "StatementDate Nov.19,2021" or "StatementDate May19,2022"
 _STMT_DATE_RE = re.compile(
-    rf"StatementDate\s*:?\s*(?P<month>{_MONTH_PATTERN})\.\s*"
+    rf"StatementDate\s*:?\s*(?P<month>{_MONTH_PATTERN})\.?\s*"
     r"(?P<day>\d{1,2}),\s*(?P<year>\d{4})",
     re.IGNORECASE,
 )
 
 # Period line — appears below the literal "PERIODCOVEREDBYTHISSTATEMENT" header.
-# "Oct.20,2021-Nov.19,2021"
+# "Oct.20,2021-Nov.19,2021" or "Apr.20,2022-May19,2022"
 _PERIOD_RANGE_RE = re.compile(
-    rf"(?P<m1>{_MONTH_PATTERN})\.\s*(?P<d1>\d{{1,2}}),\s*(?P<y1>\d{{4}})\s*-\s*"
-    rf"(?P<m2>{_MONTH_PATTERN})\.\s*(?P<d2>\d{{1,2}}),\s*(?P<y2>\d{{4}})"
+    rf"(?P<m1>{_MONTH_PATTERN})\.?\s*(?P<d1>\d{{1,2}}),\s*(?P<y1>\d{{4}})\s*-\s*"
+    rf"(?P<m2>{_MONTH_PATTERN})\.?\s*(?P<d2>\d{{1,2}}),\s*(?P<y2>\d{{4}})"
 )
 
 # Transaction line:
@@ -117,8 +120,8 @@ _PERIOD_RANGE_RE = re.compile(
 # tokens; ref-no is a long digit string (10-12 digits). Amount has the
 # usual decimal-comma format. CR suffix marks credits/payments.
 _TXN_LINE_RE = re.compile(
-    rf"^(?P<tm>{_MONTH_PATTERN})\.\s*(?P<td>\d{{1,2}})\s+"
-    rf"(?P<pm>{_MONTH_PATTERN})\.\s*(?P<pd>\d{{1,2}})\s+"
+    rf"^(?P<tm>{_MONTH_PATTERN})\.?\s*(?P<td>\d{{1,2}})\s+"
+    rf"(?P<pm>{_MONTH_PATTERN})\.?\s*(?P<pd>\d{{1,2}})\s+"
     # Greedy desc anchored from the right by ref + amount. The ref token
     # accepts alphanumerics + hyphens (BMO uses both: pure-digit ref like
     # "004011680156" for purchases, alphanumeric like "S670159OBPP" for

@@ -76,6 +76,27 @@ def test_parse_summary_handles_dollar_sign_and_commas() -> None:
     assert s.new_balance == Decimal("9876.54")
 
 
+def test_parse_summary_handles_periodless_month_format() -> None:
+    """BMO occasionally drops the period after the month abbreviation —
+    "May19,2022" instead of "May.19,2022". Real example: 2022-05-19
+    statement file. All date regexes accept either form."""
+    text = (
+        "StatementDate May19,2022\n"
+        "PreviousBalance,Apr.19,2022 $1,109.67\n"
+        "NewBalance,May19,2022 $1,634.02\n"
+        "PERIODCOVEREDBYTHISSTATEMENT\n"
+        "Apr.20,2022-May19,2022\n"
+    )
+    s = parse_summary(text)
+    assert s.statement_date == date(2022, 5, 19)
+    assert s.previous_date == date(2022, 4, 19)
+    assert s.previous_balance == Decimal("1109.67")
+    assert s.new_date == date(2022, 5, 19)
+    assert s.new_balance == Decimal("1634.02")
+    assert s.period_start == date(2022, 4, 20)
+    assert s.period_end == date(2022, 5, 19)
+
+
 def test_parse_summary_returns_none_fields_when_missing() -> None:
     s = parse_summary("Hello world")
     assert s.previous_balance is None
