@@ -112,12 +112,15 @@ _TOTAL_BAL_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Period line: "STATEMENTFROMAPR09TOMAY08,2024" or
-# "STATEMENT FROM APR 09 TO MAY 08, 2024" (defensive against template drift).
-# Year appears AFTER the second date only — start year is inferred via
-# rollover rule for Dec→Jan-spanning statements.
+# Period line — two formats seen in real RBC statements:
+#   Old (Oct 2022-Dec 2022): "STATEMENTFROMSEP21TOOCT11,2022"
+#     — year only on the END date; start year inferred via Dec→Jan rollover
+#   New (Jan 2023+):         "STATEMENTFROMDEC09,2022TOJAN09,2023"
+#     — year on BOTH dates, so no inference needed
+# Regex captures optional start-year via `(?:,?\s*(?P<y1>\d{4}))?`.
 _PERIOD_RE = re.compile(
     rf"STATEMENT\s*FROM\s*(?P<m1>{_MONTH_PATTERN})\s*(?P<d1>\d{{1,2}})"
+    rf"(?:,?\s*(?P<y1>\d{{4}}))?"
     rf"\s*TO\s*(?P<m2>{_MONTH_PATTERN})\s*(?P<d2>\d{{1,2}}),?\s*(?P<year>\d{{4}})",
     re.IGNORECASE,
 )
@@ -152,6 +155,7 @@ class _Summary:
     new_balance: Optional[Decimal]
     period_start_month: Optional[int]
     period_start_day: Optional[int]
+    period_start_year: Optional[int]   # only set on Jan-2023+ format
     period_end_month: Optional[int]
     period_end_day: Optional[int]
     period_end_year: Optional[int]
@@ -164,16 +168,16 @@ class _Summary:
 
     @property
     def period_start_date(self) -> Optional[date]:
-        """Start date with year inferred from end year + month rollover.
-
-        If start month > end month (Dec → Jan rollover), start year is
-        end year - 1. Otherwise same year as end.
-        """
-        if not (self.period_start_month and self.period_start_day and self.period_end_year):
+        """Start date — uses explicit start_year if present (Jan 2023+
+        format), otherwise infers from end year + Dec→Jan rollover."""
+        if not (self.period_start_month and self.period_start_day):
             return None
-        end_m = self.period_end_month or self.period_start_month
+        if self.period_start_year is not None:
+            return date(self.period_start_year, self.period_start_month, self.period_start_day)
+        if not (self.period_end_month and self.period_end_year):
+            return None
         year = self.period_end_year
-        if self.period_start_month > end_m:
+        if self.period_start_month > self.period_end_month:
             year -= 1
         return date(year, self.period_start_month, self.period_start_day)
 
@@ -181,7 +185,7 @@ class _Summary:
 def parse_summary(text: str) -> _Summary:
     """Extract balance + period info from the statement header."""
     previous_balance = new_balance = None
-    period_start_m = period_start_d = None
+    period_start_m = period_start_d = period_start_y = None
     period_end_m = period_end_d = period_end_y = None
 
     m = _PREV_BAL_RE.search(text)
@@ -200,6 +204,8 @@ def parse_summary(text: str) -> _Summary:
     if m:
         period_start_m = _MONTHS[m.group("m1").upper()]
         period_start_d = int(m.group("d1"))
+        if m.group("y1"):
+            period_start_y = int(m.group("y1"))
         period_end_m = _MONTHS[m.group("m2").upper()]
         period_end_d = int(m.group("d2"))
         period_end_y = int(m.group("year"))
@@ -209,6 +215,7 @@ def parse_summary(text: str) -> _Summary:
         new_balance=new_balance,
         period_start_month=period_start_m,
         period_start_day=period_start_d,
+        period_start_year=period_start_y,
         period_end_month=period_end_m,
         period_end_day=period_end_d,
         period_end_year=period_end_y,
@@ -239,8 +246,26 @@ def _year_for_txn(
     *,
     period_end_month: int,
     period_end_year: int,
+    period_start_month: Optional[int] = None,
+    period_start_year: Optional[int] = None,
 ) -> int:
-    """Same rule as BMO: txn months past period_end roll back to year-1."""
+    """Pick the calendar year for a txn month.
+
+    If both period start year AND end year are known (Jan 2023+ RBC
+    format), use the unambiguous rule: month matches start → start year;
+    otherwise → end year. Falls back to the old heuristic (txn_month >
+    period_end_month → end_year - 1) when start year is not available.
+    """
+    if period_start_year is not None and period_start_month is not None:
+        if txn_month == period_start_month and period_start_month != period_end_month:
+            return period_start_year
+        if txn_month == period_end_month:
+            return period_end_year
+        # Month is neither start nor end (rare — only happens for very
+        # long statements). Use the closer of the two by ISO ordering.
+        if period_start_year == period_end_year:
+            return period_end_year
+        return period_end_year if txn_month <= period_end_month else period_start_year
     if txn_month > period_end_month:
         return period_end_year - 1
     return period_end_year
@@ -267,7 +292,13 @@ def parse_statement_text(text: str) -> _ParseResult:
             continue
         pm = _MONTHS[m.group("pm").upper()]
         pd = int(m.group("pd"))
-        year = _year_for_txn(pm, period_end_month=end_m, period_end_year=end_y)
+        year = _year_for_txn(
+            pm,
+            period_end_month=end_m,
+            period_end_year=end_y,
+            period_start_month=summary.period_start_month,
+            period_start_year=summary.period_start_year,
+        )
         amount = _to_decimal(m.group("amount"))
         if m.group("neg"):
             amount = -amount

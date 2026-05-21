@@ -67,6 +67,34 @@ def test_parse_summary_same_year_period() -> None:
     assert s.period_end_date == date(2024, 5, 8)
 
 
+def test_parse_summary_handles_year_on_both_dates() -> None:
+    """Jan 2023+ statements have year on BOTH dates:
+    'STATEMENTFROMDEC09,2022TOJAN09,2023' (no inference needed)."""
+    text = "STATEMENTFROMDEC09,2022TOJAN09,2023"
+    s = parse_summary(text)
+    assert s.period_start_year == 2022
+    assert s.period_start_date == date(2022, 12, 9)
+    assert s.period_end_date == date(2023, 1, 9)
+
+
+def test_year_for_txn_uses_explicit_start_year_when_available() -> None:
+    """When both period years are known, txn dating is unambiguous —
+    don't fall back to the heuristic which guesses based on
+    txn_month > period_end_month."""
+    from apps.finance_agent.importers.rbc_avion_visa_pdf import _year_for_txn
+    # Dec 2022 - Jan 2023 statement
+    assert _year_for_txn(
+        12,
+        period_end_month=1, period_end_year=2023,
+        period_start_month=12, period_start_year=2022,
+    ) == 2022
+    assert _year_for_txn(
+        1,
+        period_end_month=1, period_end_year=2023,
+        period_start_month=12, period_start_year=2022,
+    ) == 2023
+
+
 def test_parse_summary_falls_back_to_total_account_balance() -> None:
     """If NEW BALANCE is missing for some reason, TOTALACCOUNTBALANCE
     is used as the closing-balance source (same value on real PDFs)."""
