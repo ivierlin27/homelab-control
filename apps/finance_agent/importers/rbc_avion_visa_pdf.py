@@ -64,19 +64,34 @@ _RECONCILE_TOLERANCE = Decimal("0.01")
 
 @dataclass(frozen=True)
 class RbcAvionProfile:
-    """Per-card configuration for RBC Avion Visa PDF imports."""
+    """Per-account configuration for RBC Avion Visa PDF imports.
+
+    `accepted_last4s` is a tuple because the same underlying RBC account
+    can show different card numbers over time as physical cards are
+    upgraded/replaced (e.g. Kevin's Avion Platinum 1847 was upgraded to
+    Avion Infinite 1189 in mid-2026 — same account, new plastic). The
+    account-verification check passes if ANY of the listed last-4s
+    appears in the PDF. For brand-new accounts, this is a 1-tuple.
+    """
 
     slug: str
     source_account: str
-    account_last4: str
+    accepted_last4s: tuple[str, ...]
     currency: str = CURRENCY
+
+    @property
+    def account_last4(self) -> str:
+        """Primary last-4 used for display + diagnostics."""
+        return self.accepted_last4s[0]
 
 
 PROFILES: dict[str, RbcAvionProfile] = {
     "rbc-avion-1847": RbcAvionProfile(
         slug="rbc-avion-1847",
         source_account="Liabilities:CA:RBC:CreditCard:AvionVisaPlatinum-Joint-1847",
-        account_last4="1847",
+        # 1847 = Avion Visa Platinum (Oct 2021 - early 2026)
+        # 1189 = Avion Visa Infinite (Apr 2026+, upgrade replaced 1847)
+        accepted_last4s=("1847", "1189"),
     ),
 }
 
@@ -427,12 +442,14 @@ class RbcAvionVisaPdfPreParser:
         text = self._extract_pdf_text(path)
 
         # Account verification — last-4 appears in the masked card number
-        # like "451409******1847". Defensive match against just the digits.
-        if self.profile.account_last4 not in text:
+        # like "451409******1847" or "4514 01** **** 1189". Accepts ANY of
+        # the profile's accepted_last4s (multiple = card upgrades over
+        # time, all rolling up to the same source account).
+        if not any(last4 in text for last4 in self.profile.accepted_last4s):
             raise PreParserError(
-                f"PDF does not contain account last-4 {self.profile.account_last4!r}; "
-                f"refusing to import. Are you sure this PDF belongs to "
-                f"{self.profile.source_account}?"
+                f"PDF does not contain any of the accepted account last-4s "
+                f"{list(self.profile.accepted_last4s)!r}; refusing to import. "
+                f"Are you sure this PDF belongs to {self.profile.source_account}?"
             )
 
         parse_result = parse_statement_text(text)

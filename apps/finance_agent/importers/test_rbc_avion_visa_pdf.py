@@ -244,6 +244,29 @@ def test_importer_renders_pad_balance_txns_closing() -> None:
 # --- PreParser surface ----------------------------------------------------
 
 
+def test_profile_accepts_multiple_last4s_for_card_upgrades(tmp_path, monkeypatch) -> None:
+    """Same RBC account, different physical cards over time (Avion
+    Platinum 1847 was upgraded to Avion Infinite 1189 mid-2026). Both
+    cards' statements must route into the same source account."""
+    pdf = tmp_path / "rbc-2026-05.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    # PDF mentions only the new card (1189), not the old (1847)
+    monkeypatch.setattr(
+        RbcAvionVisaPdfPreParser,
+        "_extract_pdf_text",
+        staticmethod(lambda _path:
+            "RBC Avion Visa Infinite\n"
+            "KEVIN A ENNS 4514 01** **** 1189\n"
+            "STATEMENT FROM APR 09 TO MAY 08, 2026\n"
+            "PREVIOUS ACCOUNT BALANCE $0.00\n"
+            "APR 15 APR 16 SOMETHING $50.00\n"
+            "Total Account Balance $50.00\n"),
+    )
+    p = RbcAvionVisaPdfPreParser(profile=PROFILES["rbc-avion-1847"])
+    extract = p.extract(str(pdf))  # MUST NOT raise
+    assert len(extract.transactions) == 1
+
+
 def test_preparser_account_verification_rejects_wrong_pdf(tmp_path, monkeypatch) -> None:
     pdf = tmp_path / "wrong.pdf"
     pdf.write_bytes(b"%PDF-1.4")
