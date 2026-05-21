@@ -260,18 +260,57 @@ def _to_decimal(s: str) -> Decimal:
     return Decimal(s.replace(",", ""))
 
 
-def _derive_year(prior_month: Optional[int], txn_month: int, anchor_year: int) -> int:
-    """Handle year-rollover within a single statement period.
+def _year_for_txn(
+    txn_month: int,
+    *,
+    period_end_month: Optional[int],
+    anchor_year: int,
+    prior_month: Optional[int],
+) -> int:
+    """Pick the calendar year for a transaction's month.
 
-    Statement periods can cross Dec→Jan. We walk transactions in observed
-    order and start at ``anchor_year``. Whenever month decreases sharply
-    (e.g. Dec→Jan), we bump the year forward.
+    Two modes:
+
+    1. **Period-end mode** (preferred — exact). When ``period_end_month``
+       is known (parsed from the PDF's "For the period ending ..." line or
+       supplied another way), BMO statement periods span at most ~1 month
+       so the rule is exact:
+
+         - txn_month <= period_end_month → year = anchor_year
+         - txn_month >  period_end_month → year = anchor_year - 1
+           (transaction rolled backwards across the year boundary; e.g.
+           a Dec txn in a statement ending January 2022 is from 2021)
+
+       This handles BOTH directions correctly: a statement ending Jan
+       2022 spanning Dec 2021 → Jan 2022, AND a statement ending Jan
+       2023 spanning Dec 2022 → Jan 2023.
+
+    2. **Heuristic fallback** (when no period line is parsed — e.g.
+       year was inferred from filename only, or supplied via
+       --statement-year). Walk transactions in order, bump the year
+       forward when the month jumps backwards by more than 6 (Dec → Jan).
+       This handles synthetic test fixtures and PDFs without period lines.
     """
+    if period_end_month is not None:
+        return anchor_year if txn_month <= period_end_month else anchor_year - 1
     if prior_month is None:
         return anchor_year
-    if txn_month < prior_month - 6:  # heuristic for Dec → Jan wrap
+    if txn_month < prior_month - 6:  # Dec → Jan wrap forward
         return anchor_year + 1
     return anchor_year
+
+
+# Backwards-compat shim: external test files may still reference _derive_year.
+# Old signature: (prior_month, txn_month, anchor_year) → year
+def _derive_year(
+    prior_month: Optional[int], txn_month: int, anchor_year: int
+) -> int:
+    return _year_for_txn(
+        txn_month,
+        period_end_month=None,
+        anchor_year=anchor_year,
+        prior_month=prior_month,
+    )
 
 
 def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
@@ -290,6 +329,7 @@ def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
     period_end_date = find_period_end_date(text)
     if period_end_date is not None:
         anchor_year = period_end_date.year
+    period_end_month = period_end_date.month if period_end_date else None
 
     opening_date: Optional[date] = None
     opening_balance: Optional[Decimal] = None
@@ -307,7 +347,12 @@ def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
         m = _OPENING_LINE_RE.match(line)
         if m:
             month = _MONTHS[m.group("date")]
-            current_year = _derive_year(prior_month, month, anchor_year)
+            current_year = _year_for_txn(
+                month,
+                period_end_month=period_end_month,
+                anchor_year=anchor_year,
+                prior_month=prior_month,
+            )
             opening_date = date(current_year, month, int(m.group("day")))
             opening_balance = _to_decimal(m.group("balance"))
             prior_month = month
@@ -321,7 +366,12 @@ def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
         m = _TXN_LINE_RE.match(line)
         if m:
             month = _MONTHS[m.group("date")]
-            current_year = _derive_year(prior_month, month, anchor_year)
+            current_year = _year_for_txn(
+                month,
+                period_end_month=period_end_month,
+                anchor_year=anchor_year,
+                prior_month=prior_month,
+            )
             posting_date = date(current_year, month, int(m.group("day")))
             raw_txns.append(
                 _RawTxn(

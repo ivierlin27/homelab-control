@@ -143,7 +143,8 @@ def test_parse_statement_text_raises_when_no_opening_balance() -> None:
 
 
 def test_parse_statement_text_handles_year_rollover() -> None:
-    """Statement period Dec → Jan should bump year forward at the wrap."""
+    """Heuristic fallback: with no period line in PDF, statement period
+    Dec → Jan should bump year forward at the wrap based on month-jump."""
     rollover = (
         "Dec28 Openingbalance 100.00\n"
         "Dec29 SomethingDebit 10.00 90.00\n"
@@ -153,6 +154,50 @@ def test_parse_statement_text_handles_year_rollover() -> None:
     assert result.opening_date == date(2023, 12, 28)
     assert result.raw_txns[0].posting_date == date(2023, 12, 29)
     assert result.raw_txns[1].posting_date == date(2024, 1, 2)
+
+
+def test_parse_statement_text_handles_dec_to_jan_with_period_line() -> None:
+    """Authoritative period-end mode: a real BMO statement ending in
+    January 2022 has Dec transactions that must roll BACKWARD to 2021,
+    not forward. Mirrors the real 2022-01-18 statement where the period
+    line says "For the period ending January 18, 2022" but the first
+    transaction is Dec 18, 2021.
+    """
+    real_layout = (
+        "For the period ending January 18, 2022\n"
+        "Dec18 Openingbalance 14827.39\n"
+        "Dec24 DirectDeposit,SOMEPAYER 0.19 14827.58\n"
+        "Dec31 DirectDeposit,EMPLOYER 5112.36 19939.94\n"
+        "Jan04 ScheduledTransfer 200.00 19739.94\n"
+        "Jan18 Closingtotals 200.00 5112.55\n"
+    )
+    # anchor_year=9999 to prove period-line overrides
+    result = parse_statement_text(real_layout, anchor_year=9999)
+    # Opening Dec 18 → 2021 (month > period_end_month=1)
+    assert result.opening_date == date(2021, 12, 18)
+    # Dec txns → 2021
+    assert result.raw_txns[0].posting_date == date(2021, 12, 24)
+    assert result.raw_txns[1].posting_date == date(2021, 12, 31)
+    # Jan txn → 2022 (month <= period_end_month=1)
+    assert result.raw_txns[2].posting_date == date(2022, 1, 4)
+    # And the period-end date is correctly extracted
+    assert result.period_end_date == date(2022, 1, 18)
+
+
+def test_parse_statement_text_jan_to_jan_next_year() -> None:
+    """Edge case: statement ending January 2023 (so Dec txns are 2022,
+    Jan txns are 2023). Period-end-mode handles this symmetrically with
+    the 2022-01 case above."""
+    layout = (
+        "For the period ending January 17, 2023\n"
+        "Dec17 Openingbalance 500.00\n"
+        "Dec20 SomethingDebit 100.00 400.00\n"
+        "Jan05 SomethingCredit 50.00 450.00\n"
+    )
+    result = parse_statement_text(layout, anchor_year=2023)
+    assert result.opening_date == date(2022, 12, 17)
+    assert result.raw_txns[0].posting_date == date(2022, 12, 20)
+    assert result.raw_txns[1].posting_date == date(2023, 1, 5)
 
 
 # --- resolve_signs --------------------------------------------------------
