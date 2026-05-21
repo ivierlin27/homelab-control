@@ -26,14 +26,27 @@ from decimal import Decimal
 import pytest
 
 from apps.finance_agent.importers.base import PreParserError
-from apps.finance_agent.importers.bmo_joint_chequing_pdf import (
-    BmoJointChequingImporter,
-    BmoJointChequingPdfPreParser,
+from apps.finance_agent.importers.bmo_chequing_pdf import (
+    PROFILES,
+    BmoChequingImporter,
+    BmoChequingPdfPreParser,
+    _verify_account_match,
     find_period_end_date,
     infer_statement_year_from_filename,
     parse_statement_text,
     resolve_signs,
 )
+
+# Default profile used by these tests (the original joint-chequing 4969).
+JOINT_PROFILE = PROFILES["bmo-joint-chequing"]
+
+
+def _make_joint_pre_parser(**kwargs) -> BmoChequingPdfPreParser:
+    return BmoChequingPdfPreParser(profile=JOINT_PROFILE, **kwargs)
+
+
+def _make_joint_importer() -> BmoChequingImporter:
+    return BmoChequingImporter(profile=JOINT_PROFILE)
 
 
 FIXTURE_PDF_TEXT = """\
@@ -267,7 +280,7 @@ def test_importer_render_includes_pad_and_balance_directives() -> None:
         closing_balance=closing_balance,
     )
 
-    importer = BmoJointChequingImporter()
+    importer = _make_joint_importer()
     entries = importer.render(extract)
 
     # 6 txns + 1 pad + 1 opening balance + 1 closing balance = 9
@@ -293,14 +306,14 @@ def test_importer_render_includes_pad_and_balance_directives() -> None:
 
 
 def test_preparser_can_handle_pdf_extension() -> None:
-    p = BmoJointChequingPdfPreParser()
+    p = _make_joint_pre_parser()
     assert p.can_handle("foo.pdf") is True
     assert p.can_handle("FOO.PDF") is True
     assert p.can_handle("foo.csv") is False
 
 
 def test_preparser_rejects_bytes_input() -> None:
-    p = BmoJointChequingPdfPreParser()
+    p = _make_joint_pre_parser()
     with pytest.raises(PreParserError, match="path, not bytes"):
         p.extract(b"%PDF-1.4")
 
@@ -312,21 +325,19 @@ def test_preparser_raises_if_year_cannot_be_inferred(tmp_path, monkeypatch) -> N
     """
     pdf = tmp_path / "no-year-in-name.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    # Stub PDF extraction to bypass pdfplumber and return text with no
-    # period line, no transactions — just enough to reach year resolution.
     monkeypatch.setattr(
-        BmoJointChequingPdfPreParser,
+        BmoChequingPdfPreParser,
         "_extract_pdf_text",
         staticmethod(lambda _path: "PrimaryChequingAccount#4-969\n"),
     )
 
-    p = BmoJointChequingPdfPreParser()
+    p = _make_joint_pre_parser()
     with pytest.raises(PreParserError, match="statement year"):
         p.extract(str(pdf))
 
 
 def test_preparser_raises_if_pdf_not_found(tmp_path) -> None:
-    p = BmoJointChequingPdfPreParser(statement_year=2024)
+    p = _make_joint_pre_parser(statement_year=2024)
     with pytest.raises(PreParserError, match="not found"):
         p.extract(str(tmp_path / "does-not-exist.pdf"))
 
@@ -334,19 +345,17 @@ def test_preparser_raises_if_pdf_not_found(tmp_path) -> None:
 def test_preparser_account_suffix_mismatch_refuses_import(
     tmp_path, monkeypatch
 ) -> None:
-    """If the PDF doesn't contain the expected 4-969 marker, refuse."""
+    """If the PDF doesn't contain any digit pattern matching last-4, refuse."""
     pdf = tmp_path / "bmo-2024.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-
-    # Stub out _extract_pdf_text to return content that LACKS the suffix
     monkeypatch.setattr(
-        BmoJointChequingPdfPreParser,
+        BmoChequingPdfPreParser,
         "_extract_pdf_text",
         staticmethod(lambda _path: "PrimaryChequingAccount#9-999\nMar19 Openingbalance 1.00\n"),
     )
 
-    p = BmoJointChequingPdfPreParser(statement_year=2024)
-    with pytest.raises(PreParserError, match="account suffix"):
+    p = _make_joint_pre_parser(statement_year=2024)
+    with pytest.raises(PreParserError, match="last-4"):
         p.extract(str(pdf))
 
 
@@ -356,12 +365,12 @@ def test_preparser_happy_path_with_stubbed_pdf_text(tmp_path, monkeypatch) -> No
     pdf.write_bytes(b"%PDF-1.4")
 
     monkeypatch.setattr(
-        BmoJointChequingPdfPreParser,
+        BmoChequingPdfPreParser,
         "_extract_pdf_text",
         staticmethod(lambda _path: FIXTURE_PDF_TEXT),
     )
 
-    p = BmoJointChequingPdfPreParser()  # year inferred from period line in PDF
+    p = _make_joint_pre_parser()
     extract = p.extract(str(pdf))
 
     assert extract.opening_balance == Decimal("1000.00")
@@ -370,3 +379,61 @@ def test_preparser_happy_path_with_stubbed_pdf_text(tmp_path, monkeypatch) -> No
     assert extract.closing_date == date(2024, 4, 1)  # period_end, not last txn
     assert len(extract.transactions) == 6
     assert extract.statement_id == "bmo-2024-03"
+
+
+# --- Profile system: account-suffix verification + multi-account routing ----
+
+
+def test_verify_account_match_accepts_dashed_format() -> None:
+    """The canonical BMO format: '4-969' in the PDF for account 4969."""
+    text = "PrimaryChequingAccount#4-969\nMar19 Openingbalance 0.00\n"
+    assert _verify_account_match(text, "4969") is True
+
+
+def test_verify_account_match_accepts_bare_digits() -> None:
+    """Some BMO statement variants render the last-4 as bare digits."""
+    text = "Statement for account ending 4256\n"
+    assert _verify_account_match(text, "4256") is True
+
+
+def test_verify_account_match_rejects_unrelated_digits() -> None:
+    """Random digits matching neither dashed nor bare format must fail."""
+    text = "PrimaryChequingAccount#9-999\nMar19 Openingbalance 0.00\n"
+    assert _verify_account_match(text, "4256") is False
+
+
+def test_verify_account_match_skips_when_no_last4() -> None:
+    """Empty last4 means "skip verification" (escape hatch for new profiles)."""
+    assert _verify_account_match("any text at all", "") is True
+
+
+def test_other_profile_routes_through_same_parser(tmp_path, monkeypatch) -> None:
+    """Smoke: a non-joint profile (Kevin 4256) parses the same fixture
+    structure correctly, producing entries against its own source account.
+    Real ingest will use the operator's actual PDFs; this just proves the
+    profile system doesn't accidentally hard-code the joint account."""
+    pdf = tmp_path / "bmo-kevin-2024.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+
+    # Reuse the fixture but swap the account marker so it matches Kevin's last-4
+    swapped_text = FIXTURE_PDF_TEXT.replace("4-969", "4-256")
+    monkeypatch.setattr(
+        BmoChequingPdfPreParser,
+        "_extract_pdf_text",
+        staticmethod(lambda _path: swapped_text),
+    )
+
+    kevin_profile = PROFILES["bmo-kevin-chequing"]
+    p = BmoChequingPdfPreParser(profile=kevin_profile)
+    extract = p.extract(str(pdf))
+
+    assert extract.opening_balance == Decimal("1000.00")
+    assert len(extract.transactions) == 6
+
+    importer = BmoChequingImporter(profile=kevin_profile)
+    entries = importer.render(extract)
+    all_text = "".join(e.text for e in entries)
+
+    # Entries are rendered against Kevin's account, NOT the joint account
+    assert "Assets:CA:BMO:Chequing:Kevin-4256" in all_text
+    assert "Assets:CA:BMO:Chequing:Joint-4969" not in all_text

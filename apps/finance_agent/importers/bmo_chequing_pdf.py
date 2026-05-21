@@ -1,4 +1,9 @@
-"""BMO joint chequing (account 4969) — PDF importer.
+"""BMO chequing — PDF importer (all CAD chequing accounts share this format).
+
+Profile-driven: each registered slug maps to a ``BmoChequingProfile`` that
+carries the source account, owner-tagged display name, and the last-4 digits
+used to verify "right PDF, right importer". The parser logic itself is
+generic; only the profile changes per account.
 
 PDF layout observed in real BMO statements (sanitized sample 2024-03):
 
@@ -49,12 +54,82 @@ from .base import (
     render_simple_entry,
 )
 
-# Hard-coded constants — F4 targets this one account first.
-INSTITUTION = "bmo-joint-chequing"
-SOURCE_ACCOUNT = "Assets:CA:BMO:Chequing:Joint-4969"
 CURRENCY = "CAD"
 COUNTER_ACCOUNT = "Expenses:Uncategorized"
-ACCOUNT_NUMBER_SUFFIX = "4-969"  # appears in PrimaryChequingAccount#...-4-969 marker
+
+
+@dataclass(frozen=True)
+class BmoChequingProfile:
+    """Per-account configuration for BMO chequing PDF imports.
+
+    All fields are stable enough to live in code (no PANs — just last-4):
+      slug:               Public CLI/audit slug, e.g. "bmo-kevin-chequing".
+      source_account:     Beancount account, e.g. Assets:CA:BMO:Chequing:Kevin-4256.
+      account_last4:      Last 4 digits of the account number. Used to verify
+                          the PDF actually belongs to this account (defense
+                          against operator pointing the wrong importer at a
+                          file). BMO's PDF text typically renders it as
+                          "X-YYY" (e.g. "4-256") but we also accept the
+                          bare digits and a few other formats — see
+                          _verify_account_match below.
+      currency:           Defaults to CAD; override for USD accounts later.
+    """
+
+    slug: str
+    source_account: str
+    account_last4: str
+    currency: str = CURRENCY
+
+
+# Profiles registered for F5a: the 5 BMO chequing accounts most likely to
+# share the joint-chequing statement format observed in F4b/F4c. Others
+# (savings, USD savings, Jennifer Books, education, credit cards) get
+# their own profiles/parsers in later sprints after first samples land.
+PROFILES: dict[str, BmoChequingProfile] = {
+    "bmo-joint-chequing": BmoChequingProfile(
+        slug="bmo-joint-chequing",
+        source_account="Assets:CA:BMO:Chequing:Joint-4969",
+        account_last4="4969",
+    ),
+    "bmo-kevin-chequing": BmoChequingProfile(
+        slug="bmo-kevin-chequing",
+        source_account="Assets:CA:BMO:Chequing:Kevin-4256",
+        account_last4="4256",
+    ),
+    "bmo-jennifer-chequing": BmoChequingProfile(
+        slug="bmo-jennifer-chequing",
+        source_account="Assets:CA:BMO:Chequing:Jennifer-4264",
+        account_last4="4264",
+    ),
+    "bmo-makaely-personal-chequing": BmoChequingProfile(
+        slug="bmo-makaely-personal-chequing",
+        source_account="Assets:CA:BMO:Chequing:MaKaely-Personal-3616",
+        account_last4="3616",
+    ),
+    "bmo-ellowyn-personal-chequing": BmoChequingProfile(
+        slug="bmo-ellowyn-personal-chequing",
+        source_account="Assets:CA:BMO:Chequing:Ellowyn-Personal-3624",
+        account_last4="3624",
+    ),
+}
+
+
+def _verify_account_match(text: str, account_last4: str) -> bool:
+    """Return True if the PDF text contains a digit pattern matching last4.
+
+    BMO's pdfplumber dump renders the account number in a few formats —
+    "PrimaryChequingAccount#4-969" was the observed shape for 4969. We
+    accept several plausible variants so a one-character format drift
+    doesn't break the importer (we'd rather a false-positive accept
+    than a false-negative reject; downstream balance reconciliation
+    catches truly-wrong PDFs by failing math).
+    """
+    if not account_last4:
+        return True  # profile opted out of verification
+    bare = account_last4
+    dashed_1_3 = f"{bare[0]}-{bare[1:]}"        # 4-969
+    dashed_2_2 = f"{bare[:2]}-{bare[2:]}"       # 49-69 (rare but seen elsewhere)
+    return any(c in text for c in (bare, dashed_1_3, dashed_2_2))
 
 # ---------------------------------------------------------------------------
 # Regex / constants for parsing BMO PDF text dumps
@@ -344,8 +419,8 @@ def resolve_signs(
 
 
 @dataclass
-class BmoJointChequingPdfPreParser:
-    """BMO joint chequing 4969 PDF importer.
+class BmoChequingPdfPreParser:
+    """Profile-driven BMO chequing PDF pre-parser.
 
     Uses pdfplumber to extract text from each page, concatenates, and
     feeds the result through ``parse_statement_text`` + ``resolve_signs``.
@@ -354,9 +429,12 @@ class BmoJointChequingPdfPreParser:
     module is importable on a Mac dev box without the lib installed).
     """
 
-    institution: str = INSTITUTION
-    expected_account_suffix: str = ACCOUNT_NUMBER_SUFFIX
+    profile: BmoChequingProfile
     statement_year: Optional[int] = None  # set by CLI; else inferred from filename
+
+    @property
+    def institution(self) -> str:
+        return self.profile.slug
 
     def can_handle(self, path_or_bytes: bytes | str) -> bool:
         if not isinstance(path_or_bytes, str):
@@ -396,18 +474,19 @@ class BmoJointChequingPdfPreParser:
             )
 
         # Account-number verification: refuse to import if the PDF doesn't
-        # contain our expected account suffix. Defense against operator
-        # accidentally pointing this importer at the wrong account's PDF.
-        if self.expected_account_suffix and self.expected_account_suffix not in text:
+        # contain our expected account's last-4 digits in any of the formats
+        # BMO is known to use. Defense against operator pointing this
+        # importer at the wrong account's PDF.
+        if not _verify_account_match(text, self.profile.account_last4):
             raise PreParserError(
-                f"PDF does not contain expected account suffix "
-                f"{self.expected_account_suffix!r}; refusing to import. "
-                "Are you sure this is the BMO joint chequing 4969 statement?"
+                f"PDF does not contain a digit pattern matching account "
+                f"last-4 {self.profile.account_last4!r}; refusing to import. "
+                f"Are you sure this PDF belongs to {self.profile.source_account}?"
             )
 
         parse_result = parse_statement_text(text, anchor_year=year)
         signed_txns, closing_balance, closing_date = resolve_signs(
-            parse_result, currency=CURRENCY
+            parse_result, currency=self.profile.currency
         )
 
         return StatementExtract(
@@ -450,8 +529,8 @@ class BmoJointChequingPdfPreParser:
 
 
 @dataclass
-class BmoJointChequingImporter:
-    """Render a BMO joint chequing StatementExtract into Beancount entries.
+class BmoChequingImporter:
+    """Render a BMO chequing StatementExtract into Beancount entries.
 
     Output order (sorted by posting_date in the ingest layer):
       D₀-1   pad      <source>  Equity:Opening-Balances        (if opening balance present)
@@ -460,12 +539,26 @@ class BmoJointChequingImporter:
       D₂     transaction entry 2
       ...
       Dₙ+1   balance  <source>  <closing_balance> CAD          (asserts closing; +1 day)
+
+    Pad emission is post-processed by the ingest layer (see
+    apps.finance_agent.ingest._maybe_drop_unused_opening_pad) — this
+    importer always emits the pad; ingest drops it when unused.
     """
 
-    institution: str = INSTITUTION
-    source_account: str = SOURCE_ACCOUNT
-    currency: str = CURRENCY
+    profile: BmoChequingProfile
     counter_account: str = COUNTER_ACCOUNT
+
+    @property
+    def institution(self) -> str:
+        return self.profile.slug
+
+    @property
+    def source_account(self) -> str:
+        return self.profile.source_account
+
+    @property
+    def currency(self) -> str:
+        return self.profile.currency
 
     def render(self, extract: StatementExtract) -> list[BeancountEntry]:
         entries: list[BeancountEntry] = []
@@ -508,11 +601,33 @@ class BmoJointChequingImporter:
         return entries
 
 
-# Registry factories.
+# ---------------------------------------------------------------------------
+# Registry factories
+# ---------------------------------------------------------------------------
+#
+# One factory pair per profile. Closures capture the profile so the registry
+# can call ``factory()`` with no args (matching the PreParser/Importer
+# Callable[[], …] signature).
 
-def build_bmo_joint_chequing_pre_parser() -> PreParser:
-    return BmoJointChequingPdfPreParser()
+
+def _make_pre_parser_factory(profile: BmoChequingProfile):
+    def build() -> PreParser:
+        return BmoChequingPdfPreParser(profile=profile)
+
+    return build
 
 
-def build_bmo_joint_chequing_importer() -> Importer:
-    return BmoJointChequingImporter()
+def _make_importer_factory(profile: BmoChequingProfile):
+    def build() -> Importer:
+        return BmoChequingImporter(profile=profile)
+
+    return build
+
+
+# Pre-built {slug: factory} maps the registry module imports directly.
+PRE_PARSER_FACTORIES = {
+    slug: _make_pre_parser_factory(profile) for slug, profile in PROFILES.items()
+}
+IMPORTER_FACTORIES = {
+    slug: _make_importer_factory(profile) for slug, profile in PROFILES.items()
+}

@@ -28,9 +28,9 @@ from .base import (
     ImporterError,
     PreParser,
     PreParserError,
+    StatementExtract,
 )
 from .registry import (
-    INSTITUTION_BMO_JOINT_CHEQUING,
     KNOWN_INSTITUTIONS,
     get_importer,
     list_institutions,
@@ -43,7 +43,7 @@ __all__ = [
     "ImporterError",
     "PreParser",
     "PreParserError",
-    "INSTITUTION_BMO_JOINT_CHEQUING",
+    "StatementExtract",
     "KNOWN_INSTITUTIONS",
     "get_importer",
     "list_institutions",

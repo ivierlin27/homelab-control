@@ -4,11 +4,15 @@ Slugs are the public surface: the `ingest --institution <slug>` CLI takes
 them, the audit row records them, the Forgejo runbook lists them. Keep
 them stable.
 
-Pattern: `<bank>-<account-role>[-<currency>]`, lowercase, hyphenated.
-Examples:
+Pattern: `<bank>-<owner-or-role>-<account-type>[-<currency>]`, lowercase,
+hyphenated. Examples:
   bmo-joint-chequing
-  bmo-joint-savings-usd
-  rbc-avion-visa-joint
+  bmo-kevin-chequing
+  bmo-joint-savings-usd      (deferred; profile not yet registered)
+  rbc-avion-visa-joint       (deferred; different parser entirely)
+
+Each importer module owns its own {slug: factory} maps; this module just
+unions them. Add a new module → import its factory maps here.
 """
 
 from __future__ import annotations
@@ -16,19 +20,19 @@ from __future__ import annotations
 from typing import Callable
 
 from .base import Importer, PreParser
-from .bmo_joint_chequing_pdf import build_bmo_joint_chequing_importer, build_bmo_joint_chequing_pre_parser
-
-INSTITUTION_BMO_JOINT_CHEQUING = "bmo-joint-chequing"
-
+from .bmo_chequing_pdf import (
+    IMPORTER_FACTORIES as _BMO_CHEQUING_IMPORTER_FACTORIES,
+    PRE_PARSER_FACTORIES as _BMO_CHEQUING_PRE_PARSER_FACTORIES,
+)
 
 # Factories return fresh instances per ingest. Importers and PreParsers are
 # stateless today, but keep the indirection so tests can pass in mocks.
 _PRE_PARSER_FACTORIES: dict[str, Callable[[], PreParser]] = {
-    INSTITUTION_BMO_JOINT_CHEQUING: build_bmo_joint_chequing_pre_parser,
+    **_BMO_CHEQUING_PRE_PARSER_FACTORIES,
 }
 
 _IMPORTER_FACTORIES: dict[str, Callable[[], Importer]] = {
-    INSTITUTION_BMO_JOINT_CHEQUING: build_bmo_joint_chequing_importer,
+    **_BMO_CHEQUING_IMPORTER_FACTORIES,
 }
 
 

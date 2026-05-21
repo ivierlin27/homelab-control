@@ -23,9 +23,16 @@ from apps.finance_agent.importers.base import (
     PreParser,
     StatementExtract,
 )
-from apps.finance_agent.importers.bmo_joint_chequing_pdf import (
-    BmoJointChequingImporter,
+from apps.finance_agent.importers.bmo_chequing_pdf import (
+    PROFILES as _BMO_PROFILES,
+    BmoChequingImporter,
 )
+
+_JOINT_PROFILE = _BMO_PROFILES["bmo-joint-chequing"]
+
+
+def _joint_importer() -> BmoChequingImporter:
+    return BmoChequingImporter(profile=_JOINT_PROFILE)
 from apps.finance_agent.ingest import (
     DEFAULT_AUDIT_PATH,
     IngestError,
@@ -70,7 +77,7 @@ def _make_mock_factory(txns, *, with_balances: bool = False):
 
     def _factory(slug: str) -> Tuple[PreParser, Importer]:
         assert slug == "bmo-joint-chequing"
-        return _MockPreParser(extract_result=extract), BmoJointChequingImporter()
+        return _MockPreParser(extract_result=extract), _joint_importer()
     return _factory
 
 
@@ -329,7 +336,7 @@ def test_ingest_drops_pad_when_seeding_with_zero_opening(tmp_path: Path) -> None
     )
 
     def factory(slug: str):
-        return _MockPreParser(extract_result=extract), BmoJointChequingImporter()
+        return _MockPreParser(extract_result=extract), _joint_importer()
 
     result = ingest_file(
         institution="bmo-joint-chequing",
