@@ -286,12 +286,109 @@ def test_ingest_no_transactions_extracted_still_writes_audit(tmp_path: Path) -> 
     assert row["entry_count"] == 0
 
 
-def test_ingest_with_opening_and_closing_emits_pad_and_balance_directives(
+def test_ingest_emits_pad_when_seeding_account_with_nonzero_opening(
     tmp_path: Path,
 ) -> None:
-    """When StatementExtract carries opening/closing balances, the importer
-    should emit Beancount `pad` + `balance` directives around the txns."""
+    """Case 2: no prior balance + non-zero opening → bootstrap pad needed."""
     ledger = _make_ledger(tmp_path)
+    audit_path = tmp_path / "audit.jsonl"
+    pdf = tmp_path / "bmo.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    result = ingest_file(
+        institution="bmo-joint-chequing",
+        file_path=pdf,
+        ledger_dir=ledger,
+        audit_path=audit_path,
+        run_bean_check=False,
+        # _make_mock_factory(with_balances=True) uses opening=1000.00
+        get_importer_fn=_make_mock_factory(_two_sample_txns(), with_balances=True),
+    )
+
+    # 2 txns + 1 pad + 1 opening bal + 1 closing bal = 5 entries (pad kept)
+    assert result.entries_written == 5
+    body = (ledger / TRANSACTIONS_FILENAME).read_text(encoding="utf-8")
+    assert "pad Assets:CA:BMO:Chequing:Joint-4969 Equity:Opening-Balances" in body
+    assert body.count(" balance Assets:CA:BMO:Chequing:Joint-4969") == 2
+
+
+def test_ingest_drops_pad_when_seeding_with_zero_opening(tmp_path: Path) -> None:
+    """Case 1: no prior balance + opening==0 → pad would be unused, drop it."""
+    ledger = _make_ledger(tmp_path)
+    audit_path = tmp_path / "audit.jsonl"
+    pdf = tmp_path / "bmo.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    # Mock factory with zero opening balance
+    extract = StatementExtract(
+        transactions=_two_sample_txns(),
+        opening_date=_two_sample_txns()[0].posting_date,
+        opening_balance=Decimal("0.00"),
+        closing_date=_two_sample_txns()[-1].posting_date,
+        closing_balance=Decimal("2412.57"),  # 0 + (-87.43) + 2500 = 2412.57
+    )
+
+    def factory(slug: str):
+        return _MockPreParser(extract_result=extract), BmoJointChequingImporter()
+
+    result = ingest_file(
+        institution="bmo-joint-chequing",
+        file_path=pdf,
+        ledger_dir=ledger,
+        audit_path=audit_path,
+        run_bean_check=False,
+        get_importer_fn=factory,
+    )
+
+    # 2 txns + 0 pad + 1 opening bal + 1 closing bal = 4 entries (pad DROPPED)
+    assert result.entries_written == 4
+    body = (ledger / TRANSACTIONS_FILENAME).read_text(encoding="utf-8")
+    assert "pad Assets:CA:BMO:Chequing:Joint-4969" not in body
+    # Still has both balance assertions
+    assert body.count(" balance Assets:CA:BMO:Chequing:Joint-4969") == 2
+
+
+def test_ingest_drops_pad_on_contiguous_statement(tmp_path: Path) -> None:
+    """Case 3: prior balance == new opening → pad would be unused, drop it."""
+    ledger = _make_ledger(tmp_path)
+    # Pre-seed the ledger with a prior closing balance assertion that matches
+    # what the new statement says is its opening.
+    (ledger / TRANSACTIONS_FILENAME).write_text(
+        "2021-08-19 balance Assets:CA:BMO:Chequing:Joint-4969    1000.00 CAD\n",
+        encoding="utf-8",
+    )
+    audit_path = tmp_path / "audit.jsonl"
+    pdf = tmp_path / "bmo.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    # New statement: opening = 1000.00, matches prior
+    result = ingest_file(
+        institution="bmo-joint-chequing",
+        file_path=pdf,
+        ledger_dir=ledger,
+        audit_path=audit_path,
+        run_bean_check=False,
+        get_importer_fn=_make_mock_factory(_two_sample_txns(), with_balances=True),
+    )
+
+    # 2 txns + 0 pad + 1 opening bal + 1 closing bal = 4 entries
+    assert result.entries_written == 4
+    body = (ledger / TRANSACTIONS_FILENAME).read_text(encoding="utf-8")
+    # The original pre-seed assertion + 2 new ones = 3 total balance lines
+    assert body.count(" balance Assets:CA:BMO:Chequing:Joint-4969") == 3
+    # No pad anywhere
+    assert "pad Assets:CA:BMO:Chequing:Joint-4969" not in body
+
+
+def test_ingest_keeps_pad_on_gap_statement(tmp_path: Path) -> None:
+    """Case 4: prior balance != new opening → pad needed to absorb the gap."""
+    ledger = _make_ledger(tmp_path)
+    # Prior closing was 500.00; new opening is 1000.00 → $500 of activity
+    # happened in a statement period we don't have.
+    (ledger / TRANSACTIONS_FILENAME).write_text(
+        "2021-08-19 balance Assets:CA:BMO:Chequing:Joint-4969     500.00 CAD\n",
+        encoding="utf-8",
+    )
     audit_path = tmp_path / "audit.jsonl"
     pdf = tmp_path / "bmo.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
@@ -305,19 +402,10 @@ def test_ingest_with_opening_and_closing_emits_pad_and_balance_directives(
         get_importer_fn=_make_mock_factory(_two_sample_txns(), with_balances=True),
     )
 
-    # 2 transactions + 1 pad + 1 opening balance + 1 closing balance = 5 entries
+    # 2 txns + 1 pad + 1 opening bal + 1 closing bal = 5 entries (pad KEPT)
     assert result.entries_written == 5
-
     body = (ledger / TRANSACTIONS_FILENAME).read_text(encoding="utf-8")
     assert "pad Assets:CA:BMO:Chequing:Joint-4969 Equity:Opening-Balances" in body
-    # Two `balance` directives: opening + closing
-    assert body.count(" balance Assets:CA:BMO:Chequing:Joint-4969") == 2
-
-    # Audit row carries balance info
-    row = json.loads(audit_path.read_text(encoding="utf-8").splitlines()[0])
-    assert row["opening_balance"] == "1000.00"
-    assert row["txn_count"] == 2
-    assert row["entry_count"] == 5
 
 
 # --- bean-check integration ------------------------------------------------

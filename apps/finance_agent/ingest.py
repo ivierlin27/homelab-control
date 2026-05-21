@@ -38,6 +38,7 @@ from .importers import (
     get_importer,
     list_institutions,
 )
+from .ledger_inspector import find_last_balance_assertion
 
 DEFAULT_LEDGER_DIR = Path.home() / "finance" / "ledger"
 DEFAULT_AUDIT_PATH = (
@@ -126,7 +127,18 @@ def ingest_file(
     entries = importer.render(extract)
     txn_count = len(extract.transactions)
 
+    # State-aware pad suppression. The importer emits pad+balance for opening
+    # unconditionally; the ingest layer is where we know enough about prior
+    # ledger state to decide if the pad is actually needed. See the 4-case
+    # table in _maybe_drop_unused_opening_pad below.
     transactions_path = ledger_dir / TRANSACTIONS_FILENAME
+    entries = _maybe_drop_unused_opening_pad(
+        entries,
+        transactions_path=transactions_path,
+        source_account=importer.source_account,
+        opening_balance=extract.opening_balance,
+    )
+
     _append_entries(transactions_path, entries)
     # Only touch main.beancount if we actually wrote entries. A zero-entry
     # ingest is rare-but-valid (operator imported an already-imported file,
@@ -169,6 +181,51 @@ def ingest_file(
 # ---------------------------------------------------------------------------
 # Side-effect helpers (kept small + testable)
 # ---------------------------------------------------------------------------
+
+
+def _maybe_drop_unused_opening_pad(
+    entries: list[BeancountEntry],
+    *,
+    transactions_path: Path,
+    source_account: str,
+    opening_balance: object,
+) -> list[BeancountEntry]:
+    """Drop the leading `pad` directive if it would generate "Unused Pad" error.
+
+    Beancount errors on a pad whose synthetic transaction is zero — i.e. when
+    the computed balance already matches the asserted balance. Four cases:
+
+      | Prior balance in ledger | Statement opening | Pad? |
+      |-------------------------|-------------------|------|
+      | none                    | $0                | no   |
+      | none                    | $X (non-zero)     | YES  |  (bootstrap)
+      | $X (matches opening)    | $X                | no   |  (contiguous)
+      | $X (differs)            | $Y                | YES  |  (gap-fill)
+
+    The importer always emits pad+balance for opening. This function removes
+    the pad when it would be "unused"; the balance assertion is always kept
+    because it serves as a chained consistency check.
+    """
+    from decimal import Decimal
+
+    if not entries:
+        return entries
+    pad = entries[0]
+    if pad.counter_account != "Equity:Opening-Balances":
+        return entries  # first entry isn't a pad — nothing to drop
+    if opening_balance is None:
+        return entries  # no opening balance was parsed; pad shouldn't exist anyway
+
+    prior = find_last_balance_assertion(transactions_path, source_account)
+    needs_pad: bool
+    if prior is None:
+        needs_pad = Decimal(str(opening_balance)) != Decimal("0")
+    else:
+        needs_pad = prior != Decimal(str(opening_balance))
+
+    if needs_pad:
+        return entries
+    return entries[1:]  # drop pad, keep everything else
 
 
 def _append_entries(path: Path, entries: list[BeancountEntry]) -> None:
