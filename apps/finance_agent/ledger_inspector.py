@@ -60,3 +60,35 @@ def find_last_balance_assertion(
             last_date = m.group("date")
             last_amount = _parse_amount(m.group("amount"))
     return last_amount
+
+
+def find_last_balance_date(
+    transactions_path: Path, source_account: str
+) -> Optional[date]:
+    """Return the date of the most recent `balance` directive for an account.
+
+    Returns ``None`` if no matching assertion exists. Used by the OFX
+    ingest layer to determine the date-cutoff for overlap prevention.
+    """
+    from datetime import date as date_type
+
+    path = Path(transactions_path).expanduser()
+    if not path.is_file():
+        return None
+    last_date_str = ""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        m = _BALANCE_LINE_RE.match(line)
+        if not m:
+            continue
+        if m.group("account") != source_account:
+            continue
+        if m.group("date") >= last_date_str:
+            last_date_str = m.group("date")
+    if not last_date_str:
+        return None
+    parts = last_date_str.split("-")
+    return date_type(int(parts[0]), int(parts[1]), int(parts[2]))
