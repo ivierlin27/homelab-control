@@ -268,12 +268,17 @@ def parse_ofx_file(
         if not txns:
             continue  # no new txns for this account after filtering
 
-        # Closing balance from OFX LEDGERBAL
+        # Closing balance from OFX LEDGERBAL.
+        # For CC accounts, BMO's LEDGERBAL often includes pending/authorized
+        # amounts not yet in the posted transaction list, causing a mismatch.
+        # Only emit balance assertions for asset accounts (chequing/savings)
+        # where LEDGERBAL reliably equals opening + posted txns.
         closing_balance = None
         closing_date_val = None
-        if stmt.balance is not None:
+        is_liability = source_account.startswith("Liabilities:")
+        if stmt.balance is not None and not is_liability:
             closing_balance = Decimal(str(stmt.balance))
-        if stmt.balance_date:
+        if stmt.balance_date and not is_liability:
             bd = stmt.balance_date
             closing_date_val = bd.date() if isinstance(bd, datetime) else bd
 
