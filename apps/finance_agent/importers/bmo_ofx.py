@@ -74,6 +74,7 @@ _EXPLICIT_ACCTID_MAP: dict[str, str] = {
     "55102900758941531": "bmo-joint-chequing",
     "551029007589415301": "bmo-jennifer-chequing",
     "5191230213430706": "bmo-cashback-mc",
+    "4514011824111189": "rbc-avion-visa",
 }
 
 # Reverse map: last-4 digits → slug (for 0764-prefix accounts).
@@ -172,6 +173,10 @@ def _slug_meta_map() -> dict[str, tuple[str, str]]:
         "Liabilities:CA:BMO:CreditCard:CashbackMC-Joint-0706",
         "CAD",
     )
+    meta["rbc-avion-visa"] = (
+        "Liabilities:CA:RBC:CreditCard:AvionVisaPlatinum-Joint-1847",
+        "CAD",
+    )
     return meta
 
 
@@ -254,7 +259,9 @@ def parse_ofx_file(
             #   debt), positive = payment (reduces debt) — also maps directly
             #   because Beancount tracks CC liabilities as negative balances.
             amount = Decimal(str(t.amount))
-            desc = (t.payee or t.memo or "").strip()
+            payee = (t.payee or "").strip()
+            memo = (t.memo or "").strip()
+            desc = f"{payee} {memo}".strip() if memo and memo != payee else payee
 
             txns.append(ExtractedTransaction(
                 posting_date=posting_date,
