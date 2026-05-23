@@ -192,12 +192,16 @@ def _cmd_ingest_ofx(args: argparse.Namespace) -> int:
             from datetime import timedelta
             first_txn_date = min(t.posting_date for t in extract.transactions)
             pad_date = first_txn_date - timedelta(days=1)
-            pad_line = (
+            pad_text = (
                 f"{pad_date.isoformat()} pad"
                 f" {extract.source_account}"
                 f" Equity:Opening-Balances\n"
             )
-            entries.append(pad_line)
+            entries.append(BeancountEntry(
+                text=pad_text,
+                posting_date=pad_date,
+                source_account=extract.source_account,
+            ))
 
         for txn in extract.transactions:
             entries.append(render_simple_entry(
