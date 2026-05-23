@@ -152,10 +152,10 @@ def _cmd_ingest_ofx(args: argparse.Namespace) -> int:
     fitid_store = FitIdStore(state_dir / "fitids")
 
     # Build per-account date cutoffs from the ledger (latest balance assertion)
-    from .importers.bmo_chequing_pdf import PROFILES as CHEQUING_PROFILES
+    from .importers.bmo_ofx import _slug_meta_map
     cutoff_dates: dict[str, date] = {}
-    for slug, profile in CHEQUING_PROFILES.items():
-        d = find_last_balance_date(transactions_path, profile.source_account)
+    for slug, (src_acct, _cur) in _slug_meta_map().items():
+        d = find_last_balance_date(transactions_path, src_acct)
         if d:
             cutoff_dates[slug] = d
 

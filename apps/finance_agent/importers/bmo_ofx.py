@@ -73,6 +73,7 @@ class BmoOfxAccountMapping:
 _EXPLICIT_ACCTID_MAP: dict[str, str] = {
     "55102900758941531": "bmo-joint-chequing",
     "551029007589415301": "bmo-jennifer-chequing",
+    "5191230213430706": "bmo-cashback-mc",
 }
 
 # Reverse map: last-4 digits → slug (for 0764-prefix accounts).
@@ -160,6 +161,20 @@ class OfxAccountExtract:
     ingested_fitids: list[str]   # FITIDs that made it through
 
 
+def _slug_meta_map() -> dict[str, tuple[str, str]]:
+    """Return unified slug → (source_account, currency) map for all OFX-routable accounts."""
+    from .bmo_chequing_pdf import PROFILES as CHEQUING_PROFILES
+
+    meta: dict[str, tuple[str, str]] = {}
+    for slug, p in CHEQUING_PROFILES.items():
+        meta[slug] = (p.source_account, p.currency)
+    meta["bmo-cashback-mc"] = (
+        "Liabilities:CA:BMO:CreditCard:CashbackMC-Joint-0706",
+        "CAD",
+    )
+    return meta
+
+
 def parse_ofx_file(
     path: Path,
     *,
@@ -198,9 +213,7 @@ def parse_ofx_file(
     if cutoff_dates is None:
         cutoff_dates = {}
 
-    # Import here to get the slug→source_account mapping from the chequing
-    # profile registry (avoids circular imports by deferring).
-    from .bmo_chequing_pdf import PROFILES as CHEQUING_PROFILES
+    _slug_meta = _slug_meta_map()
 
     results: list[OfxAccountExtract] = []
     for account in ofx.accounts:
@@ -208,11 +221,10 @@ def parse_ofx_file(
         if slug is None:
             continue  # unknown account, skip silently
 
-        profile = CHEQUING_PROFILES.get(slug)
-        if profile is None:
+        meta = _slug_meta.get(slug)
+        if meta is None:
             continue
-        source_account = profile.source_account
-        currency = profile.currency
+        source_account, currency = meta
 
         cutoff = cutoff_dates.get(slug)
         stmt = account.statement
@@ -236,8 +248,11 @@ def parse_ofx_file(
                 continue
 
             # OFX TRNAMT is already signed: negative=debit, positive=credit.
-            # For asset accounts (chequing/savings), this matches Beancount
-            # convention directly (positive = money in, negative = money out).
+            # For asset accounts (chequing/savings): negative = money out,
+            #   positive = money in — maps directly to Beancount.
+            # For liability accounts (CC): negative = purchase (increases
+            #   debt), positive = payment (reduces debt) — also maps directly
+            #   because Beancount tracks CC liabilities as negative balances.
             amount = Decimal(str(t.amount))
             desc = (t.payee or t.memo or "").strip()
 
