@@ -268,16 +268,15 @@ def _cmd_ingest_csv(args: argparse.Namespace) -> int:
         return 0
 
     # Build entries
-    from .importers.base import BeancountEntry
+    from .importers.base import BeancountEntry, render_pad_balance
     entries: list[BeancountEntry] = []
 
-    # Opening balance assertion (only if no prior history)
+    # Opening pad + balance assertion (only if no prior history)
     if cutoff is None:
-        from datetime import timedelta
-        entries.append(render_closing_balance_assertion(
-            closing_date=extract.opening_date,
+        entries.extend(render_pad_balance(
+            opening_date=extract.opening_date,
             source_account=extract.source_account,
-            closing_balance=extract.opening_balance,
+            opening_balance=extract.opening_balance,
             currency=extract.currency,
         ))
 
