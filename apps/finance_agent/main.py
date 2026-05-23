@@ -228,6 +228,101 @@ def _cmd_ingest_ofx(args: argparse.Namespace) -> int:
     return 0 if (not bean_ran or bean_ok) else 1
 
 
+def _cmd_ingest_csv(args: argparse.Namespace) -> int:
+    """Ingest a Bank of America CSV file."""
+    from .importers.bofa_csv import BOFA_PROFILES, parse_bofa_csv
+    from .importers.bmo_ofx import FitIdStore
+    from .importers.base import render_closing_balance_assertion, render_simple_entry
+    from .ingest import (
+        TRANSACTIONS_FILENAME,
+        _append_entries,
+        _ensure_main_include,
+        _maybe_run_bean_check,
+    )
+    from .ledger_inspector import find_last_balance_date
+
+    profile = BOFA_PROFILES[args.account]
+    ledger_dir = Path(args.ledger_dir).expanduser()
+    transactions_path = ledger_dir / TRANSACTIONS_FILENAME
+    main_path = ledger_dir / "main.beancount"
+    state_dir = Path(args.state_dir).expanduser()
+    fitid_store = FitIdStore(state_dir / "fitids")
+
+    # Date cutoff from existing ledger
+    cutoff = find_last_balance_date(transactions_path, profile.source_account)
+
+    csv_path = Path(args.file).expanduser()
+    try:
+        extract = parse_bofa_csv(
+            csv_path,
+            profile,
+            fitid_store=fitid_store,
+            cutoff_date=cutoff,
+        )
+    except Exception as exc:
+        print(f"ingest-csv failed: {exc}", file=sys.stderr)
+        return 2
+
+    if not extract.transactions:
+        print(f"No new transactions for {profile.slug} (all filtered by cutoff/hash dedup).")
+        return 0
+
+    # Build entries
+    from .importers.base import BeancountEntry
+    entries: list[BeancountEntry] = []
+
+    # Opening balance assertion (only if no prior history)
+    if cutoff is None:
+        from datetime import timedelta
+        entries.append(render_closing_balance_assertion(
+            closing_date=extract.opening_date,
+            source_account=extract.source_account,
+            closing_balance=extract.opening_balance,
+            currency=extract.currency,
+        ))
+
+    for txn in extract.transactions:
+        entries.append(render_simple_entry(
+            txn,
+            source_account=extract.source_account,
+            counter_account="Expenses:Uncategorized",
+            importer_slug=f"bofa-csv:{profile.slug}",
+        ))
+
+    # Closing balance assertion
+    entries.append(render_closing_balance_assertion(
+        closing_date=extract.closing_date,
+        source_account=extract.source_account,
+        closing_balance=extract.closing_balance,
+        currency=extract.currency,
+    ))
+
+    _append_entries(transactions_path, entries)
+    _ensure_main_include(main_path)
+
+    # Commit content-hashes
+    for h in extract.ingested_hashes:
+        fitid_store.add(profile.slug, h)
+    fitid_store.commit(profile.slug)
+
+    # bean-check
+    bean_ran, bean_ok, bean_msg = _maybe_run_bean_check(
+        main_path, not args.skip_bean_check, "bean-check"
+    )
+
+    print(f"✓ ingest-csv complete: {len(extract.transactions)} transactions, {len(entries)} entries")
+    print(f"  account        : {profile.slug} ({profile.source_account})")
+    print(f"  period         : {extract.opening_date} → {extract.closing_date}")
+    print(f"  skipped        : {len(extract.skipped_hashes)} (cutoff/hash dedup)")
+    if bean_ran:
+        print(f"  bean-check     : {'passed' if bean_ok else 'FAILED'} — {bean_msg}")
+    else:
+        print(f"  bean-check     : {bean_msg}")
+    print(f"  ledger file    : {transactions_path}")
+
+    return 0 if (not bean_ran or bean_ok) else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="apps.finance_agent",
@@ -330,6 +425,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit machine-readable JSON",
     )
     ingest_ofx.set_defaults(func=_cmd_ingest_ofx)
+
+    # ingest-csv ---------------------------------------------------------------
+    ingest_csv = subparsers.add_parser(
+        "ingest-csv",
+        help="ingest a Bank of America CSV with content-hash dedup (F7)",
+    )
+    ingest_csv.add_argument(
+        "--file",
+        required=True,
+        help="path to the .csv file",
+    )
+    ingest_csv.add_argument(
+        "--account",
+        required=True,
+        choices=["bofa-checking-5396", "bofa-savings-8762"],
+        help="BofA account slug",
+    )
+    ingest_csv.add_argument(
+        "--ledger-dir",
+        default=str(DEFAULT_LEDGER_DIR),
+        help=f"ledger directory (default: {DEFAULT_LEDGER_DIR})",
+    )
+    ingest_csv.add_argument(
+        "--state-dir",
+        default="~/.local/state/homelab-control/agent-finance",
+        help="state directory for hash store",
+    )
+    ingest_csv.add_argument(
+        "--skip-bean-check",
+        action="store_true",
+        help="skip post-ingest bean-check",
+    )
+    ingest_csv.set_defaults(func=_cmd_ingest_csv)
 
     return parser
 
