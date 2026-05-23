@@ -182,6 +182,23 @@ def _cmd_ingest_ofx(args: argparse.Namespace) -> int:
     for extract in extracts:
         from .importers.base import BeancountEntry
         entries: list[BeancountEntry] = []
+
+        # If no prior history for this account, emit a pad from Equity
+        # before the first transaction. Beancount's pad will auto-fill
+        # whatever opening amount is needed to make the closing balance
+        # assertion pass (LEDGERBAL = pad_amount + sum(txns)).
+        slug_cutoff = cutoff_dates.get(extract.slug)
+        if slug_cutoff is None and extract.transactions:
+            from datetime import timedelta
+            first_txn_date = min(t.posting_date for t in extract.transactions)
+            pad_date = first_txn_date - timedelta(days=1)
+            pad_line = (
+                f"{pad_date.isoformat()} pad"
+                f" {extract.source_account}"
+                f" Equity:Opening-Balances\n"
+            )
+            entries.append(pad_line)
+
         for txn in extract.transactions:
             entries.append(render_simple_entry(
                 txn,

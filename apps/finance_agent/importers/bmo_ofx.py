@@ -75,6 +75,8 @@ _EXPLICIT_ACCTID_MAP: dict[str, str] = {
     "551029007589415301": "bmo-jennifer-chequing",
     "5191230213430706": "bmo-cashback-mc",
     "4514011824111189": "rbc-avion-visa",
+    "447539709": "amplify-checking-9709",
+    "447539710100": "amplify-savings-0100",
 }
 
 # Reverse map: last-4 digits → slug (for 0764-prefix accounts).
@@ -176,6 +178,14 @@ def _slug_meta_map() -> dict[str, tuple[str, str]]:
     meta["rbc-avion-visa"] = (
         "Liabilities:CA:RBC:CreditCard:AvionVisaPlatinum-Joint-1847",
         "CAD",
+    )
+    meta["amplify-checking-9709"] = (
+        "Assets:US:Amplify:Checking-Joint-9709",
+        "USD",
+    )
+    meta["amplify-savings-0100"] = (
+        "Assets:US:Amplify:Savings-Joint-0100",
+        "USD",
     )
     return meta
 
