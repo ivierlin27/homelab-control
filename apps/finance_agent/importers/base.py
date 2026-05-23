@@ -155,7 +155,7 @@ def render_simple_entry(
     if txn.currency != "CAD" and txn.currency != "USD":
         raise ImporterError(f"render_simple_entry: unsupported currency {txn.currency!r}")
 
-    desc = txn.description.replace('"', "'").strip()
+    desc = txn.description.replace("\\", "").replace('"', "'").strip()
     amt = txn.amount
     inverse = -amt
     # Beancount: dates are ISO, amounts are explicit-precision Decimals.
