@@ -15,7 +15,7 @@ from apps._shared.audit import AuditLog
 
 from .envelope import A2AEnvelope
 from .errors import A2AError, A2ANotAllowedError, A2ARoutingError, A2ATimeoutError
-from .queue import enqueue, enqueue_envelope, ensure_dirs, poll_reply, write_json
+from .queue import enqueue, enqueue_envelope, enqueue_inbox, ensure_dirs, poll_reply, write_json
 from .routing import assert_callee_allowed, resolve_inbox, resolve_queue_dir
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "ask_agent",
     "await_reply",
     "enqueue",
+    "enqueue_inbox",
     "ensure_dirs",
     "make_tier2_executive_handler",
     "poll_reply",
@@ -120,13 +121,14 @@ def reply_to_caller(
         outcome=outcome,
         reply_payload=payload,
     )
-    reply_inbox = Path(request.reply_to).expanduser().resolve()
-    if reply_inbox.is_dir():
-        inbox = reply_inbox
+    reply_target = Path(request.reply_to).expanduser().resolve()
+    # ask_agent sets reply_to to the caller inbox dir (may not exist yet).
+    if reply_target.suffix == ".json":
+        inbox = reply_target.parent
     else:
-        inbox = reply_inbox.parent
+        inbox = reply_target
     name = f"a2a-reply-{reply.correlation_id}.json"
-    path = enqueue(inbox, name, reply.to_dict())
+    path = enqueue_inbox(inbox, name, reply.to_dict())
 
     if audit is not None:
         audit.append(

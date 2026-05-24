@@ -30,13 +30,18 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
 
 
-def enqueue(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
-    """Write *payload* to ``{queue_dir}/inbox/{name}``."""
-    inbox = queue_dir / "inbox"
+def enqueue_inbox(inbox: Path, name: str, payload: dict[str, Any]) -> Path:
+    """Write *payload* directly into an inbox directory (no extra ``inbox/`` segment)."""
+    inbox = inbox.expanduser().resolve()
     inbox.mkdir(parents=True, exist_ok=True)
     path = inbox / name
     write_json(path, payload)
     return path
+
+
+def enqueue(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
+    """Write *payload* to ``{queue_dir}/inbox/{name}``."""
+    return enqueue_inbox(queue_dir / "inbox", name, payload)
 
 
 def enqueue_envelope(queue_dir: Path, envelope: A2AEnvelope) -> Path:
