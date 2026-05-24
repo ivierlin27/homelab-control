@@ -364,11 +364,11 @@ def execute_task(job: dict[str, Any], *, job_path: Path, queue_dir: Path, done_d
     # sandbox image instead. Default off so production keeps the existing
     # host-execution path until the operator opts in per-host. See
     # docs/runbooks/author-sandbox.md.
-    from .sandboxed import (
-        SandboxedCheckError,
-        run_command_sandboxed,
-        sandbox_checks_enabled,
-    )
+    import importlib
+    _sandboxed = importlib.import_module("apps.author_agent.sandboxed")
+    SandboxedCheckError = _sandboxed.SandboxedCheckError
+    run_command_sandboxed = _sandboxed.run_command_sandboxed
+    sandbox_checks_enabled = _sandboxed.sandbox_checks_enabled
     if sandbox_checks_enabled():
         from apps._shared.audit import AuditLog
         sandbox_audit = AuditLog(str(queue_dir / "trust-ledger.jsonl"))
