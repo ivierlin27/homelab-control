@@ -997,12 +997,29 @@ def queue_status(queue_dir: Path) -> dict[str, Any]:
     }
 
 
+def _inbox_job_paths(inbox: Path) -> list[Path]:
+    """Return processable inbox jobs, skipping reply envelopes."""
+    jobs: list[Path] = []
+    for path in sorted(inbox.glob("*.json")):
+        if path.name.startswith("a2a-reply-"):
+            continue
+        try:
+            payload = load_json(path)
+        except (json.JSONDecodeError, OSError):
+            jobs.append(path)
+            continue
+        if payload.get("is_reply"):
+            continue
+        jobs.append(path)
+    return jobs
+
+
 def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> int:
     dirs = ensure_queue_dirs(queue_dir)
     processed_jobs = 0
     current_job: str | None = None
     while True:
-        jobs = sorted(dirs["inbox"].glob("*.json"))
+        jobs = _inbox_job_paths(dirs["inbox"])
         if jobs:
             current_job = jobs[0].name
             write_heartbeat(heartbeat_path, queue_dir, processed_jobs, current_job)
