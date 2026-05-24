@@ -65,7 +65,8 @@ HOMELAB_CONTROL_ROOT=${HOME}/git/homelab-control
 MODEL_GATEWAY_BASE_URL=https://model-gateway.dev-path.org/v1
 MODEL_GATEWAY_API_KEY=replace-me
 PLANKA_BASE_URL=https://planka.dev-path.org
-PLANKA_API_TOKEN=replace-me
+PLANKA_API_KEY=replace-me
+PLANKA_API_TOKEN=
 PLANKA_BOARD_ID=replace-me
 PLANKA_INBOX_LIST_ID=replace-me
 PLANKA_PLAN_READY_LIST_ID=replace-me
@@ -80,7 +81,8 @@ if [[ ! -f "${CONFIG_DIR}/agent-homelab-maintainer.env" ]]; then
   cat > "${CONFIG_DIR}/agent-homelab-maintainer.env" <<EOF
 HOMELAB_CONTROL_ROOT=${HOME}/git/homelab-control
 PLANKA_BASE_URL=https://planka.dev-path.org
-PLANKA_API_TOKEN=replace-me
+PLANKA_API_KEY=replace-me
+PLANKA_API_TOKEN=
 PLANKA_BOARD_ID=replace-me
 PLANKA_HOMELAB_LIST_ID=replace-me
 PLANKA_INBOX_LIST_ID=replace-me

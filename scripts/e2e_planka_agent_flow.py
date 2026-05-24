@@ -39,6 +39,18 @@ def planka_token(base_url: str, username: str, password: str) -> str:
 
 
 def planka_headers(token: str) -> dict[str, str]:
+    import os
+    import sys
+    from pathlib import Path
+
+    api_key = os.environ.get("PLANKA_API_KEY", "").strip()
+    if api_key and api_key not in {"replace-me", "changeme"}:
+        root = Path(__file__).resolve().parents[1]
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from apps._shared.planka_client import planka_auth_headers
+
+        return planka_auth_headers()
     return {"Authorization": f"Bearer {token}"}
 
 

@@ -119,44 +119,9 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     AuditLog(path).append(payload)
 
 
-def planka_access_token() -> str:
-    token = os.environ.get("PLANKA_API_TOKEN", "")
-    if token:
-        return token
-    base_url = os.environ.get("PLANKA_BASE_URL", "").rstrip("/")
-    username = os.environ.get("PLANKA_EMAIL_OR_USERNAME", "")
-    password = os.environ.get("PLANKA_PASSWORD", "")
-    if not base_url or not username or not password:
-        return ""
-    body = json.dumps({"emailOrUsername": username, "password": password}).encode("utf-8")
-    req = request.Request(
-        f"{base_url}/api/access-tokens",
-        data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        method="POST",
-    )
-    with request.urlopen(req, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))["item"]
-
-
-def planka_request(api_path: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
-    base_url = os.environ.get("PLANKA_BASE_URL", "").rstrip("/")
-    token = planka_access_token()
-    if not base_url or not token:
-        raise ValueError("PLANKA_BASE_URL and Planka credentials or token are required")
-    body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = request.Request(
-        f"{base_url}/api/{api_path.lstrip('/')}",
-        data=body,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
-        method=method,
-    )
-    with request.urlopen(req, timeout=20) as response:
-        raw = response.read().decode("utf-8")
-    return json.loads(raw) if raw else {}
-
-
 def board_labels() -> dict[str, str]:
+    from apps._shared.planka_client import planka_request
+
     board = os.environ.get("PLANKA_BOARD_ID", "")
     if not board:
         return {}
@@ -166,6 +131,8 @@ def board_labels() -> dict[str, str]:
 
 
 def add_card_label(card_id: str, label_name: str) -> None:
+    from apps._shared.planka_client import planka_request
+
     label_id = board_labels().get(label_name)
     if not card_id or not label_id:
         return
@@ -177,6 +144,8 @@ def add_card_label(card_id: str, label_name: str) -> None:
 
 
 def create_planka_card(title: str, description: str, labels: list[str]) -> dict[str, Any]:
+    from apps._shared.planka_client import planka_request
+
     list_id = os.environ.get("PLANKA_HOMELAB_LIST_ID", "") or os.environ.get("PLANKA_INBOX_LIST_ID", "")
     if not list_id:
         raise ValueError("PLANKA_HOMELAB_LIST_ID or PLANKA_INBOX_LIST_ID is required")

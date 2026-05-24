@@ -193,44 +193,16 @@ def dispatch_planka_event(payload: dict[str, Any], *, author_queue: Path, review
     return {"ok": True, "handled": "dispatched", **result}
 
 
-def planka_access_token() -> str:
-    token = os.environ.get("PLANKA_API_TOKEN", "")
-    if token:
-        return token
-
-    base_url = os.environ.get("PLANKA_BASE_URL", "").rstrip("/")
-    username = os.environ.get("PLANKA_EMAIL_OR_USERNAME", "")
-    password = os.environ.get("PLANKA_PASSWORD", "")
-    if not base_url or not username or not password:
-        return ""
-
-    body = json.dumps({"emailOrUsername": username, "password": password}).encode("utf-8")
-    req = request.Request(
-        f"{base_url}/api/access-tokens",
-        data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        method="POST",
-    )
-    with request.urlopen(req, timeout=20) as response:
-        data = json.loads(response.read().decode("utf-8"))
-    return data["item"]
-
-
 def planka_request(api_path: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
-    base_url = os.environ.get("PLANKA_BASE_URL", "").rstrip("/")
-    token = planka_access_token()
-    if not base_url or not token:
-        raise ValueError("PLANKA_BASE_URL and PLANKA_API_TOKEN or Planka credentials are required")
-    body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = request.Request(
-        f"{base_url}/api/{api_path.lstrip('/')}",
-        data=body,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
-        method=method,
-    )
-    with request.urlopen(req, timeout=20) as response:
-        raw = response.read().decode("utf-8")
-    return json.loads(raw) if raw else {}
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from apps._shared.planka_client import planka_request as _planka_request
+
+    return _planka_request(api_path, method=method, payload=payload)
 
 
 def move_planka_card(card_id: str, list_id: str) -> dict[str, Any]:
