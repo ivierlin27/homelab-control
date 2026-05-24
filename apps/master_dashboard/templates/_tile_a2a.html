@@ -1,0 +1,71 @@
+<header class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300">A2A message bus</h2>
+    <p class="text-xs text-slate-500 mono">filesystem queues · phase 0.9</p>
+  </div>
+  {% if a2a.error %}
+    <span class="text-xs text-rose-400 mono">err: {{ a2a.error }}</span>
+  {% elif a2a.value and a2a.value.healthy %}
+    <span class="text-xs text-emerald-400 mono">healthy</span>
+  {% elif a2a.value %}
+    <span class="text-xs text-amber-400 mono">{{ a2a.value.alerts|length }} alert(s)</span>
+  {% endif %}
+</header>
+<div class="px-5 py-4 space-y-4 text-sm">
+  {% if a2a.error %}
+    <p class="text-rose-300 text-xs">{{ a2a.error }}</p>
+  {% elif not a2a.value %}
+    <p class="text-slate-500 text-xs">No A2A status (state root missing?)</p>
+  {% else %}
+    {% set s = a2a.value %}
+    <p class="text-xs text-slate-500 mono">updated {{ s.generated_at }}</p>
+
+    {% if s.alerts %}
+    <ul class="space-y-1 text-xs text-amber-200">
+      {% for alert in s.alerts %}
+      <li class="flex gap-2"><span class="text-amber-500">▲</span><span>{{ alert }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-3">
+      {% for name, agent in (s.agents or {}).items() %}
+      {% if agent.present %}
+      <div class="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+        <h3 class="text-xs uppercase tracking-wider text-slate-400 mb-2">{{ name }}</h3>
+        <dl class="space-y-1 text-xs mono">
+          <div class="flex justify-between"><dt class="text-slate-500">inbox</dt><dd>{{ agent.counts.inbox }}</dd></div>
+          <div class="flex justify-between"><dt class="text-slate-500">processing</dt><dd>{{ agent.counts.processing }}</dd></div>
+          <div class="flex justify-between"><dt class="text-slate-500">a2a inbox</dt><dd>{{ agent.inbox_a2a_requests }}</dd></div>
+          <div class="flex justify-between {% if agent.inbox_stuck_replies %}text-amber-300{% endif %}">
+            <dt>stuck replies</dt><dd>{{ agent.inbox_stuck_replies }}</dd>
+          </div>
+          <div class="flex justify-between"><dt class="text-slate-500">dlq</dt><dd>{{ agent.counts.dlq }}</dd></div>
+          <div class="flex justify-between"><dt class="text-slate-500">failed</dt><dd>{{ agent.counts.failed }}</dd></div>
+        </dl>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+  <div class="flex gap-4 text-xs text-slate-400">
+    <span>Tier 3 open: <span class="text-slate-200 mono">{{ s.tier3_pending.open }}</span></span>
+    <span>awaiting ack: <span class="text-slate-200 mono">{{ s.tier3_pending.unacknowledged }}</span></span>
+  </div>
+
+  {% if s.recent_help_requests %}
+  <div>
+    <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-1.5">Recent help_request</h3>
+    <ul class="space-y-1 text-xs mono max-h-32 overflow-y-auto">
+      {% for row in s.recent_help_requests|reverse %}
+      <li class="text-slate-300 truncate" title="{{ row.correlation_id }}">
+        <span class="text-slate-500">{{ row.occurred_at[11:19] if row.occurred_at else '?' }}</span>
+        {{ row.task_class }}
+        {% if row.dry_run %}<span class="text-slate-600">dry</span>{% elif row.card_created %}<span class="text-emerald-500">card</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>

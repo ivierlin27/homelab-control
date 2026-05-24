@@ -24,13 +24,18 @@ ssh kenns@192.168.1.45
 ./scripts/push-primary-remotes.sh
 ```
 
-On Alienware, pull from Forgejo (not only GitHub):
+On Alienware, pull from Forgejo (not only GitHub), then run post-deploy hooks:
 
 ```bash
 cd ~/git/homelab-control
 git fetch forgejo
 git pull --ff-only forgejo "$(git branch --show-current)"
+./scripts/post_deploy_agent_stack.sh
+# optional: RESTART_AGENT_SERVICES=1 ./scripts/post_deploy_agent_stack.sh
 ```
+
+`post_deploy_agent_stack.sh` runs `planka_cleanup_test_cards.py --execute` (smoke /
+A2A test cards) using `agent-executive.env` by default.
 
 Do not use service DNS names that terminate at the nginx/reverse-proxy host
 (`192.168.1.42`) unless Pi-hole has a host-specific override for SSH.

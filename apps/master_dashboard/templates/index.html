@@ -12,6 +12,11 @@
   </section>
 
   <section class="xl:col-span-1 bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden"
+           hx-get="/tiles/a2a" hx-trigger="every 30s" hx-swap="innerHTML">
+    {% include "_tile_a2a.html" %}
+  </section>
+
+  <section class="xl:col-span-1 bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden"
            hx-get="/tiles/backup" hx-trigger="every 5m" hx-swap="innerHTML">
     {% include "_tile_backup.html" %}
   </section>

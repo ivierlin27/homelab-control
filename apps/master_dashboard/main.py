@@ -10,6 +10,8 @@ A FastAPI + Jinja2 + HTMX app that surfaces, on one page:
 - Restic backup status across every reachable repo (local /mnt/spinny,
   sftp to Proxmox, and the inbound mirror from Proxmox).
 - Per-agent / per-service systemd presence (active / failed / inactive).
+- A2A queue depth, stuck reply files, Tier 3 pending, and recent
+  ``help_request`` rows (from ``apps/_shared/a2a/observability``).
 
 Design notes
 ------------
@@ -183,6 +185,12 @@ async def _fetch_cost_summary() -> dict[str, Any]:
         return resp.json()
 
 
+async def _fetch_a2a_status() -> dict[str, Any]:
+    from apps._shared.a2a.observability import build_a2a_status
+
+    return build_a2a_status(AUDIT_ROOT)
+
+
 async def _fetch_backup_status() -> list[dict[str, Any]]:
     if not BACKUP_REPOSITORIES:
         return []
@@ -348,6 +356,7 @@ _cost_cache = TTLCache(ttl_seconds=300, fetcher=_fetch_cost_summary)
 _backup_cache = TTLCache(ttl_seconds=300, fetcher=_fetch_backup_status)
 _presence_cache = TTLCache(ttl_seconds=30, fetcher=_fetch_presence)
 _schedule_cache = TTLCache(ttl_seconds=60, fetcher=_fetch_schedule)
+_a2a_cache = TTLCache(ttl_seconds=30, fetcher=_fetch_a2a_status)
 
 
 # ----- audit tail (file iteration + SSE) --------------------------------
@@ -503,6 +512,7 @@ async def index(request: Request):
     schedule = await _schedule_cache.get()
     audit_events = _read_recent_events()
     maintenance = _fetch_maintenance()
+    a2a = await _a2a_cache.get()
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -511,6 +521,7 @@ async def index(request: Request):
             "backup": backup,
             "presence": presence,
             "schedule": schedule,
+            "a2a": a2a,
             "audit_events": audit_events,
             "audit_event_count": sum(1 for _ in _list_ledgers()),
             "maintenance": maintenance,
@@ -544,6 +555,12 @@ async def tile_schedule(request: Request):
     return templates.TemplateResponse(
         request, "_tile_schedule.html", {"schedule": schedule}
     )
+
+
+@app.get("/tiles/a2a", response_class=HTMLResponse)
+async def tile_a2a(request: Request):
+    a2a = await _a2a_cache.get()
+    return templates.TemplateResponse(request, "_tile_a2a.html", {"a2a": a2a})
 
 
 @app.get("/tiles/audit", response_class=HTMLResponse)

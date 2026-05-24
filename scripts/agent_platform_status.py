@@ -93,6 +93,7 @@ def review_backlog(base_url: str, repo_owner: str, repo_name: str, token: str) -
 
 
 def build_status(args: argparse.Namespace) -> dict[str, Any]:
+    from apps._shared.a2a.observability import build_a2a_status
     author_queue = Path(args.author_queue).expanduser()
     review_queue = Path(args.review_queue).expanduser()
     executive_queue = Path(args.executive_queue).expanduser()
@@ -112,12 +113,15 @@ def build_status(args: argparse.Namespace) -> dict[str, Any]:
         "review": queue_snapshot(review_queue)["failed_jobs"],
         "executive": queue_snapshot(executive_queue)["failed_jobs"],
     }
+    state_root = author_queue.parent
+    a2a = build_a2a_status(state_root)
     status = {
         "generated_at": utc_now().isoformat(),
         "queues": {
             "author": queue_snapshot(author_queue),
             "review": queue_snapshot(review_queue),
             "executive": queue_snapshot(executive_queue),
+            "maintainer": queue_snapshot(state_root / "agent-homelab-maintainer"),
         },
         "heartbeats": {
             "author": author_heartbeat,
@@ -126,10 +130,12 @@ def build_status(args: argparse.Namespace) -> dict[str, Any]:
         },
         "review_backlog": backlog,
         "stale_heartbeats": stale_heartbeats,
+        "a2a": a2a,
         "healthy": not stale_heartbeats
         and not failed_jobs["author"]
         and not failed_jobs["review"]
-        and not failed_jobs["executive"],
+        and not failed_jobs["executive"]
+        and a2a.get("healthy", True),
     }
     return status
 

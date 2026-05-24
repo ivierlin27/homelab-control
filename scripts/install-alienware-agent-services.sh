@@ -197,6 +197,9 @@ systemctl --user status alienware-agent-activity.service --no-pager
 systemctl --user status alienware-agent-platform-report.service --no-pager || true
 systemctl --user status alienware-agent-platform-report.timer --no-pager
 
+echo "Running post-deploy Planka test-card cleanup..."
+"${ROOT_DIR}/scripts/post_deploy_agent_stack.sh" || echo "warn: post_deploy_agent_stack.sh failed (non-fatal)"
+
 echo "Discord bridge unit installed but not enabled by default."
 echo "Install dependencies with: python3 -m pip install --user -r apps/executive_agent/requirements.txt"
 echo "Then configure ${CONFIG_DIR}/agent-executive-discord.env and run:"

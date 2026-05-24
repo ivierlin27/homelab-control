@@ -55,9 +55,13 @@ print('ok', ok, 'reason', reason, 'payload', payload)
 - **Finance ingest** — `finance.ingest` bean-check failures escalate (DM-only Tier 3)
 - **Tier 3 ack daemon** — `scripts/escalation_tier3_ack_daemon.py` + `alienware-escalation-tier3-ack.timer`
 - **Queue retry/DLQ** — `requeue_for_retry()` + `dlq/` stage in `apps/_shared/a2a/queue.py`
+- **Reply-loop fix + help_request dedupe** — skip `a2a-reply-*` in workers; `help_request_dedup.py`
+- **Observability** — `apps/_shared/a2a/observability.py`; master dashboard **A2A** tile; `platform-status.json` `a2a` block — see `docs/A2A_OBSERVABILITY.md`
+- **Deploy cleanup** — `scripts/post_deploy_agent_stack.sh` (Planka smoke card delete on install/deploy)
+- **Git remotes** — Forgejo canonical; `scripts/push-primary-remotes.sh`; live smoke uses `dry_run`
 
 Set `ESCALATION_APPROVALS_CHANNEL_ID` (or manifest `discord.channels[].id` for `#approvals`) on Alienware. Disable escalation in tests with `HOMELAB_ESCALATION_DISABLE=1`.
 
-Still open: Phase 0.10 sub-agent spawner; richer A2A retry/backoff policies per action class.
+**Sprint closed.** Still open elsewhere: Phase 0.10 sub-agent spawner; richer A2A retry/backoff per action class; finance queue worker.
 
 See also `docs/plans/phase-0-platform.md` §0.9 and §0.11.

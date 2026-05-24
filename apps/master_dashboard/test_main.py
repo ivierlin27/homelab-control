@@ -105,10 +105,28 @@ def test_index_renders_with_stubbed_fetchers(monkeypatch, tmp_path: Path):
              "next_in_seconds": 600, "last_ago_seconds": 60},
         ]
 
+    async def _ok_a2a():
+        return {
+            "healthy": True,
+            "generated_at": "2026-05-24T12:00:00+00:00",
+            "alerts": [],
+            "agents": {
+                "executive": {
+                    "present": True,
+                    "counts": {"inbox": 0, "processing": 0, "done": 1, "failed": 0, "dlq": 0},
+                    "inbox_a2a_requests": 0,
+                    "inbox_stuck_replies": 0,
+                },
+            },
+            "tier3_pending": {"open": 0, "unacknowledged": 0},
+            "recent_help_requests": [],
+        }
+
     monkeypatch.setattr(dash, "_cost_cache", dash.TTLCache(60, _ok_cost))
     monkeypatch.setattr(dash, "_backup_cache", dash.TTLCache(60, _ok_backup))
     monkeypatch.setattr(dash, "_presence_cache", dash.TTLCache(60, _ok_presence))
     monkeypatch.setattr(dash, "_schedule_cache", dash.TTLCache(60, _ok_schedule))
+    monkeypatch.setattr(dash, "_a2a_cache", dash.TTLCache(60, _ok_a2a))
 
     with TestClient(dash.app) as client:
         resp = client.get("/")
@@ -121,6 +139,7 @@ def test_index_renders_with_stubbed_fetchers(monkeypatch, tmp_path: Path):
         assert "hot" in body
 
         assert "alienware-backup-hot.timer" in body
+        assert "A2A message bus" in body
 
         assert client.get("/healthz").json() == {"status": "ok"}
         assert client.get("/tiles/cost").status_code == 200
@@ -128,6 +147,7 @@ def test_index_renders_with_stubbed_fetchers(monkeypatch, tmp_path: Path):
         assert client.get("/tiles/backup").status_code == 200
         assert client.get("/tiles/audit").status_code == 200
         assert client.get("/tiles/schedule").status_code == 200
+        assert client.get("/tiles/a2a").status_code == 200
 
 
 def test_parse_timer_json_handles_real_systemd_output():

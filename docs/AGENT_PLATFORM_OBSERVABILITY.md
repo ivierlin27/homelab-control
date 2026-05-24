@@ -40,6 +40,11 @@ The Agent Activity dashboard also reads the executive assistant trust ledger and
 weekly review file from `~/.local/state/homelab-control/agent-executive/` so the
 assistant can summarize trends without putting every event into chat.
 
+The master dashboard (**A2A message bus** tile at `:8800`) and the ``a2a`` block
+in ``platform-status.json`` report queue depth, stuck ``a2a-reply-*`` files, Tier 3
+pending counts, and recent executive ``help_request`` rows. See
+``docs/A2A_OBSERVABILITY.md``.
+
 The dashboard now also renders:
 
 - project-level trust posture and route usage from executive + maintainer ledgers

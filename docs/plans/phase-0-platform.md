@@ -384,8 +384,9 @@ Acceptance: a Planka card created in `#knowledge` can produce a verified
 homelab inventory excerpt without a human re-typing the request, and the audit
 trail names every agent that touched it.
 
-**Follow-up:** wire `Dispatcher(tier2, tier3)` into maintainer/finance workers;
-A2A retry/DLQ (`a2a_followup_retry_dlq`).
+**Also shipped (2026-05-24):** maintainer `Dispatcher` wiring, A2A retry/DLQ,
+reply-loop fix, `help_request` dedupe, observability (`docs/A2A_OBSERVABILITY.md`),
+master dashboard A2A tile, deploy Planka cleanup (`post_deploy_agent_stack.sh`).
 
 ## 0.10 Sub-agent spawner — `apps/_shared/subagent/`
 
@@ -485,7 +486,7 @@ Architecture notes:
 - Quartz v4 KB site at `kb.dev-path.org` + the vault layout
   (`raw/compiled/notes/published`) + Syncthing two-way to Mac.
 - Khoj chat sibling tab.
-- Queue-depth tile (A2A bus shipped; tile wiring deferred).
+- ~~Queue-depth tile~~ — **done 2026-05-24** (A2A tile on master dashboard).
 - Open-approvals tile (Tier 3 handler shipped; dashboard tile deferred).
 - Mobile/narrow layout pass.
 
