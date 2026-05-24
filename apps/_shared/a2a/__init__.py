@@ -179,8 +179,8 @@ def make_tier2_executive_handler(
     Returns a callable matching ``Dispatcher``'s ``Tier2Fn`` signature:
     ``(envelope) -> (success, payload, reason)``.
 
-    Executive handling of ``help_request`` is a separate sprint; this handler
-    will time out until the executive worker replies.
+    Requires the executive worker to handle ``help_request`` A2A jobs (see
+    ``apps/executive_agent/help_request.py``).
     """
     from typing import Tuple
 

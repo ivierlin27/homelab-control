@@ -10,7 +10,14 @@ import shutil
 import sys
 import time
 import traceback
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+
+try:
+    from datetime import UTC
+except ImportError:  # Python < 3.11
+    from datetime import timezone
+
+    UTC = timezone.utc  # type: ignore[misc, assignment]
 from pathlib import Path
 from typing import Any
 from urllib import error, request
@@ -887,12 +894,49 @@ def render_weekly_summary(ledger: list[dict[str, Any]], platform_status: dict[st
     return lines
 
 
+def is_a2a_request(job: dict[str, Any]) -> bool:
+    """True when *job* looks like an A2A request envelope (not a legacy action job)."""
+    if job.get("is_reply"):
+        return False
+    required = {"correlation_id", "caller", "callee", "action", "reply_to"}
+    return required.issubset(job.keys())
+
+
+def process_a2a_job(job: dict[str, Any], queue_dir: Path) -> dict[str, Any]:
+    """Handle an A2A envelope from the executive inbox."""
+    from apps._shared.a2a import A2AEnvelope, reply_to_caller
+    from apps.executive_agent.help_request import handle_help_request
+
+    envelope = A2AEnvelope.from_dict(job)
+    action = envelope.action.strip().lower().replace("_", "-")
+    state_dir = Path(job.get("state_dir", queue_dir)).expanduser()
+    dry_run = bool(job.get("dry_run", False))
+
+    if action == "help-request":
+        result = handle_help_request(envelope, state_dir=state_dir, dry_run=dry_run)
+        reply_to_caller(
+            envelope,
+            success=bool(result.get("ok")),
+            outcome=str(result.get("outcome", "")),
+            payload=dict(result.get("reply_payload") or {}),
+        )
+        return result
+
+    raise ValueError(f"unsupported A2A action for executive worker: {envelope.action}")
+
+
 def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
     dirs = ensure_queue_dirs(queue_dir)
     processing_path = dirs["processing"] / job_path.name
     shutil.move(str(job_path), processing_path)
     try:
         job = load_json(processing_path)
+        if is_a2a_request(job):
+            result = process_a2a_job(job, queue_dir)
+            write_json(dirs["done"] / f"{processing_path.stem}.receipt.json", result)
+            shutil.move(str(processing_path), dirs["done"] / processing_path.name)
+            return result
+
         action = str(job.get("action", "")).strip().lower().replace("_", "-")
         if action == "handle-request":
             ns = argparse.Namespace(

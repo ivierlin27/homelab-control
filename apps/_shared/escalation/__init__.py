@@ -48,6 +48,16 @@ try:
 except ImportError:  # pragma: no cover
     make_tier2_executive_handler = None  # type: ignore[misc, assignment]
 
+from .tier3_discord import (
+    Tier3DiscordError,
+    format_tier3_message,
+    make_tier3_discord_handler,
+    post_channel_message,
+    post_webhook_message,
+    resolve_approvals_channel_id,
+    send_user_dm,
+)
+
 __all__ = [
     "DEFAULT_TASK_CLASS",
     "AttemptOutcome",
@@ -60,4 +70,11 @@ __all__ = [
     "load_config",
     "resolve_budgets",
     "make_tier2_executive_handler",
+    "Tier3DiscordError",
+    "format_tier3_message",
+    "make_tier3_discord_handler",
+    "post_channel_message",
+    "post_webhook_message",
+    "resolve_approvals_channel_id",
+    "send_user_dm",
 ]
