@@ -34,6 +34,23 @@ def test_render_help_request_description_includes_transitions() -> None:
     assert "Tier 1 → 2" in text
 
 
+def test_handle_help_request_dry_run_in_payload_skips_planka(tmp_path: Path) -> None:
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    envelope = A2AEnvelope.new_request(
+        caller="agent:homelab-maintainer",
+        callee="agent:executive",
+        action="help_request",
+        payload={"task_class": "live.smoke.help_request", "dry_run": True},
+        reply_to=str(tmp_path / "reply-inbox"),
+    )
+    with mock.patch.object(executive_main, "create_intake_card") as create_card:
+        result = handle_help_request(envelope, state_dir=state_dir)
+    assert result["ok"] is True
+    assert result["reply_payload"]["card"]["dry_run"] is True
+    create_card.assert_not_called()
+
+
 def test_handle_help_request_creates_card_and_audit(tmp_path: Path) -> None:
     state_dir = tmp_path / "state"
     state_dir.mkdir()

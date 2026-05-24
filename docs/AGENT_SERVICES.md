@@ -17,6 +17,21 @@ When deploying from another machine, SSH to the host-specific address:
 ssh kenns@192.168.1.45
 ```
 
+**Git remotes:** Forgejo (`forgejo.dev-path.org`) is canonical; GitHub personal
+(`origin`) is the backup mirror. After committing locally, push both:
+
+```bash
+./scripts/push-primary-remotes.sh
+```
+
+On Alienware, pull from Forgejo (not only GitHub):
+
+```bash
+cd ~/git/homelab-control
+git fetch forgejo
+git pull --ff-only forgejo "$(git branch --show-current)"
+```
+
 Do not use service DNS names that terminate at the nginx/reverse-proxy host
 (`192.168.1.42`) unless Pi-hole has a host-specific override for SSH.
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -36,13 +37,34 @@ pytestmark_e2e = pytest.mark.e2e
 pytestmark_live = pytest.mark.live
 
 
-def _help_payload(task_class: str = "e2e.help_request") -> dict:
+def _help_payload(task_class: str = "e2e.help_request", *, dry_run: bool = False) -> dict:
     return {
         "task_class": task_class,
         "blocked_reason": "e2e production path",
         "urgent": False,
         "transitions": [{"from_tier": 1, "to_tier": 2, "reason": "e2e hard_fail"}],
+        "dry_run": dry_run,
     }
+
+
+def _cleanup_live_smoke_planka_card(reply: Any) -> None:
+    """Delete a Planka card created by a live smoke test (best-effort)."""
+    if reply is None:
+        return
+    card = (reply.reply_payload or {}).get("card") or {}
+    if card.get("dry_run") or not card.get("created"):
+        return
+    card_id = str(card.get("card_id") or "").strip()
+    if not card_id:
+        return
+    try:
+        from apps._shared.planka_client import planka_auth_configured, planka_request
+
+        if not planka_auth_configured():
+            return
+        planka_request(f"cards/{card_id}", method="DELETE")
+    except Exception:
+        pass
 
 
 @pytest.mark.e2e
@@ -280,16 +302,15 @@ def test_live_registry_allows_maintainer_executive_a2a() -> None:
     reason="set HOMELAB_E2E_LIVE_QUEUES=1 to hit real agent queue dirs (side effects)",
 )
 def test_live_help_request_on_host_queues() -> None:
-    """Optional Alienware smoke: uses real queue dirs; safe correlation_id prefix."""
+    """Optional Alienware smoke: real queues; ``dry_run`` avoids Planka card litter."""
     from apps._shared.a2a import ask_agent, await_reply
     from apps._shared.a2a.routing import resolve_queue_dir
 
     reg = load_registry()
-    exec_dir = resolve_queue_dir("agent:executive", registry=reg)
     maint_inbox = resolve_queue_dir("agent:homelab-maintainer", registry=reg) / "inbox"
     maint_inbox.mkdir(parents=True, exist_ok=True)
 
-    payload = _help_payload("live.smoke.help_request")
+    payload = _help_payload("live.smoke.help_request", dry_run=True)
     result = ask_agent(
         "agent:homelab-maintainer",
         "agent:executive",
@@ -298,12 +319,20 @@ def test_live_help_request_on_host_queues() -> None:
         timeout_seconds=120,
     )
     assert "live.smoke" in payload["task_class"]
+    assert payload.get("dry_run") is True
 
-    reply = await_reply(
-        result.correlation_id,
-        maint_inbox,
-        timeout_seconds=90,
-        poll_interval=1.0,
-    )
-    assert reply is not None, "executive worker must be running (alienware-executive-agent.service)"
-    assert reply.success is True
+    reply = None
+    try:
+        reply = await_reply(
+            result.correlation_id,
+            maint_inbox,
+            timeout_seconds=90,
+            poll_interval=1.0,
+        )
+        assert reply is not None, (
+            "executive worker must be running (alienware-executive-agent.service)"
+        )
+        assert reply.success is True
+        assert (reply.reply_payload or {}).get("card", {}).get("dry_run") is True
+    finally:
+        _cleanup_live_smoke_planka_card(reply)

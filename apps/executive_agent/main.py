@@ -881,7 +881,9 @@ def process_a2a_job(job: dict[str, Any], queue_dir: Path) -> dict[str, Any]:
     envelope = A2AEnvelope.from_dict(job)
     action = envelope.action.strip().lower().replace("_", "-")
     state_dir = Path(job.get("state_dir", queue_dir)).expanduser()
-    dry_run = bool(job.get("dry_run", False))
+    dry_run = bool(
+        job.get("dry_run", False) or (envelope.payload or {}).get("dry_run", False)
+    )
 
     if action == "help-request":
         result = handle_help_request(

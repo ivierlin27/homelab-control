@@ -77,6 +77,7 @@ def handle_help_request(
 
     # Import lazily so unit tests can patch Planka helpers on ``main``.
     payload = dict(envelope.payload or {})
+    dry_run = dry_run or bool(payload.get("dry_run", False))
     task_class = str(payload.get("task_class") or "unknown")
     urgent = bool(payload.get("urgent", False))
     title = f"A2A help: {task_class} ({envelope.caller})"

@@ -24,10 +24,14 @@ With `alienware-executive-agent.service` running and Planka configured per agent
 
 ```bash
 cd ~/git/homelab-control
+git pull --ff-only forgejo phase-1-finance   # canonical remote
 export PYTHONPATH=.
 export HOMELAB_E2E_LIVE=1 HOMELAB_E2E_LIVE_QUEUES=1
 pytest apps/_shared/a2a/test_e2e_production.py::test_live_help_request_on_host_queues -q
 ```
+
+Live smoke uses ``dry_run`` in the help_request payload (no Planka card); a
+finally hook deletes the card if one was created anyway.
 
 Or Tier 2 via escalation handler:
 
