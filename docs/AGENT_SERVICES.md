@@ -99,6 +99,20 @@ After changing `agent-dispatcher.env`, restart:
 systemctl --user restart alienware-agent-event-dispatcher.service
 ```
 
+### Clean up test cards
+
+`scripts/planka_cleanup_test_cards.py` deletes agent smoke cards (`verify-*`, `smoke-*`, `A2A help:`, etc.) from the homelab board. **Dry-run by default** — pass `--execute` to delete.
+
+```bash
+set -a && source ~/.config/homelab-control/agent-dispatcher.env && set +a
+export PYTHONPATH=~/git/homelab-control
+python3 scripts/planka_cleanup_test_cards.py              # preview
+python3 scripts/planka_cleanup_test_cards.py --execute    # delete
+python3 scripts/planka_cleanup_test_cards.py --execute --include-legacy-e2e
+```
+
+Use any env file with `PLANKA_BASE_URL`, `PLANKA_API_KEY`, and `PLANKA_BOARD_ID` (dispatcher or executive). The API user needs permission to delete cards on that board (board editor or project owner).
+
 ## Queues
 
 Author queue:
