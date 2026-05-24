@@ -19,8 +19,8 @@ from apps._shared.escalation.tier3_pending import (
 def test_register_and_load_pending(tmp_path: Path) -> None:
     register_pending(
         Tier3PendingRecord(
-            message_id="m1",
-            channel_id="c1",
+            message_id="1234567890123456780",
+            channel_id="9876543210987654320",
             task_class="homelab.deploy",
             principal="agent:executive",
             urgent=False,
@@ -38,8 +38,8 @@ def test_process_pending_sends_dm_when_overdue(tmp_path: Path) -> None:
     old = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
     register_pending(
         Tier3PendingRecord(
-            message_id="m-old",
-            channel_id="c1",
+            message_id="1234567890123456789",
+            channel_id="9876543210987654321",
             task_class="homelab.deploy",
             principal="agent:executive",
             urgent=False,
