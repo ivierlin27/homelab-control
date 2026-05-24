@@ -75,6 +75,30 @@ The event dispatcher moves cards as the agents report progress:
 - review says ready -> `Needs Human Review` with `state:ready-to-merge`
 - PR merged -> `Done`
 
+### Planka credentials per service
+
+All Planka HTTP callers use `apps/_shared/planka_client.py`:
+
+1. **`PLANKA_API_KEY`** (preferred) — `X-Api-Key` header, one key per Planka service user
+2. **`PLANKA_API_TOKEN`** — legacy Bearer token
+3. **`PLANKA_EMAIL_OR_USERNAME` + `PLANKA_PASSWORD`** — mints a Bearer token at startup
+
+| Service | Env file | Planka user (recommended) |
+|---------|----------|---------------------------|
+| Executive worker | `agent-executive.env` | `agent-executive` |
+| Homelab maintainer | `agent-homelab-maintainer.env` | `agent-homelab-maintainer` |
+| Event dispatcher | `agent-dispatcher.env` | `agent-dispatcher` (or `agent-platform`) |
+
+Use the **same homelab board** IDs (`PLANKA_BOARD_ID`, column list IDs) across executive, maintainer, and dispatcher. Copy the full column set from `agent-dispatcher.env` into each file that needs it.
+
+**Planka roles:** executive and maintainer only **create cards** and attach labels — **Board user** on that board is enough. The dispatcher also **moves cards**, edits descriptions, and may **create board labels** when missing (`ensure_label`) — use **Board editor** on that board, or **project owner** on the homelab project if label creation or cross-list moves fail as board user. Project owner is fine for a dedicated service account; it is broader than the agents need.
+
+After changing `agent-dispatcher.env`, restart:
+
+```bash
+systemctl --user restart alienware-agent-event-dispatcher.service
+```
+
 ## Queues
 
 Author queue:

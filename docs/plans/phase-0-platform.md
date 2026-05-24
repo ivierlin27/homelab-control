@@ -30,9 +30,9 @@ Decisions locked at planning time:
 | Gateway cost/latency log           | 0.6     | done (live to PG)   |
 | Per-agent Discord presence         | 0.7     | done                |
 | Per-agent skill registry           | 0.8     | done                |
-| Inter-agent communication (A2A)    | 0.9     | not started         |
+| Inter-agent communication (A2A)    | 0.9     | done (2026-05-24)   |
 | Sub-agent spawner                  | 0.10    | not started         |
-| Tiered escalation                  | 0.11    | not started         |
+| Tiered escalation                  | 0.11    | partial (see §0.11) |
 | Master dashboard + KB browser      | 0.12    | not started         |
 | Backup + restore                   | 0.13    | done (local + Proxmox SFTP) |
 
@@ -363,13 +363,19 @@ named.
 
 ## 0.9 Inter-agent communication (A2A) — `apps/_shared/a2a/`
 
+**SHIPPED 2026-05-24.** See `docs/plans/phase-0.9-a2a.md` for module map and live smoke commands.
+
 Standard "ask another agent" tool exposed only to agents whose manifest lists
 `a2a.allowed_callees`. Default empty.
 
 - Implementation: durable enqueue into the callee's existing queue with
-  `reply_to_queue` and `correlation_id`; caller awaits a single result envelope
+  `reply_to` and `correlation_id`; caller awaits a single result envelope
   (timeout escalates per 0.11). All hops are written to the hash-chained audit
   so the chain `who asked whom for what` is always reconstructible.
+- `make_tier2_executive_handler()` wires escalation Tier 2 to
+  `ask_agent(..., action="help_request")` → `agent:executive`.
+- Executive worker handles `help_request` in `apps/executive_agent/help_request.py`
+  (Planka intake card + `reply_to_caller`).
 - Standard role decomposition (researcher -> planner -> executor -> verifier)
   inside one project uses sub-agent spawning (0.10) when the steps share
   context, and A2A when they cross trust boundaries.
@@ -377,6 +383,9 @@ Standard "ask another agent" tool exposed only to agents whose manifest lists
 Acceptance: a Planka card created in `#knowledge` can produce a verified
 homelab inventory excerpt without a human re-typing the request, and the audit
 trail names every agent that touched it.
+
+**Follow-up:** wire `Dispatcher(tier2, tier3)` into maintainer/finance workers;
+A2A retry/DLQ (`a2a_followup_retry_dlq`).
 
 ## 0.10 Sub-agent spawner — `apps/_shared/subagent/`
 
@@ -395,6 +404,13 @@ parent's correlation ID.
   audit can reconstruct any sub-agent's full transcript.
 
 ## 0.11 Tiered escalation — `apps/_shared/escalation/`
+
+**Partial ship 2026-05-18 / 2026-05-24:** `apps/_shared/escalation/` provides
+`Dispatcher`, policy loading from `config/escalation.yaml`, and injectable
+Tier 1/2/3 callables. Tier 2 concrete handler:
+`make_tier2_executive_handler()` (A2A `help_request`). Tier 3 concrete handler:
+`make_tier3_discord_handler()` in `tier3_discord.py`. Not yet wired into all
+production agent workers; `#approvals` channel id and 4h-ack daemon remain open.
 
 Failures escalate in three tiers before the human is bothered:
 
@@ -469,8 +485,8 @@ Architecture notes:
 - Quartz v4 KB site at `kb.dev-path.org` + the vault layout
   (`raw/compiled/notes/published`) + Syncthing two-way to Mac.
 - Khoj chat sibling tab.
-- Queue-depth tile (no queue substrate yet — lands with 0.9 A2A bus).
-- Open-approvals tile (lands with 0.11 tiered escalation).
+- Queue-depth tile (A2A bus shipped; tile wiring deferred).
+- Open-approvals tile (Tier 3 handler shipped; dashboard tile deferred).
 - Mobile/narrow layout pass.
 
 **Original full vision (still the target):** dashboard at
