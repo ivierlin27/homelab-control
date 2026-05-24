@@ -144,6 +144,33 @@ def test_dispatcher_with_tier3_discord_handler() -> None:
     assert posts
 
 
+def test_tier3_dm_only_skips_channel_post() -> None:
+    dm_calls: list[tuple[str, str, str]] = []
+
+    def fake_dm(token: str, user_id: str, content: str) -> dict:
+        dm_calls.append((token, user_id, content))
+        return {"user_id": user_id}
+
+    handler = make_tier3_discord_handler(
+        channel_id="999",
+        token="bot-token",
+        dm_only=True,
+        dm_user_ids=["user-1"],
+        post_channel=lambda *args: (_ for _ in ()).throw(AssertionError("no channel post")),
+        send_dm=fake_dm,
+    )
+    outcome, payload = handler(
+        {
+            "task_class": "finance.ingest",
+            "blocked_reason": "bean-check failed",
+            "transitions": [],
+        }
+    )
+    assert outcome == "human_intervention"
+    assert payload["delivery"] == "dm_only"
+    assert dm_calls
+
+
 def test_tier3_handler_missing_token_raises() -> None:
     handler = make_tier3_discord_handler(channel_id="c", token="")
     with pytest.raises(Tier3DiscordError, match="DISCORD_BOT_TOKEN"):

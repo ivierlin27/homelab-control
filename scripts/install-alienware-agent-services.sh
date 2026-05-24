@@ -166,6 +166,8 @@ cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.service" "${SYSTEMD_US
 cp "${ROOT_DIR}/systemd/alienware-executive-weekly-review.timer" "${SYSTEMD_USER_DIR}/alienware-executive-weekly-review.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.service" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-platform-report.timer" "${SYSTEMD_USER_DIR}/alienware-agent-platform-report.timer"
+cp "${ROOT_DIR}/systemd/alienware-escalation-tier3-ack.service" "${SYSTEMD_USER_DIR}/alienware-escalation-tier3-ack.service"
+cp "${ROOT_DIR}/systemd/alienware-escalation-tier3-ack.timer" "${SYSTEMD_USER_DIR}/alienware-escalation-tier3-ack.timer"
 cp "${ROOT_DIR}/systemd/alienware-agent-event-dispatcher.service" "${SYSTEMD_USER_DIR}/alienware-agent-event-dispatcher.service"
 cp "${ROOT_DIR}/systemd/alienware-agent-activity.service" "${SYSTEMD_USER_DIR}/alienware-agent-activity.service"
 
@@ -177,6 +179,7 @@ systemctl --user enable --now alienware-homelab-maintainer-agent.service
 systemctl --user enable --now alienware-executive-chat.service
 systemctl --user enable --now alienware-executive-weekly-review.timer
 systemctl --user enable --now alienware-agent-platform-report.timer
+systemctl --user enable --now alienware-escalation-tier3-ack.timer
 systemctl --user enable --now alienware-agent-event-dispatcher.service
 systemctl --user enable --now alienware-agent-activity.service
 systemctl --user restart alienware-executive-chat.service

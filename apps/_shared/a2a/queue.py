@@ -10,6 +10,9 @@ from typing import Any
 from .envelope import A2AEnvelope
 
 
+DEFAULT_MAX_RETRIES = 3
+
+
 def ensure_dirs(queue_dir: Path, *, worktrees: bool = False) -> dict[str, Path]:
     """Create standard queue stage directories; return path map."""
     dirs: dict[str, Path] = {
@@ -17,6 +20,7 @@ def ensure_dirs(queue_dir: Path, *, worktrees: bool = False) -> dict[str, Path]:
         "processing": queue_dir / "processing",
         "done": queue_dir / "done",
         "failed": queue_dir / "failed",
+        "dlq": queue_dir / "dlq",
     }
     if worktrees:
         dirs["worktrees"] = queue_dir / "worktrees"
@@ -78,3 +82,57 @@ def poll_reply(
             return A2AEnvelope.from_dict(data)
         time.sleep(poll_interval)
     return None
+
+
+def resolve_max_retries(job: dict[str, Any], *, default: int = DEFAULT_MAX_RETRIES) -> int:
+    """Max processing attempts before a job moves to ``dlq/``."""
+    raw = job.get("_max_retries", job.get("max_retries", default))
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def requeue_for_retry(
+    processing_path: Path,
+    queue_dir: Path,
+    job: dict[str, Any],
+    error: str,
+    *,
+    max_retries: int | None = None,
+) -> tuple[str, int]:
+    """Re-enqueue *job* from *processing* or move to ``dlq/`` when retries are exhausted.
+
+    Returns ``("retry", new_count)`` or ``("dlq", last_count)``.
+    """
+    from datetime import datetime, timezone
+
+    limit = max_retries if max_retries is not None else resolve_max_retries(job)
+    retry_count = int(job.get("_retry_count", 0)) + 1
+    job["_retry_count"] = retry_count
+    job["_last_error"] = error
+    job["_retry_at"] = datetime.now(timezone.utc).isoformat()
+
+    dirs = ensure_dirs(queue_dir)
+    if retry_count >= limit:
+        dlq_path = dirs["dlq"] / processing_path.name
+        write_json(dlq_path, job)
+        sidecar = dlq_path.with_suffix(".error.json")
+        write_json(
+            sidecar,
+            {
+                "error": error,
+                "retry_count": retry_count,
+                "max_retries": limit,
+                "moved_at": job["_retry_at"],
+            },
+        )
+        if processing_path.exists():
+            processing_path.unlink()
+        return ("dlq", retry_count)
+
+    inbox_path = dirs["inbox"] / processing_path.name
+    write_json(inbox_path, job)
+    if processing_path.exists():
+        processing_path.unlink()
+    return ("retry", retry_count)

@@ -321,37 +321,128 @@ def record_note(job: dict[str, Any], *, queue_dir: Path) -> dict[str, Any]:
     return {"ok": True, "memory": result}
 
 
+def _task_class_for_job(job: dict[str, Any], action: str) -> str:
+    explicit = str(job.get("task_class", "")).strip()
+    if explicit:
+        return explicit.replace("-", ".")
+    slug = action.replace("-", "_")
+    return f"homelab.{slug}" if slug else "homelab.unknown"
+
+
+def execute_job_body(job: dict[str, Any], *, queue_dir: Path) -> dict[str, Any]:
+    """Run one maintainer job (raises on failure)."""
+    action = str(job.get("action", "")).strip().lower().replace("_", "-")
+    policy = load_yaml(Path(job.get("policy", str(DEFAULT_POLICY))))
+    if action == "triage-intake":
+        return triage_intake(job, queue_dir=queue_dir, policy=policy)
+    if action == "delegate-author-job":
+        return {"ok": True, "author": delegate_author_job(job["author_job"], policy=policy)}
+    if action == "delegate-review-job":
+        return {"ok": True, "review": delegate_review_job(job["review_job"], policy=policy)}
+    if action == "record-note":
+        return record_note(job, queue_dir=queue_dir)
+    raise ValueError(f"unsupported homelab-maintainer action: {action}")
+
+
 def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
+    from apps._shared.a2a.queue import requeue_for_retry
+    from apps._shared.escalation import AttemptOutcome
+    from apps._shared.escalation.factory import build_dispatcher_for_principal
+
     dirs = ensure_queue_dirs(queue_dir)
     processing_path = dirs["processing"] / job_path.name
     shutil.move(str(job_path), processing_path)
+    job = load_json(processing_path)
+    action = str(job.get("action", "")).strip().lower().replace("_", "-")
+    task_class = _task_class_for_job(job, action)
+    principal = os.environ.get("AGENT_PRINCIPAL", DEFAULT_PRINCIPAL)
+    context: dict[str, str] = {"planka_url": ""}
+    if isinstance(job.get("card"), dict):
+        context["planka_url"] = str(job["card"].get("url", ""))
+
+    def attempt(attempt_index: int, previous: dict[str, Any] | None) -> tuple[AttemptOutcome, Any, str]:
+        try:
+            payload = execute_job_body(job, queue_dir=queue_dir)
+            if isinstance(payload, dict):
+                card = payload.get("card") or {}
+                if isinstance(card, dict) and card.get("url"):
+                    context["planka_url"] = str(card["url"])
+            return (AttemptOutcome.SUCCESS, payload, "job completed")
+        except Exception as exc:
+            return (AttemptOutcome.HARD_FAIL, None, str(exc))
+
+    dispatcher = build_dispatcher_for_principal(
+        principal,
+        task_class=task_class,
+        attempt=attempt,
+        queue_dir=queue_dir,
+    )
     try:
-        job = load_json(processing_path)
-        action = str(job.get("action", "")).strip().lower().replace("_", "-")
-        policy = load_yaml(Path(job.get("policy", str(DEFAULT_POLICY))))
-        if action == "triage-intake":
-            result = triage_intake(job, queue_dir=queue_dir, policy=policy)
-        elif action == "delegate-author-job":
-            result = {"ok": True, "author": delegate_author_job(job["author_job"], policy=policy)}
-        elif action == "delegate-review-job":
-            result = {"ok": True, "review": delegate_review_job(job["review_job"], policy=policy)}
-        elif action == "record-note":
-            result = record_note(job, queue_dir=queue_dir)
-        else:
-            raise ValueError(f"unsupported homelab-maintainer action: {action}")
-        write_json(dirs["done"] / f"{processing_path.stem}.receipt.json", result)
-        shutil.move(str(processing_path), dirs["done"] / processing_path.name)
-        return result
+        escalation = dispatcher.execute(
+            task_class=task_class,
+            urgent=bool(job.get("urgent", False)),
+            envelope_extra={
+                "job_action": action,
+                "intake_id": job.get("intake_id", ""),
+                "planka_card_url": context["planka_url"],
+                "card_url": context["planka_url"],
+            },
+        )
     except Exception as exc:
+        disposition, _ = requeue_for_retry(processing_path, queue_dir, job, str(exc))
         error_payload = {
             "job_file": str(processing_path),
             "failed_at": utc_now(),
             "error": str(exc),
             "traceback": traceback.format_exc(),
+            "disposition": disposition,
         }
-        write_json(dirs["failed"] / f"{processing_path.stem}.error.json", error_payload)
-        shutil.move(str(processing_path), dirs["failed"] / processing_path.name)
+        target = dirs["dlq"] if disposition == "dlq" else dirs["failed"]
+        write_json(target / f"{processing_path.stem}.error.json", error_payload)
+        if disposition != "dlq" and processing_path.exists():
+            shutil.move(str(processing_path), target / processing_path.name)
         raise
+
+    if escalation.succeeded() or escalation.outcome in {"rerouted", "human_intervention"}:
+        result = {
+            "ok": True,
+            "result": escalation.payload,
+            "escalation": {
+                "final_tier": escalation.final_tier,
+                "outcome": escalation.outcome,
+                "transitions": [t.as_audit_dict() for t in escalation.transitions],
+            },
+        }
+        write_json(dirs["done"] / f"{processing_path.stem}.receipt.json", result)
+        if processing_path.exists():
+            shutil.move(str(processing_path), dirs["done"] / processing_path.name)
+        return result
+
+    disposition, retry_count = requeue_for_retry(
+        processing_path,
+        queue_dir,
+        job,
+        escalation.blocked_reason or "escalation exhausted",
+    )
+    error_payload = {
+        "job_file": str(processing_path.name),
+        "failed_at": utc_now(),
+        "error": escalation.blocked_reason,
+        "escalation": {
+            "final_tier": escalation.final_tier,
+            "outcome": escalation.outcome,
+            "transitions": [t.as_audit_dict() for t in escalation.transitions],
+        },
+        "disposition": disposition,
+        "retry_count": retry_count,
+    }
+    target = dirs["dlq"] if disposition == "dlq" else dirs["failed"]
+    write_json(target / f"{processing_path.stem}.error.json", error_payload)
+    if disposition == "dlq":
+        raise RuntimeError(escalation.blocked_reason or "job moved to dlq")
+    if processing_path.exists():
+        shutil.move(str(processing_path), target / processing_path.name)
+    raise RuntimeError(escalation.blocked_reason or "job failed after escalation")
 
 
 def write_heartbeat(path: Path, queue_dir: Path, processed_jobs: int, current_job: str | None) -> None:

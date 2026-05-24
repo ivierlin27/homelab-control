@@ -151,6 +151,19 @@ def ingest_file(
         ledger_dir / MAIN_FILENAME, run_bean_check, bean_check_cmd
     )
 
+    if bean_ran and bean_ok is False:
+        from .escalation import escalate_finance_failure
+
+        escalate_finance_failure(
+            task_class="finance.ingest",
+            reason=bean_msg or "bean-check failed",
+            envelope_extra={
+                "institution": institution,
+                "file": str(file_path),
+                "source_account": importer.source_account,
+            },
+        )
+
     _write_audit_row(
         audit_path,
         institution=institution,

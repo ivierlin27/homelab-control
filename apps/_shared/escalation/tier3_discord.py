@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from urllib import error, request
+from datetime import datetime, timezone
 
 from apps._shared.audit import AuditLog
 
@@ -44,6 +46,11 @@ def _discord_request(
         detail = exc.read().decode("utf-8", errors="replace")
         raise Tier3DiscordError(f"Discord API {method} {path} failed: {exc.code} {detail}") from exc
     return json.loads(raw) if raw else {}
+
+
+def fetch_channel_message(token: str, channel_id: str, message_id: str) -> dict[str, Any]:
+    """Fetch a channel message (used by the Tier-3 ack daemon)."""
+    return _discord_request(token, "GET", f"/channels/{channel_id}/messages/{message_id}")
 
 
 def post_channel_message(token: str, channel_id: str, content: str) -> dict[str, Any]:
@@ -179,10 +186,12 @@ def make_tier3_discord_handler(
     channel_id: str | None = None,
     webhook_url: str | None = None,
     dm_user_ids: Sequence[str] | None = None,
+    dm_only: bool = False,
     post_channel: PostFn | None = None,
     send_dm: DmFn | None = None,
     audit: AuditLog | None = None,
     registry: Any | None = None,
+    state_dir: Path | None = None,
 ) -> Tier3Fn:
     """Factory for a :class:`Dispatcher` Tier-3 handler that posts to Discord.
 
@@ -204,17 +213,18 @@ def make_tier3_discord_handler(
                 registry=registry,
             )
 
-        message: dict[str, Any]
-        delivery = "webhook" if webhook else "bot"
+        message: dict[str, Any] = {}
+        delivery = "dm_only" if dm_only else ("webhook" if webhook else "bot")
         try:
-            if webhook:
-                message = post_webhook_message(webhook, content)
-            else:
-                if not bot_token or bot_token == "replace-me":
-                    raise Tier3DiscordError("DISCORD_BOT_TOKEN is not configured for Tier 3")
-                assert resolved_channel is not None
-                poster = post_channel or post_channel_message
-                message = poster(bot_token, resolved_channel, content)
+            if not dm_only:
+                if webhook:
+                    message = post_webhook_message(webhook, content)
+                else:
+                    if not bot_token or bot_token == "replace-me":
+                        raise Tier3DiscordError("DISCORD_BOT_TOKEN is not configured for Tier 3")
+                    assert resolved_channel is not None
+                    poster = post_channel or post_channel_message
+                    message = poster(bot_token, resolved_channel, content)
         except Exception as exc:
             if audit is not None:
                 audit.append(
@@ -228,9 +238,10 @@ def make_tier3_discord_handler(
             raise
 
         dm_results: list[dict[str, Any]] = []
-        if bool(envelope.get("urgent")):
+        should_dm = dm_only or bool(envelope.get("urgent"))
+        if should_dm:
             if not bot_token or bot_token == "replace-me":
-                dm_results.append({"error": "DISCORD_BOT_TOKEN required for urgent DM"})
+                dm_results.append({"error": "DISCORD_BOT_TOKEN required for Tier 3 DM"})
             else:
                 dm_fn = send_dm or send_user_dm
                 for user_id in resolve_dm_user_ids(explicit=dm_user_ids):
@@ -245,6 +256,22 @@ def make_tier3_discord_handler(
             "message_id": str(message.get("id", "")),
             "dm_results": dm_results,
         }
+        if message.get("id") and resolved_channel and not dm_only:
+            from .tier3_pending import Tier3PendingRecord, register_pending
+
+            dm_after = int(envelope.get("tier3_dm_after_seconds") or 14400)
+            register_pending(
+                Tier3PendingRecord(
+                    message_id=str(message["id"]),
+                    channel_id=str(resolved_channel),
+                    task_class=str(envelope.get("task_class", "")),
+                    principal=principal,
+                    urgent=bool(envelope.get("urgent")),
+                    posted_at=datetime.now(timezone.utc).isoformat(),
+                    dm_after_seconds=dm_after,
+                ),
+                state_dir=state_dir,
+            )
         if audit is not None:
             audit.append(
                 {

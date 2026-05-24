@@ -37,6 +37,12 @@ by_task_class:
 
   # Finance categorization: advisory only; the verifier loop must produce
   # a confident answer or it's on Kevin to decide. Skip Tier 2.
+  finance.ingest:
+    tier1_budget_seconds: 30
+    tier1_max_attempts: 1
+    skip_tier2: true
+    tier3_dm_after_seconds: 300   # 5 min — bean-check failure blocks commit
+
   finance.categorize:
     tier1_budget_seconds: 60
     skip_tier2: true

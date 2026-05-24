@@ -41,19 +41,25 @@ from .dispatcher import (
     TierTransition,
 )
 
-# Tier-2 wiring via A2A (Phase 0.9). Executive ``help_request`` handling is
-# still a follow-up; the handler times out until the executive worker replies.
 try:
     from apps._shared.a2a import make_tier2_executive_handler
 except ImportError:  # pragma: no cover
     make_tier2_executive_handler = None  # type: ignore[misc, assignment]
 
+from .factory import build_dispatcher_for_principal, run_escalation
+from .tier3_pending import (
+    Tier3PendingRecord,
+    load_pending_records,
+    process_pending_followups,
+    register_pending,
+)
 from .tier3_discord import (
     Tier3DiscordError,
     format_tier3_message,
     make_tier3_discord_handler,
     post_channel_message,
     post_webhook_message,
+    fetch_channel_message,
     resolve_approvals_channel_id,
     send_user_dm,
 )
@@ -70,7 +76,14 @@ __all__ = [
     "load_config",
     "resolve_budgets",
     "make_tier2_executive_handler",
+    "build_dispatcher_for_principal",
+    "run_escalation",
+    "Tier3PendingRecord",
+    "register_pending",
+    "load_pending_records",
+    "process_pending_followups",
     "Tier3DiscordError",
+    "fetch_channel_message",
     "format_tier3_message",
     "make_tier3_discord_handler",
     "post_channel_message",

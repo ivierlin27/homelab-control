@@ -309,6 +309,7 @@ class Dispatcher:
             "urgent": urgent,
             "transitions": [t.as_audit_dict() for t in transitions],
             "blocked_reason": final_blocked_reason,
+            "tier3_dm_after_seconds": self.budgets.tier3_dm_after_seconds,
             **(envelope_extra or {}),
         }
         outcome, payload = self.tier3(envelope)

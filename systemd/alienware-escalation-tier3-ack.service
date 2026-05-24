@@ -1,0 +1,14 @@
+[Unit]
+Description=Tier-3 #approvals ack follow-up (DM when unacknowledged)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/homelab-control/agent-executive-discord.env
+Environment=PYTHONPATH=%h/git/homelab-control
+WorkingDirectory=%h/git/homelab-control
+ExecStart=/usr/bin/python3 %h/git/homelab-control/scripts/escalation_tier3_ack_daemon.py --json
+
+[Install]
+WantedBy=default.target

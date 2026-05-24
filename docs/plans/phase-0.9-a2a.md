@@ -45,11 +45,15 @@ print('ok', ok, 'reason', reason, 'payload', payload)
 "
 ```
 
-## Follow-up (not blocking ship)
+## Follow-up (shipped 2026-05-24)
 
-- Wire `Dispatcher(tier2=make_tier2_executive_handler(), tier3=...)` into maintainer/finance production workers
-- Tier 3: `ESCALATION_APPROVALS_CHANNEL_ID`, 4h ack daemon
-- A2A retry / DLQ (`a2a_followup_retry_dlq` in vision plan)
-- Phase 0.10 sub-agent spawner
+- **Maintainer worker** — `process_job` runs `Dispatcher` with Tier 2/3 on failure
+- **Finance ingest** — `finance.ingest` bean-check failures escalate (DM-only Tier 3)
+- **Tier 3 ack daemon** — `scripts/escalation_tier3_ack_daemon.py` + `alienware-escalation-tier3-ack.timer`
+- **Queue retry/DLQ** — `requeue_for_retry()` + `dlq/` stage in `apps/_shared/a2a/queue.py`
+
+Set `ESCALATION_APPROVALS_CHANNEL_ID` (or manifest `discord.channels[].id` for `#approvals`) on Alienware. Disable escalation in tests with `HOMELAB_ESCALATION_DISABLE=1`.
+
+Still open: Phase 0.10 sub-agent spawner; richer A2A retry/backoff policies per action class.
 
 See also `docs/plans/phase-0-platform.md` §0.9 and §0.11.
