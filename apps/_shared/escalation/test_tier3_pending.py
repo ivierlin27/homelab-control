@@ -31,7 +31,7 @@ def test_register_and_load_pending(tmp_path: Path) -> None:
     )
     records = load_pending_records(state_dir=tmp_path)
     assert len(records) == 1
-    assert records[0].message_id == "m1"
+    assert records[0].message_id == "1234567890123456780"
 
 
 def test_process_pending_sends_dm_when_overdue(tmp_path: Path) -> None:
