@@ -54,6 +54,7 @@ def handle_help_request(
     envelope: A2AEnvelope,
     *,
     state_dir: Path,
+    queue_dir: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Process one ``help_request`` A2A envelope from another agent.
@@ -61,9 +62,20 @@ def handle_help_request(
     Creates an intake Planka card when configured, appends a trust-ledger row,
     and returns a dict suitable for :func:`reply_to_caller`.
     """
-    # Import lazily so unit tests can patch Planka helpers on ``main``.
     from apps.executive_agent import main as executive_main
+    from apps.executive_agent.help_request_dedup import (
+        duplicate_help_request_result,
+        help_request_already_handled,
+    )
 
+    if queue_dir is not None and help_request_already_handled(
+        envelope.correlation_id,
+        state_dir=state_dir,
+        queue_dir=queue_dir,
+    ):
+        return duplicate_help_request_result(envelope.correlation_id, dry_run=dry_run)
+
+    # Import lazily so unit tests can patch Planka helpers on ``main``.
     payload = dict(envelope.payload or {})
     task_class = str(payload.get("task_class") or "unknown")
     urgent = bool(payload.get("urgent", False))

@@ -20,7 +20,14 @@ from . import ask_agent, await_reply, make_tier2_executive_handler, reply_to_cal
 from . import routing
 from .envelope import A2AEnvelope
 from .errors import A2ANotAllowedError, A2ARoutingError
-from .queue import enqueue, enqueue_envelope, enqueue_inbox, ensure_dirs, poll_reply
+from .queue import (
+    enqueue,
+    enqueue_envelope,
+    enqueue_inbox,
+    ensure_dirs,
+    poll_reply,
+    worker_inbox_job_paths,
+)
 from .routing import assert_callee_allowed, resolve_queue_dir
 
 
@@ -350,6 +357,58 @@ def test_poll_reply_skips_malformed_and_non_matching(tmp_path: Path) -> None:
     found = poll_reply("target-corr", inbox, timeout_seconds=0.5, poll_interval=0.05)
     assert found is not None
     assert found.success is True
+    assert not (inbox / "a2a-reply-target-corr.json").exists()
+
+
+def test_poll_reply_consume_false_leaves_file(tmp_path: Path) -> None:
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    good = A2AEnvelope.new_reply(
+        A2AEnvelope.new_request(
+            caller="agent:a",
+            callee="agent:b",
+            action="x",
+            payload={},
+            reply_to=str(inbox),
+            correlation_id="keep-file",
+        ),
+        success=True,
+        outcome="ok",
+    )
+    enqueue_inbox(inbox, "a2a-reply-keep-file.json", good.to_dict())
+    found = poll_reply(
+        "keep-file",
+        inbox,
+        timeout_seconds=0.5,
+        poll_interval=0.05,
+        consume=False,
+    )
+    assert found is not None
+    assert (inbox / "a2a-reply-keep-file.json").exists()
+
+
+def test_worker_inbox_job_paths_skips_replies(tmp_path: Path) -> None:
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    enqueue_inbox(
+        inbox,
+        "a2a-reply-x.json",
+        {
+            "correlation_id": "x",
+            "caller": "agent:executive",
+            "callee": "agent:homelab-maintainer",
+            "action": "help_request",
+            "is_reply": True,
+            "payload": {},
+        },
+    )
+    enqueue_inbox(
+        inbox,
+        "job-1.json",
+        {"action": "triage-intake", "task_class": "homelab", "payload": {}},
+    )
+    paths = worker_inbox_job_paths(inbox)
+    assert [p.name for p in paths] == ["job-1.json"]
 
 
 def test_reply_to_caller_missing_reply_to_raises() -> None:
@@ -380,27 +439,37 @@ def test_reply_to_caller_when_reply_to_is_file_path(tmp_path: Path) -> None:
 
 
 def test_await_reply_accepts_queue_root_or_inbox(tmp_path: Path) -> None:
+    def _reply(corr: str, inbox: Path) -> A2AEnvelope:
+        return A2AEnvelope.new_reply(
+            A2AEnvelope.new_request(
+                caller="agent:a",
+                callee="agent:b",
+                action="x",
+                payload={},
+                reply_to=str(inbox),
+                correlation_id=corr,
+            ),
+            success=True,
+            outcome="ok",
+        )
+
     root = tmp_path / "queue"
     inbox = root / "inbox"
     inbox.mkdir(parents=True)
-    corr = "await-root-test"
-    reply = A2AEnvelope.new_reply(
-        A2AEnvelope.new_request(
-            caller="agent:a",
-            callee="agent:b",
-            action="x",
-            payload={},
-            reply_to=str(inbox),
-            correlation_id=corr,
-        ),
-        success=True,
-        outcome="ok",
-    )
-    enqueue_inbox(inbox, f"a2a-reply-{corr}.json", reply.to_dict())
-
-    from_root = await_reply(corr, root, timeout_seconds=1.0, poll_interval=0.05)
+    corr_root = "await-root-test"
+    enqueue_inbox(inbox, f"a2a-reply-{corr_root}.json", _reply(corr_root, inbox).to_dict())
+    from_root = await_reply(corr_root, root, timeout_seconds=1.0, poll_interval=0.05)
     assert from_root is not None
-    from_inbox = await_reply(corr, inbox, timeout_seconds=1.0, poll_interval=0.05)
+
+    inbox_only = tmp_path / "inbox-only" / "inbox"
+    inbox_only.mkdir(parents=True)
+    corr_inbox = "await-inbox-test"
+    enqueue_inbox(
+        inbox_only,
+        f"a2a-reply-{corr_inbox}.json",
+        _reply(corr_inbox, inbox_only).to_dict(),
+    )
+    from_inbox = await_reply(corr_inbox, inbox_only, timeout_seconds=1.0, poll_interval=0.05)
     assert from_inbox is not None
 
 

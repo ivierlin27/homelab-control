@@ -345,7 +345,12 @@ def execute_job_body(job: dict[str, Any], *, queue_dir: Path) -> dict[str, Any]:
 
 
 def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
-    from apps._shared.a2a.queue import requeue_for_retry
+    from apps._shared.a2a.queue import (
+        archive_inbox_json,
+        is_a2a_reply_payload,
+        is_a2a_reply_path,
+        requeue_for_retry,
+    )
     from apps._shared.escalation import AttemptOutcome
     from apps._shared.escalation.factory import build_dispatcher_for_principal
 
@@ -353,6 +358,15 @@ def process_job(job_path: Path, queue_dir: Path) -> dict[str, Any]:
     processing_path = dirs["processing"] / job_path.name
     shutil.move(str(job_path), processing_path)
     job = load_json(processing_path)
+
+    # A2A replies are for await_reply only; treating them as jobs re-fired Tier 2.
+    if is_a2a_reply_path(processing_path) or is_a2a_reply_payload(job):
+        archive_inbox_json(processing_path, queue_dir, stage="done")
+        return {
+            "ok": True,
+            "archived": "a2a_reply",
+            "reason": "not a maintainer queue job",
+        }
     action = str(job.get("action", "")).strip().lower().replace("_", "-")
     task_class = _task_class_for_job(job, action)
     principal = os.environ.get("AGENT_PRINCIPAL", DEFAULT_PRINCIPAL)
@@ -470,11 +484,13 @@ def queue_status(queue_dir: Path) -> dict[str, Any]:
 
 
 def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> int:
+    from apps._shared.a2a.queue import worker_inbox_job_paths
+
     dirs = ensure_queue_dirs(queue_dir)
     processed_jobs = 0
     current_job: str | None = None
     while True:
-        jobs = sorted(dirs["inbox"].glob("*.json"))
+        jobs = worker_inbox_job_paths(dirs["inbox"])
         if jobs:
             current_job = jobs[0].name
             write_heartbeat(heartbeat_path, queue_dir, processed_jobs, current_job)

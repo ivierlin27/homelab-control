@@ -884,7 +884,12 @@ def process_a2a_job(job: dict[str, Any], queue_dir: Path) -> dict[str, Any]:
     dry_run = bool(job.get("dry_run", False))
 
     if action == "help-request":
-        result = handle_help_request(envelope, state_dir=state_dir, dry_run=dry_run)
+        result = handle_help_request(
+            envelope,
+            state_dir=state_dir,
+            queue_dir=queue_dir,
+            dry_run=dry_run,
+        )
         reply_to_caller(
             envelope,
             success=bool(result.get("ok")),
@@ -997,29 +1002,17 @@ def queue_status(queue_dir: Path) -> dict[str, Any]:
     }
 
 
-def _inbox_job_paths(inbox: Path) -> list[Path]:
-    """Return processable inbox jobs, skipping reply envelopes."""
-    jobs: list[Path] = []
-    for path in sorted(inbox.glob("*.json")):
-        if path.name.startswith("a2a-reply-"):
-            continue
-        try:
-            payload = load_json(path)
-        except (json.JSONDecodeError, OSError):
-            jobs.append(path)
-            continue
-        if payload.get("is_reply"):
-            continue
-        jobs.append(path)
-    return jobs
-
-
 def run_worker(queue_dir: Path, heartbeat_path: Path, poll_interval: float) -> int:
+    from apps._shared.a2a.queue import worker_inbox_job_paths
+    from apps.executive_agent.help_request_dedup import dedupe_help_request_inbox
+
     dirs = ensure_queue_dirs(queue_dir)
+    state_dir = queue_dir
     processed_jobs = 0
     current_job: str | None = None
     while True:
-        jobs = _inbox_job_paths(dirs["inbox"])
+        jobs = worker_inbox_job_paths(dirs["inbox"])
+        jobs = dedupe_help_request_inbox(jobs, queue_dir=queue_dir, state_dir=state_dir)
         if jobs:
             current_job = jobs[0].name
             write_heartbeat(heartbeat_path, queue_dir, processed_jobs, current_job)

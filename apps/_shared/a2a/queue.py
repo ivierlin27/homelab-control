@@ -48,6 +48,54 @@ def enqueue(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
     return enqueue_inbox(queue_dir / "inbox", name, payload)
 
 
+def is_a2a_reply_payload(payload: dict[str, Any]) -> bool:
+    return bool(payload.get("is_reply"))
+
+
+def is_a2a_reply_path(path: Path) -> bool:
+    return path.name.startswith("a2a-reply-")
+
+
+def is_a2a_envelope_payload(payload: dict[str, Any]) -> bool:
+    """True for any on-disk A2A envelope (request or reply)."""
+    required = {"correlation_id", "caller", "callee", "action"}
+    return required.issubset(payload.keys())
+
+
+def worker_inbox_job_paths(inbox: Path) -> list[Path]:
+    """Inbox JSON files that are real worker jobs (not A2A replies).
+
+    Reply envelopes belong in the caller's inbox for ``await_reply`` only.
+    If a worker treats them as normal jobs, maintainer escalation will fire
+    Tier 2 ``help_request`` again (executive inbox flood + Planka spam).
+    """
+    jobs: list[Path] = []
+    for path in sorted(inbox.glob("*.json")):
+        if is_a2a_reply_path(path):
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            jobs.append(path)
+            continue
+        if is_a2a_reply_payload(payload):
+            continue
+        jobs.append(path)
+    return jobs
+
+
+def archive_inbox_json(path: Path, queue_dir: Path, *, stage: str = "done") -> Path:
+    """Move an inbox file to ``done/`` or ``failed/`` without processing."""
+    import shutil
+
+    dirs = ensure_dirs(queue_dir)
+    dest_dir = dirs.get(stage, dirs["done"])
+    dest = dest_dir / path.name
+    if path.exists():
+        shutil.move(str(path), str(dest))
+    return dest
+
+
 def enqueue_envelope(queue_dir: Path, envelope: A2AEnvelope) -> Path:
     """Write an :class:`A2AEnvelope` to the callee inbox."""
     name = f"a2a-{envelope.correlation_id}.json"
@@ -60,10 +108,13 @@ def poll_reply(
     *,
     poll_interval: float = 2.0,
     timeout_seconds: float = 300.0,
+    consume: bool = True,
 ) -> A2AEnvelope | None:
     """Poll *reply_inbox* for a reply matching *correlation_id*.
 
     Returns ``None`` on timeout. Scans ``*.json`` in the inbox directory.
+    When *consume* is true (default), deletes the matching reply file so queue
+    workers do not re-process it as a normal job.
     """
     deadline = time.monotonic() + timeout_seconds
     reply_inbox = reply_inbox.expanduser().resolve()
@@ -79,7 +130,10 @@ def poll_reply(
                 continue
             if str(data.get("correlation_id", "")) != correlation_id:
                 continue
-            return A2AEnvelope.from_dict(data)
+            envelope = A2AEnvelope.from_dict(data)
+            if consume:
+                path.unlink(missing_ok=True)
+            return envelope
         time.sleep(poll_interval)
     return None
 
