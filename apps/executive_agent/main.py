@@ -102,15 +102,9 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 
 def ensure_queue_dirs(queue_dir: Path) -> dict[str, Path]:
-    dirs = {
-        "inbox": queue_dir / "inbox",
-        "processing": queue_dir / "processing",
-        "done": queue_dir / "done",
-        "failed": queue_dir / "failed",
-    }
-    for path in dirs.values():
-        path.mkdir(parents=True, exist_ok=True)
-    return dirs
+    from apps._shared.a2a import ensure_dirs
+
+    return ensure_dirs(queue_dir)
 
 
 def ensure_intake_dirs(state_dir: Path) -> dict[str, Path]:
@@ -135,14 +129,6 @@ def locate_intake_record(state_dir: Path, intake_id: str) -> Path:
         if candidate.exists():
             return candidate
     raise FileNotFoundError(f"intake record not found: {intake_id}")
-
-
-def enqueue_json(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
-    inbox = queue_dir / "inbox"
-    inbox.mkdir(parents=True, exist_ok=True)
-    path = inbox / name
-    write_json(path, payload)
-    return path
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -631,7 +617,9 @@ def intake_raw(args: argparse.Namespace) -> dict[str, Any]:
             "state_dir": str(queue_dir),
         }
         if not args.dry_run:
-            job_path = enqueue_json(queue_dir, f"{intake_id}.json", queue_payload)
+            from apps._shared.a2a import enqueue
+
+            job_path = enqueue(queue_dir, f"{intake_id}.json", queue_payload)
             queue_result = {"enqueued": True, "queue_dir": str(queue_dir), "job_path": str(job_path)}
         else:
             queue_result = {"enqueued": False, "queue_dir": str(queue_dir), "dry_run": True}

@@ -41,6 +41,13 @@ from .dispatcher import (
     TierTransition,
 )
 
+# Tier-2 wiring via A2A (Phase 0.9). Executive ``help_request`` handling is
+# still a follow-up; the handler times out until the executive worker replies.
+try:
+    from apps._shared.a2a import make_tier2_executive_handler
+except ImportError:  # pragma: no cover
+    make_tier2_executive_handler = None  # type: ignore[misc, assignment]
+
 __all__ = [
     "DEFAULT_TASK_CLASS",
     "AttemptOutcome",
@@ -52,4 +59,5 @@ __all__ = [
     "TierTransition",
     "load_config",
     "resolve_budgets",
+    "make_tier2_executive_handler",
 ]

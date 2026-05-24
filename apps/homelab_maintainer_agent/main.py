@@ -98,15 +98,9 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 
 def ensure_queue_dirs(queue_dir: Path) -> dict[str, Path]:
-    dirs = {
-        "inbox": queue_dir / "inbox",
-        "processing": queue_dir / "processing",
-        "done": queue_dir / "done",
-        "failed": queue_dir / "failed",
-    }
-    for path in dirs.values():
-        path.mkdir(parents=True, exist_ok=True)
-    return dirs
+    from apps._shared.a2a import ensure_dirs
+
+    return ensure_dirs(queue_dir)
 
 
 def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -227,14 +221,6 @@ def build_memory_payload(title: str, content: str, metadata: dict[str, Any], art
     }
 
 
-def enqueue_json(queue_dir: Path, name: str, payload: dict[str, Any]) -> Path:
-    inbox = queue_dir / "inbox"
-    inbox.mkdir(parents=True, exist_ok=True)
-    path = inbox / name
-    write_json(path, payload)
-    return path
-
-
 def require_allowed_prefixes(prefixes: list[str], values: list[str], *, label: str) -> None:
     if not values or not prefixes:
         return
@@ -321,18 +307,22 @@ def triage_intake(job: dict[str, Any], *, queue_dir: Path, policy: dict[str, Any
 
 
 def delegate_author_job(author_job: dict[str, Any], *, policy: dict[str, Any]) -> dict[str, Any]:
+    from apps._shared.a2a import enqueue, resolve_queue_dir
+
     prefixes = policy.get("delegate", {}).get("author_allowed_paths", [])
     require_allowed_prefixes(prefixes, author_job.get("allowed_paths", []), label="author path")
-    queue_dir = Path(os.environ.get("AUTHOR_QUEUE_DIR", str(DEFAULT_QUEUE_DIR.parent / "agent-homelab"))).expanduser()
+    queue_dir = resolve_queue_dir("agent:homelab")
     job_name = author_job.get("job_name", f"maintainer-author-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.json")
-    path = enqueue_json(queue_dir, job_name, author_job)
+    path = enqueue(queue_dir, job_name, author_job)
     return {"enqueued": True, "queue_dir": str(queue_dir), "job_path": str(path)}
 
 
 def delegate_review_job(review_job: dict[str, Any], *, policy: dict[str, Any]) -> dict[str, Any]:
-    queue_dir = Path(os.environ.get("REVIEW_QUEUE_DIR", str(DEFAULT_QUEUE_DIR.parent / "agent-review"))).expanduser()
+    from apps._shared.a2a import enqueue, resolve_queue_dir
+
+    queue_dir = resolve_queue_dir("agent:review")
     job_name = review_job.get("job_name", f"maintainer-review-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.json")
-    path = enqueue_json(queue_dir, job_name, review_job)
+    path = enqueue(queue_dir, job_name, review_job)
     return {"enqueued": True, "queue_dir": str(queue_dir), "job_path": str(path)}
 
 

@@ -60,16 +60,9 @@ def summarize_result(card_path: Path, pr_url: str) -> str:
 
 
 def ensure_queue_dirs(queue_dir: Path) -> dict[str, Path]:
-    dirs = {
-        "inbox": queue_dir / "inbox",
-        "processing": queue_dir / "processing",
-        "done": queue_dir / "done",
-        "failed": queue_dir / "failed",
-        "worktrees": queue_dir / "worktrees",
-    }
-    for path in dirs.values():
-        path.mkdir(parents=True, exist_ok=True)
-    return dirs
+    from apps._shared.a2a import ensure_dirs
+
+    return ensure_dirs(queue_dir, worktrees=True)
 
 
 def normalize_action(action: str) -> str:
@@ -460,11 +453,17 @@ def execute_task(job: dict[str, Any], *, job_path: Path, queue_dir: Path, done_d
     )
     write_json(review_context_path, review_context)
 
+    from apps._shared.a2a import enqueue
+
     review_queue_dir = job.get("review_queue_dir")
     review_job_path: str | None = None
     if review_queue_dir:
-        target = Path(review_queue_dir).expanduser().resolve() / "inbox" / f"{job_path.stem}.json"
-        write_json(target, {"action": "review-pr", "input": str(review_context_path)})
+        review_root = Path(review_queue_dir).expanduser().resolve()
+        target = enqueue(
+            review_root,
+            f"{job_path.stem}.json",
+            {"action": "review-pr", "input": str(review_context_path)},
+        )
         review_job_path = str(target)
 
     lifecycle_callback_response = post_lifecycle_callback(

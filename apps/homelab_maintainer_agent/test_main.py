@@ -54,11 +54,14 @@ class HomelabMaintainerTests(unittest.TestCase):
                 "action": "execute-task",
                 "allowed_paths": ["docs"],
             }
-            with mock.patch.dict("os.environ", {"AUTHOR_QUEUE_DIR": str(queue_dir)}):
+            with mock.patch(
+                "apps._shared.a2a.resolve_queue_dir",
+                return_value=queue_dir,
+            ):
                 result = maintainer.delegate_author_job(author_job, policy=policy)
 
             self.assertTrue(Path(result["job_path"]).exists())
-            self.assertEqual(str(queue_dir), result["queue_dir"])
+            self.assertEqual(str(queue_dir.resolve()), str(Path(result["queue_dir"]).resolve()))
 
 
 if __name__ == "__main__":
