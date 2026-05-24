@@ -9,9 +9,10 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from apps._shared.audit import AuditLog
+if TYPE_CHECKING:
+    from ..audit import AuditLog
 
 from .envelope import A2AEnvelope
 from .errors import A2AError, A2ANotAllowedError, A2ARoutingError, A2ATimeoutError

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from textwrap import dedent
 from unittest import mock
@@ -10,26 +11,17 @@ from unittest import mock
 import pytest
 import yaml
 
-from apps._shared.a2a import (
-    A2ANotAllowedError,
-    A2ARoutingError,
-    ask_agent,
-    await_reply,
-    enqueue,
-    enqueue_inbox,
-    enqueue_envelope,
-    ensure_dirs,
-    make_tier2_executive_handler,
-    poll_reply,
-    reply_to_caller,
-)
-from apps._shared.a2a.envelope import A2AEnvelope
-from apps._shared.a2a.routing import assert_callee_allowed, resolve_queue_dir
-from apps._shared.audit import AuditLog
-from apps._shared.escalation import AttemptOutcome, Dispatcher
-from apps._shared.escalation.policy import TierBudgets
-from apps._shared.registry import Registry, load_registry
-from apps._shared.registry.loader import AgentManifest
+from ..audit import AuditLog
+from ..escalation import AttemptOutcome, Dispatcher
+from ..escalation.policy import TierBudgets
+from ..registry import Registry, load_registry
+from ..registry.loader import AgentManifest
+from . import ask_agent, await_reply, make_tier2_executive_handler, reply_to_caller
+from . import routing
+from .envelope import A2AEnvelope
+from .errors import A2ANotAllowedError, A2ARoutingError
+from .queue import enqueue, enqueue_envelope, enqueue_inbox, ensure_dirs, poll_reply
+from .routing import assert_callee_allowed, resolve_queue_dir
 
 
 def _scaffold_repo(root: Path) -> None:
@@ -162,7 +154,7 @@ def test_ask_and_reply_round_trip(tmp_path: Path) -> None:
     )
     reg = _registry(tmp_path, [("agent:caller", caller_m), ("agent:callee", callee_m)])
 
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg):
+    with mock.patch.object(routing, "load_registry", return_value=reg):
         result = ask_agent(
             "agent:caller",
             "agent:callee",
@@ -179,7 +171,7 @@ def test_ask_and_reply_round_trip(tmp_path: Path) -> None:
     assert job["reply_to"] == str((caller_dir / "inbox").resolve())
 
     request = A2AEnvelope.from_dict(job)
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg):
+    with mock.patch.object(routing, "load_registry", return_value=reg):
         reply_to_caller(request, success=True, outcome="ok", payload={"answer": 42})
 
     reply = await_reply(
@@ -242,8 +234,8 @@ def test_tier2_handler_success_when_executive_replies(tmp_path: Path) -> None:
         )
         return result
 
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg), mock.patch(
-        "apps._shared.a2a.ask_agent", side_effect=fake_ask
+    with mock.patch.object(routing, "load_registry", return_value=reg), mock.patch.object(
+        sys.modules[__package__], "ask_agent", side_effect=fake_ask
     ):
         ok, payload, reason = handler({"task_class": "homelab.deploy", "urgent": False})
 
@@ -424,7 +416,7 @@ def test_ask_agent_appends_audit_row(tmp_path: Path) -> None:
     audit_path = tmp_path / "audit.jsonl"
     audit = AuditLog(audit_path)
 
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg):
+    with mock.patch.object(routing, "load_registry", return_value=reg):
         result = ask_agent(
             "agent:caller",
             "agent:callee",
@@ -504,7 +496,7 @@ def test_tier2_timeout_when_executive_never_replies(tmp_path: Path) -> None:
         ask_timeout_seconds=0.3,
         poll_interval=0.05,
     )
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg):
+    with mock.patch.object(routing, "load_registry", return_value=reg):
         ok, payload, reason = handler({"task_class": "homelab.deploy"})
     assert ok is False
     assert payload is None
@@ -531,8 +523,8 @@ def test_tier2_executive_declines(tmp_path: Path) -> None:
         reply_to_caller(request, success=False, outcome="cannot help", payload={"code": 1})
         return result
 
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg), mock.patch(
-        "apps._shared.a2a.ask_agent", side_effect=fake_ask
+    with mock.patch.object(routing, "load_registry", return_value=reg), mock.patch.object(
+        sys.modules[__package__], "ask_agent", side_effect=fake_ask
     ):
         ok, payload, reason = handler({"task_class": "homelab.deploy"})
 
@@ -568,7 +560,7 @@ def test_tier2_not_allowed_when_executive_not_in_acl(tmp_path: Path) -> None:
         caller="agent:homelab-maintainer",
         reply_queue_dir=tmp_path / "maintainer",
     )
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg):
+    with mock.patch.object(routing, "load_registry", return_value=reg):
         ok, payload, reason = handler({"task_class": "x"})
     assert ok is False
     assert "not allowed" in reason
@@ -619,8 +611,8 @@ def test_dispatcher_tier2_with_a2a_executive_handler(tmp_path: Path) -> None:
     )
     audit: list[dict] = []
 
-    with mock.patch("apps._shared.a2a.routing.load_registry", return_value=reg), mock.patch(
-        "apps._shared.a2a.ask_agent", side_effect=fake_ask
+    with mock.patch.object(routing, "load_registry", return_value=reg), mock.patch.object(
+        sys.modules[__package__], "ask_agent", side_effect=fake_ask
     ):
         dispatcher = Dispatcher(
             budgets=budgets,

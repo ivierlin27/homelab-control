@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from apps._shared.registry import Registry, load_registry
+from ..registry import Registry, load_registry
 
 from .errors import A2ANotAllowedError, A2ARoutingError
 
