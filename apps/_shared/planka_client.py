@@ -57,6 +57,20 @@ def planka_auth_headers() -> dict[str, str]:
     return headers
 
 
+def planka_new_card_payload(
+    *,
+    name: str,
+    description: str = "",
+    position: int = 65536,
+    card_type: str = "project",
+) -> dict[str, Any]:
+    """Build a create-card body compatible with Planka v2 (requires ``type``)."""
+    payload: dict[str, Any] = {"name": name, "position": position, "type": card_type}
+    if description:
+        payload["description"] = description
+    return payload
+
+
 def planka_auth_configured() -> bool:
     """True when ``planka_request`` can authenticate."""
     if not os.environ.get("PLANKA_BASE_URL", "").strip():

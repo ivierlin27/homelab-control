@@ -144,12 +144,12 @@ def add_card_label(card_id: str, label_name: str) -> None:
 
 
 def create_planka_card(title: str, description: str, labels: list[str]) -> dict[str, Any]:
-    from apps._shared.planka_client import planka_request
+    from apps._shared.planka_client import planka_new_card_payload, planka_request
 
     list_id = os.environ.get("PLANKA_HOMELAB_LIST_ID", "") or os.environ.get("PLANKA_INBOX_LIST_ID", "")
     if not list_id:
         raise ValueError("PLANKA_HOMELAB_LIST_ID or PLANKA_INBOX_LIST_ID is required")
-    payload = {"name": title, "description": description, "position": 65536}
+    payload = planka_new_card_payload(name=title, description=description)
     created = planka_request(f"lists/{list_id}/cards", method="POST", payload=payload)
     card = created.get("item", created)
     card_id = str(card.get("id", ""))

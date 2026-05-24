@@ -343,12 +343,12 @@ def render_intake_description(record: dict[str, Any]) -> str:
 
 
 def create_planka_card(title: str, description: str, labels: list[str], decision: dict[str, Any]) -> dict[str, Any]:
-    from apps._shared.planka_client import planka_request
+    from apps._shared.planka_client import planka_new_card_payload, planka_request
 
     list_id = list_id_for_decision(decision)
     if not list_id:
         raise ValueError("PLANKA_INBOX_LIST_ID or PLANKA_PLAN_READY_LIST_ID is required")
-    payload = {"name": title, "description": description, "position": 65536}
+    payload = planka_new_card_payload(name=title, description=description)
     created = planka_request(f"lists/{list_id}/cards", method="POST", payload=payload)
     card = created.get("item", created)
     card_id = str(card.get("id", ""))
@@ -361,12 +361,12 @@ def create_planka_card(title: str, description: str, labels: list[str], decision
 
 
 def create_intake_card(title: str, description: str, labels: list[str]) -> dict[str, Any]:
-    from apps._shared.planka_client import planka_request
+    from apps._shared.planka_client import planka_new_card_payload, planka_request
 
     list_id = intake_list_id()
     if not list_id:
         raise ValueError("PLANKA_INTAKE_LIST_ID or PLANKA_INBOX_LIST_ID is required")
-    payload = {"name": title, "description": description, "position": 65536}
+    payload = planka_new_card_payload(name=title, description=description)
     created = planka_request(f"lists/{list_id}/cards", method="POST", payload=payload)
     card = created.get("item", created)
     card_id = str(card.get("id", ""))

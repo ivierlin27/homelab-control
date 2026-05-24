@@ -34,6 +34,13 @@ def test_planka_auth_headers_ignores_replace_me_placeholders(monkeypatch: pytest
     assert "Authorization" not in headers
 
 
+def test_planka_new_card_payload_includes_type() -> None:
+    payload = planka_client.planka_new_card_payload(name="Test", description="body")
+    assert payload["type"] == "project"
+    assert payload["name"] == "Test"
+    assert payload["description"] == "body"
+
+
 def test_planka_auth_configured_with_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANKA_BASE_URL", "https://planka.example")
     monkeypatch.setenv("PLANKA_API_KEY", "pk_live")
