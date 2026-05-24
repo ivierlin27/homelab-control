@@ -11,6 +11,10 @@ from typing import Any, Mapping
 DEFAULT_STATE_DIR = Path.home() / ".local/state/homelab-control/escalation"
 
 
+def _is_discord_snowflake(value: str) -> bool:
+    return value.isdigit() and 17 <= len(value) <= 20
+
+
 @dataclass
 class Tier3PendingRecord:
     message_id: str
@@ -150,6 +154,17 @@ def process_pending_followups(
 
     for record in load_pending_records(state_dir=state_dir):
         if record.acknowledged:
+            continue
+        if not _is_discord_snowflake(record.channel_id) or not _is_discord_snowflake(
+            record.message_id
+        ):
+            update_pending(record.message_id, acknowledged=True, state_dir=state_dir)
+            results.append(
+                {
+                    "message_id": record.message_id,
+                    "action": "skipped_invalid_ids",
+                }
+            )
             continue
         if record.urgent and not record.dm_sent:
             overdue = True
