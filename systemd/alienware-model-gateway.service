@@ -25,7 +25,8 @@ ExecStartPre=/usr/bin/podman rm -f homelab-model-gateway
 #                          gateway's LocalOnlyGuard reads skill-policy.json from
 #                          /var/log/llm-calls/ inside the container)
 ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
-  -p 0.0.0.0:4000:4000 \
+  --network host \
+  --add-host=host.containers.internal:host-gateway \
   --env-file %h/.config/homelab-control/model-gateway.env \
   -e LLM_CALLS_JSONL=/var/log/llm-calls/llm-calls.jsonl \
   -e SKILL_POLICY_SNAPSHOT=/var/log/llm-calls/skill-policy.json \

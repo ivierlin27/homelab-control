@@ -80,6 +80,8 @@ fi
 if [[ ! -f "${CONFIG_DIR}/agent-homelab-maintainer.env" ]]; then
   cat > "${CONFIG_DIR}/agent-homelab-maintainer.env" <<EOF
 HOMELAB_CONTROL_ROOT=${HOME}/git/homelab-control
+MODEL_GATEWAY_BASE_URL=http://127.0.0.1:4000/v1
+MODEL_GATEWAY_API_KEY=replace-me
 PLANKA_BASE_URL=https://planka.dev-path.org
 PLANKA_API_KEY=replace-me
 PLANKA_API_TOKEN=
