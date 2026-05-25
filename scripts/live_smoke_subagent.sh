@@ -190,8 +190,7 @@ smoke_executive() {
       --task-type research \
       --plan-ready \
       --conversation-id "${corr}" \
-      --state-dir "${EXEC_STATE}" \
-      --policy "${ROOT_DIR}/config/policies/executive-policy.yaml"
+      --state-dir "${EXEC_STATE}"
   )"
   assert_subagent_json "executive" "${out}"
   assert_ledger_events "executive" "${corr}" "${EXEC_STATE}/trust-ledger.jsonl"
@@ -217,8 +216,7 @@ smoke_maintainer() {
       --content "live.smoke maintainer subagent verification (${intake})." \
       --task-class summarize \
       --route local \
-      --queue-dir "${MAINT_QUEUE}" \
-      --policy "${ROOT_DIR}/config/policies/homelab-maintainer-policy.yaml"
+      --queue-dir "${MAINT_QUEUE}"
   )"
   assert_subagent_json "maintainer" "${out}"
   assert_ledger_events "maintainer" "${intake}" "${MAINT_QUEUE}/trust-ledger.jsonl"
