@@ -265,6 +265,20 @@ context_rules:
     category: "Expenses:Transfers:Internal"
     confidence: 0.88
 
+  - id: bmo_cw_xfer
+    description_pattern: "\\[cw\\]\\s*tf\\s*0764#"
+    source_roles: [house_chequing, house_savings, child_personal, child_education, us_house]
+    flow: any
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.88
+
+  - id: online_bill_sfu
+    description_pattern: "onlinebillpayment,simonfraser"
+    source_roles: [house_chequing, house_savings]
+    flow: outflow
+    category: "Expenses:Education:Tuition"
+    confidence: 0.88
+
   - id: cc_payment_thank_you
     description_pattern: "payment.*thank|paiement.*merci"
     source_roles: [credit_card]
@@ -276,11 +290,11 @@ context_rules:
 # Payee-only rules (DebitCardPurchase, Pre-AuthorizedPayment, etc.)
 rules:
   - id: fuel
-    pattern: "(?i)(\\bshell\\b|petro[- ]?can|\\besso\\b|chevron|\\bfuel\\b|gas bar)"
+    pattern: "(?i)(\\bshell\\b|petro[- ]?can|esso\\d|chevron|\\bfuel\\b|gas bar)"
     category: "Expenses:Auto:Fuel"
     confidence: 0.92
   - id: groceries
-    pattern: "(?i)(costco|walmart|wal-?mart|dwal|saveonfoods|save on foods|walnutgrove|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery|t&t\\s*supermarket|dt&t|dmarketplace|\\biga\\b|whole foods|fresh st\\.? market|marketplaceiga|kin'?s\\s*farm|dkin'?sfarm)"
+    pattern: "(?i)(costco|walmart|wal-?mart|dwal|saveonfoods|save on foods|walnutgrove|shoppers\\s*drug|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery|t&t\\s*supermarket|dt&t|dmarketplace|\\biga\\b|whole foods|fresh st\\.? market|marketplaceiga|kin'?s\\s*farm|dkin'?sfarm|nesters market|daiso)"
     category: "Expenses:Food:Groceries"
     confidence: 0.90
   - id: meal_kits
@@ -288,7 +302,7 @@ rules:
     category: "Expenses:Food:MealKits"
     confidence: 0.88
   - id: dining
-    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|timhortons|mcdonald|uber eats|doordash|blenz|subway|pizza|bengong|gong cha|cobsbread|cobs bread|chartwells|bubbleworld|gourmetdonut|sweet\\s*factory|secondwave|shvending|vending|food&beve|pnefood|macsconv|thinkaguil|pho\\b|donair|tea\\b|kfc|tacoholic|taco bell|papa johns|papajohns|booster juice|fatburger|chatime|new york fries|arby|pearlfever|gourmet donut|firecrust|domino)"
+    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|timhortons|mcdonald|uber eats|doordash|blenz|subway|pizza|bengong|gong cha|gongcha|cobsbread|cobs bread|chartwells|bubbleworld|gourmetdonut|sweet\\s*factory|secondwave|shvending|vending|food&beve|pnefood|macsconv|thinkaguil|pho\\b|donair|tea\\b|kfc|tacoholic|taco bell|papa johns|papajohns|booster juice|fatburger|chatime|new york fries|arby|pearlfever|gourmet donut|firecrust|domino|krispy kreme|coco central)"
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
@@ -316,7 +330,7 @@ rules:
     category: "Expenses:Housing:Mortgage"
     confidence: 0.90
   - id: insurance
-    pattern: "(?i)(manulife|sun life|desjardins|insurance|indall|state farm|american gen|sfpp|hughes.?mckinnon)"
+    pattern: "(?i)(manulife|sun life|desjardins|insurance|indall|state farm|american gen|sfpp|hughes.?mckinnon|hubcapmtf)"
     category: "Expenses:Insurance:Life"
     confidence: 0.87
   - id: investment_contribution
@@ -332,7 +346,7 @@ rules:
     category: "Expenses:Shopping:Online"
     confidence: 0.87
   - id: shopping_retail
-    pattern: "(?i)(value village|valuevillage|talize|michaels|winners|homesense|ikea|canadian tire|staples|dollarama|miniso|indigo|forever21|londondrugs|footlocker|pacific knit|shop makers|pnegeneral|ccmall|home depot|thehomedepot|fabricland|south coast british)"
+    pattern: "(?i)(value village|valuevillage|talize|michaels|winners|homesense|ikea|canadian tire|staples|dollarama|miniso|indigo|forever21|londondrugs|footlocker|pacific knit|shop makers|pnegeneral|ccmall|home depot|thehomedepot|fabricland|south coast british|uniqlo|urban pet|cineplex)"
     category: "Expenses:Shopping:Retail"
     confidence: 0.86
   - id: subscriptions
@@ -352,7 +366,7 @@ rules:
     category: "Expenses:Health:Medical"
     confidence: 0.87
   - id: auto_loan
-    pattern: "(?i)(bmw financia|midwest loan|mazda payment|auto loan|car payment)"
+    pattern: "(?i)(bmw financia|bmw payment|midwest loan|mazda payment|auto loan|car payment)"
     category: "Expenses:Auto:Loan"
     confidence: 0.89
   - id: travel_hotel
