@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -9,20 +10,49 @@ from .accounts import resolve_account_role, source_flow
 from .ledger import PendingTransaction
 from .policy import CategorizePolicy, CategoryRule, ContextRule
 
+_BMO_ERROR_SUFFIX = re.compile(r"(?i)\s+pleasereportanyerrors.*$")
+_PREFIX_SUFFIX = re.compile(
+    r"(?i)^(debitcardpurchase|pre-authorizedpaymentnofee|pre-authorizedpayment|"
+    r"onlinebillpayment|scheduledpayment),"
+)
+
+
+def _description_variants(description: str) -> tuple[str, ...]:
+    """Strings to match against payee rules (full line + normalized suffixes)."""
+    d = (description or "").strip()
+    if not d:
+        return ("",)
+    variants: list[str] = [d]
+    trimmed = _BMO_ERROR_SUFFIX.sub("", d).strip()
+    if trimmed and trimmed not in variants:
+        variants.append(trimmed)
+    m = _PREFIX_SUFFIX.match(trimmed or d)
+    if m:
+        suffix = (trimmed or d)[m.end() :].strip()
+        if suffix and suffix not in variants:
+            variants.append(suffix)
+    return tuple(variants)
+
+
+def _any_variant_matches(pattern, description: str) -> bool:
+    return any(pattern.search(text) for text in _description_variants(description))
+
 
 def _flow_matches(rule_flow: str, txn_flow: str) -> bool:
     return rule_flow == "any" or rule_flow == txn_flow
 
 
 def _context_rule_matches(rule: ContextRule, txn: PendingTransaction, role: str) -> bool:
-    if not rule.description_pattern.search(txn.description):
+    if not _any_variant_matches(rule.description_pattern, txn.description):
         return False
     if rule.source_roles and role not in rule.source_roles:
         return False
     txn_flow = source_flow(txn.source_amount)
     if not _flow_matches(rule.flow, txn_flow):
         return False
-    if rule.counterparty_pattern and not rule.counterparty_pattern.search(txn.description):
+    if rule.counterparty_pattern and not _any_variant_matches(
+        rule.counterparty_pattern, txn.description
+    ):
         return False
     return True
 
@@ -46,7 +76,7 @@ def _rank_description_rules(
     """Return (category, confidence, rule_id) sorted by confidence desc."""
     hits: list[tuple[str, float, str | None]] = []
     for rule in policy.rules:
-        if rule.pattern.search(description):
+        if _any_variant_matches(rule.pattern, description):
             hits.append((rule.category, rule.confidence, rule.id))
     hits.sort(key=lambda x: x[1], reverse=True)
     return hits

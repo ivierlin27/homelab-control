@@ -141,6 +141,15 @@ class TransferContextTests(unittest.TestCase):
         claim = analyst_classify(txn, self.policy)
         self.assertEqual(claim["proposed_category"], "Income:Household:FamilyReimbursement")
 
+    def test_debitcard_suffix_matches_groceries(self) -> None:
+        txn = find_pending_from_text(
+            '2024-03-01 ! "DebitCardPurchase,WALNUTGROVESE"\n'
+            f"  {MAKAELY}  -12.00 CAD\n  Expenses:Uncategorized  12.00 CAD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Expenses:Food:Groceries")
+        self.assertGreaterEqual(float(claim["confidence"]), 0.85)
+
     def test_person_outflow_interac_sent_is_external_transfer(self) -> None:
         txn = find_pending_from_text(
             '2024-02-10 ! "INTERACe-TransferSent"\n'

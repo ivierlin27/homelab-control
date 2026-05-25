@@ -116,6 +116,44 @@ context_rules:
     category: "Income:Wire:Incoming"
     confidence: 0.88
 
+  - id: credit_card_payment_received
+    description_pattern: "(?i)automatic\\s*pymt\\s*received"
+    source_roles: [credit_card]
+    flow: inflow
+    category: "Expenses:Financial:CreditCardPayment"
+    confidence: 0.91
+    reason: "card payment posted (liability reduction)"
+
+  - id: bmo_xfer_from_de_to_child
+    description_pattern: "(?i)trsffrom/deacct/cpt\\s*0764.*969"
+    source_roles: [child_personal, child_education, credit_card]
+    flow: inflow
+    category: "Income:Household:Allowance"
+    confidence: 0.90
+    reason: "BMO xfer from house DE acct (969)"
+
+  - id: mobile_cheque_deposit
+    description_pattern: "(?i)mobilechequedeposit"
+    source_roles: [child_personal, child_education, parent_personal, house_chequing]
+    flow: inflow
+    category: "Income:Misc:Deposit"
+    confidence: 0.86
+
+  - id: preauth_bmo_card_payment
+    description_pattern: "(?i)pre-authorizedpaymentnofee.*bmopayment"
+    source_roles: [house_chequing, house_savings]
+    flow: outflow
+    category: "Expenses:Financial:CreditCardPayment"
+    confidence: 0.89
+
+  - id: online_bill_payment
+    description_pattern: "(?i)onlinebillpayment"
+    source_roles: [house_chequing, house_savings]
+    flow: outflow
+    category: "Expenses:Financial:CreditCardPayment"
+    confidence: 0.88
+    reason: "online bill pay from bank"
+
 # Payee-only rules (DebitCardPurchase, Pre-AuthorizedPayment, etc.)
 rules:
   - id: fuel
@@ -123,7 +161,7 @@ rules:
     category: "Expenses:Auto:Fuel"
     confidence: 0.92
   - id: groceries
-    pattern: "(?i)(costco|walmart|wal-?mart|dwal|save on foods|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery)"
+    pattern: "(?i)(costco|walmart|wal-?mart|dwal|saveonfoods|save on foods|walnutgrove|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery|t&t\\s*supermarket|dt&t|dmarketplace|\\biga\\b|whole foods|fresh st\\.? market|marketplaceiga)"
     category: "Expenses:Food:Groceries"
     confidence: 0.90
   - id: meal_kits
@@ -131,7 +169,7 @@ rules:
     category: "Expenses:Food:MealKits"
     confidence: 0.88
   - id: dining
-    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash|blenz|subway|pizza)"
+    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash|blenz|subway|pizza|bengong|gong cha|cobsbread|cobs bread|chartwells|bubbleworld|gourmetdonut|sweet\\s*factory|secondwave|shvending|vending|food&beve|pnefood|macsconv|thinkaguil|pho\\b|donair|tea\\b)"
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
@@ -167,15 +205,15 @@ rules:
     category: "Expenses:Investments:Contribution"
     confidence: 0.87
   - id: bank_fees
-    pattern: "(?i)(performanceplanfee|wirepaymentfee|monthly fee|service charge|bank fee|bmo payment bpy)"
+    pattern: "(?i)(performanceplanfee|premiumplanfee|wirepaymentfee|monthly fee|service charge|servicechargeadjustment|bank fee|bmo payment bpy|interestadjustment)"
     category: "Expenses:Bank:Fees"
     confidence: 0.90
   - id: shopping_online
-    pattern: "(?i)(amzn|amazon\\.ca|amazon mktp|temu\\.com|ebay|etsy\\b)"
+    pattern: "(?i)(amzn|amazon\\.ca|amazon mktp|temu\\.com|ebay|etsy\\b|aliexpress|paybright)"
     category: "Expenses:Shopping:Online"
     confidence: 0.87
   - id: shopping_retail
-    pattern: "(?i)(value village|talize|michaels|winners|homesense|ikea|canadian tire|staples)"
+    pattern: "(?i)(value village|valuevillage|talize|michaels|winners|homesense|ikea|canadian tire|staples|dollarama|miniso|indigo|forever21|londondrugs|footlocker|pacific knit|shop makers|pnegeneral|ccmall)"
     category: "Expenses:Shopping:Retail"
     confidence: 0.86
   - id: subscriptions
@@ -197,6 +235,14 @@ rules:
   - id: transfer_generic
     pattern: "(?i)(onlinetransfer|scheduledtransfer|online transfer|scheduled transfer|tf0764#)"
     category: "Expenses:Transfers:Internal"
+    confidence: 0.86
+  - id: entertainment
+    pattern: "(?i)(pne\\b|playland|cinema|ticketmaster|eventbrite)"
+    category: "Expenses:Shopping:Retail"
+    confidence: 0.85
+  - id: abm_deposit
+    pattern: "(?i)abmdeposit"
+    category: "Income:Misc:Deposit"
     confidence: 0.86
 
 default_category: "Expenses:Misc"
