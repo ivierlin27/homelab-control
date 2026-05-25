@@ -17,6 +17,7 @@ from ..ingest import MAIN_FILENAME, TRANSACTIONS_FILENAME
 
 from .accounts_chart import ensure_accounts_open
 from .classifier import analyst_classify, analyst_revise
+from .llm_analyst import make_llm_classify_fns
 from .ledger import PendingTransaction, apply_category, find_pending, rewrite_blocks
 from .policy import CategorizePolicy, load_policy
 from .risk import risk_verify
@@ -92,6 +93,7 @@ def categorize_pending(
     dry_run: bool = False,
     run_bean_check: bool = True,
     correlation_id: str | None = None,
+    use_llm: bool = False,
 ) -> CategorizeBatchResult:
     """Categorize pending (!) uncategorized transactions in the ledger."""
     ledger_dir = Path(ledger_dir).expanduser()
@@ -114,6 +116,11 @@ def categorize_pending(
     corr = correlation_id or str(uuid.uuid4())
     pending = find_pending(transactions_path, limit=limit)
 
+    classify_fn = analyst_classify
+    revise_fn = analyst_revise
+    if use_llm:
+        classify_fn, revise_fn = make_llm_classify_fns(policy)
+
     outcomes: list[EntryOutcome] = []
     replacements: list[tuple[PendingTransaction, list[str]]] = []
     audit_rows: list[dict[str, Any]] = []
@@ -121,15 +128,23 @@ def categorize_pending(
     def audit_cb(row: dict[str, Any]) -> None:
         audit_rows.append(row)
 
-    for txn in pending:
-        claim = analyst_classify(txn, policy)
+    for i, txn in enumerate(pending, start=1):
+        if use_llm and i % 25 == 1:
+            import sys
+
+            print(
+                f"categorize-llm: {i}/{len(pending)} …",
+                file=sys.stderr,
+                flush=True,
+            )
+        claim = classify_fn(txn, policy)
         evidence = dict(claim.get("evidence") or {})
 
         def verifier(c: dict[str, Any], ev: dict[str, Any]) -> Any:
             return risk_verify(c, ev, policy=policy)
 
         def builder_revise(c: dict[str, Any], last_round: Any) -> dict[str, Any]:
-            return analyst_revise(c, hint=last_round.notes, policy=policy)
+            return revise_fn(c, hint=last_round.notes, policy=policy)
 
         try:
             accepted, history = run_verifier_loop(
@@ -199,6 +214,7 @@ def categorize_pending(
                 "deferred": deferred,
                 "failed": failed,
                 "dry_run": dry_run,
+                "use_llm": use_llm,
                 "bean_check_passed": bean_ok,
             }
         )

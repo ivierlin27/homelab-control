@@ -263,6 +263,7 @@ def _cmd_categorize(args: argparse.Namespace) -> int:
             limit=args.limit,
             dry_run=args.dry_run,
             run_bean_check=not args.skip_bean_check,
+            use_llm=args.llm,
         )
     except CategorizeError as exc:
         print(f"categorize failed: {exc}", file=sys.stderr)
@@ -271,8 +272,9 @@ def _cmd_categorize(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
     else:
+        mode = "categorize-llm" if args.llm else "categorize"
         print(
-            f"✓ categorize {result.correlation_id}: "
+            f"✓ {mode} {result.correlation_id}: "
             f"scanned={result.scanned} approved={result.approved} "
             f"deferred={result.deferred}"
         )
@@ -544,6 +546,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="max pending transactions to process this run",
+    )
+    categorize.add_argument(
+        "--llm",
+        action="store_true",
+        help="use local LLM for rows rules cannot approve (confidence below threshold)",
     )
     categorize.add_argument(
         "--dry-run",
