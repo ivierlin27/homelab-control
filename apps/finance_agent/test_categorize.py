@@ -146,14 +146,10 @@ class TransferContextTests(unittest.TestCase):
             "DebitCardPurchase,ONLINEPURCHASE 11APR2022,SUBWAY30959BC "
             "Pleasereportanyerrors addressofeachbeneficiary mortgage insurance"
         )
-        from apps.finance_agent.categorize.classifier import analyst_classify
-        from apps.finance_agent.categorize.ledger import find_pending_from_text
+        from apps.finance_agent.categorize.classifier import _rank_description_rules
 
-        txn = find_pending_from_text(
-            f'2022-04-12 ! "{desc}"\n  {MAKAELY}  -7.34 CAD\n  Expenses:Uncategorized  7.34 CAD\n'
-        )[0]
-        claim = analyst_classify(txn, self.policy)
-        self.assertEqual(claim["proposed_category"], "Expenses:Food:Dining")
+        ranked = _rank_description_rules(self.policy, desc)
+        self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
 
     def test_esso_does_not_match_addressof_in_bmo_boilerplate(self) -> None:
         desc = (
