@@ -179,7 +179,7 @@ def analyst_classify_llm(
     try:
         llm = _llm_propose(txn, policy, rules_claim, invoker=inv, hint=None)
         return _claim_from_llm(txn, rules_claim, llm)
-    except (SubCallSchemaError, RuntimeError) as exc:
+    except (SubCallSchemaError, RuntimeError, OSError) as exc:
         log.warning("LLM classify failed for %s: %s", txn.description[:60], exc)
         fallback = dict(rules_claim)
         ev = dict(fallback.get("evidence") or {})
@@ -222,7 +222,7 @@ def analyst_revise_llm(
     try:
         llm = _llm_propose(txn, policy, rules_claim, invoker=inv, hint=hint)
         revised = _claim_from_llm(txn, rules_claim, llm)
-    except (SubCallSchemaError, RuntimeError):
+    except (SubCallSchemaError, RuntimeError, OSError):
         revised = analyst_revise(claim, hint=hint, policy=policy)
         return revised
 
