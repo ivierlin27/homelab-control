@@ -151,6 +151,20 @@ class TransferContextTests(unittest.TestCase):
         ranked = _rank_description_rules(self.policy, desc)
         self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
 
+    def test_promotional_interest_on_joint_savings(self) -> None:
+        desc = (
+            ",PROMOTIONALINTEREST,NEWMONEYOFFER "
+            "Pleasereportanyerrors,omissionsorirregularitiesinwriting"
+        )
+        txn = find_pending_from_text(
+            '2024-02-01 ! "' + desc + '"\n'
+            "  Assets:CA:BMO:Savings:Joint-CAD-8327  16.24 CAD\n"
+            "  Expenses:Uncategorized  -16.24 CAD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Income:Interest:Bank")
+        self.assertGreaterEqual(float(claim["confidence"]), 0.85)
+
     def test_esso_does_not_match_addressof_in_bmo_boilerplate(self) -> None:
         desc = (
             "InterestEarned Pleasereportanyerrors,omissionsorirregularities "

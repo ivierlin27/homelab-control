@@ -49,6 +49,7 @@ from .base import (
     PreParser,
     PreParserError,
     StatementExtract,
+    normalize_bmo_description,
     render_closing_balance_assertion,
     render_pad_balance,
     render_simple_entry,
@@ -213,6 +214,14 @@ _PERIOD_LINE_RE = re.compile(
 
 # Lines that should be silently dropped (statement boilerplate / page chrome).
 # Each entry is a regex that matches the WHOLE line (after .strip()).
+# Statement footer / marketing blocks — must not glue onto the last txn on a page.
+_CONTINUATION_STOP_RE = re.compile(
+    r"(?i)^(pleasereportanyerrors|trade-marks|bankofmontreal|"
+    r"youreverydaybanking|your\s*everyday\s*banking|importantinformation|"
+    r"amemberofbmo|we'remakingchanges|registrationnumbers|cdic\.ca|"
+    r"reasonfornotification|pleasenotethat)"
+)
+
 _NOISE_PATTERNS = [
     re.compile(r"^continued$"),
     re.compile(r"^Page\d+of\d+$"),
@@ -417,6 +426,9 @@ def parse_statement_text(text: str, *, anchor_year: int) -> _ParseResult:
             prior_month = month
             continue
 
+        if _CONTINUATION_STOP_RE.match(line):
+            continue
+
         # Unmatched non-noise line → continuation of the previous transaction's
         # description. If there's no previous transaction, skip silently
         # (could be pre-opening-balance metadata we didn't blacklist).
@@ -476,7 +488,7 @@ def resolve_signs(
         signed.append(
             ExtractedTransaction(
                 posting_date=raw.posting_date,
-                description=raw.description,
+                description=normalize_bmo_description(raw.description),
                 amount=signed_amount,
                 currency=currency,
                 raw_line=raw.raw_line,

@@ -116,6 +116,23 @@ def test_parse_statement_text_skips_closing_totals_line() -> None:
     assert not any(t.posting_date == date(2024, 4, 1) for t in result.raw_txns)
 
 
+def test_parse_statement_text_does_not_glue_statement_footer() -> None:
+    text = FIXTURE_PDF_TEXT.replace(
+        "Apr01 Closingtotals 1,850.25 12,500.00",
+        "Mar30 InterestEarned 1.06 11,650.81\n"
+        "Pleasereportanyerrors,omissionsorirregularitiesinwriting\n"
+        "BankofMontreal,BankofMontrealMortgageCorporation\n"
+        "Apr01 Closingtotals 1,850.25 12,500.00",
+    )
+    result = parse_statement_text(text, anchor_year=2024)
+    interest = [t for t in result.raw_txns if "InterestEarned" in t.description]
+    assert len(interest) == 1
+    assert interest[0].description == "InterestEarned"
+    signed, _, _ = resolve_signs(result, currency="CAD")
+    interest_signed = [t for t in signed if t.description == "InterestEarned"]
+    assert len(interest_signed) == 1
+
+
 def test_parse_statement_text_filters_page2_header_noise() -> None:
     """The 4 header lines on page 2 must NOT become continuations of the wire txn."""
     result = parse_statement_text(FIXTURE_PDF_TEXT, anchor_year=2024)

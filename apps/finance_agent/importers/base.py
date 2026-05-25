@@ -20,10 +20,14 @@ Design constraints driving these types:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Optional, Protocol
+
+# BMO PDFs glue multi-page statement legalese onto the last transaction's payee.
+_BMO_STATEMENT_FOOTER = re.compile(r"(?i)\s+pleasereportanyerrors\b.*$")
 
 
 class PreParserError(Exception):
@@ -135,6 +139,11 @@ class Importer(Protocol):
 # ---------------------------------------------------------------------------
 
 
+def normalize_bmo_description(description: str) -> str:
+    """Drop BMO statement footer text accidentally glued to a payee field."""
+    return _BMO_STATEMENT_FOOTER.sub("", description.strip()).strip()
+
+
 def render_simple_entry(
     txn: ExtractedTransaction,
     *,
@@ -156,6 +165,8 @@ def render_simple_entry(
         raise ImporterError(f"render_simple_entry: unsupported currency {txn.currency!r}")
 
     desc = txn.description.replace("\\", "").replace('"', "'").strip()
+    if importer_slug.startswith("bmo-"):
+        desc = normalize_bmo_description(desc)
     amt = txn.amount
     inverse = -amt
     # Beancount: dates are ISO, amounts are explicit-precision Decimals.

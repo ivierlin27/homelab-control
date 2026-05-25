@@ -12,6 +12,7 @@ from apps.finance_agent.importers.base import (
     ExtractedTransaction,
     ImporterError,
     PreParserError,
+    normalize_bmo_description,
     render_simple_entry,
 )
 
@@ -64,6 +65,31 @@ def test_extracted_transaction_rejects_float_amount() -> None:
 def test_beancount_entry_requires_trailing_newline() -> None:
     with pytest.raises(ImporterError, match="newline-terminated"):
         BeancountEntry(text="2024-01-01 ! \"x\"", posting_date=date(2024, 1, 1))
+
+
+def test_normalize_bmo_description_strips_statement_footer() -> None:
+    raw = (
+        "InterestEarned Pleasereportanyerrors,omissionsorirregularities "
+        "addressofeachbeneficiary"
+    )
+    assert normalize_bmo_description(raw) == "InterestEarned"
+
+
+def test_render_simple_entry_strips_bmo_footer_from_payee() -> None:
+    txn = ExtractedTransaction(
+        posting_date=date(2024, 2, 1),
+        description=",PROMOTIONALINTEREST,NEWMONEYOFFER Pleasereportanyerrors,omissions",
+        amount=Decimal("16.24"),
+        currency="CAD",
+    )
+    entry = render_simple_entry(
+        txn,
+        source_account="Assets:CA:BMO:Savings:Joint-CAD-8327",
+        counter_account="Expenses:Uncategorized",
+        importer_slug="bmo-joint-savings-cad-8327",
+    )
+    assert '",PROMOTIONALINTEREST,NEWMONEYOFFER"' in entry.text
+    assert "Pleasereportanyerrors" not in entry.text
 
 
 # --- render_simple_entry --------------------------------------------------

@@ -26,6 +26,15 @@ account_roles:
     - ":Amplify:"
 
 context_rules:
+  # --- House savings/chequing: interest (before generic inflow xfer rules) ---
+  - id: house_interest_inflow
+    description_pattern: "(?:promotionalinterest|interestearned)"
+    source_roles: [house_chequing, house_savings]
+    flow: inflow
+    category: "Income:Interest:Bank"
+    confidence: 0.93
+    reason: "bank interest or promotional interest credit"
+
   # --- Transfers: house accounts (any TF0764 / BMO xfer memo) ---
   - id: house_outflow_allowance
     description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|xfer|tf0764#)"
@@ -188,7 +197,7 @@ rules:
     category: "Income:Investments:Dividend"
     confidence: 0.90
   - id: interest
-    pattern: "(?i)(interest earned|interestearned|promotionalinterest|int earned|int pd)"
+    pattern: "(?:promotionalinterest|interest ?earned|interestearned|int earned|int pd)"
     category: "Income:Interest:Bank"
     confidence: 0.92
   - id: utilities_electric
