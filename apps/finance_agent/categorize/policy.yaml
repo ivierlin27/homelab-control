@@ -6,27 +6,31 @@ max_verifier_rounds: 2
 
 rules:
   - id: fuel
-    pattern: "(?i)\\b(shell|petro[- ]?can|esso|chevron|fuel|gas bar)\\b"
+    pattern: "(?i)(shell|petro[- ]?can|esso|chevron|\\bfuel\\b|gas bar)"
     category: "Expenses:Auto:Fuel"
     confidence: 0.92
   - id: groceries
-    pattern: "(?i)\\b(costco|walmart|loblaws|sobeys|metro|superstore|grocery)\\b"
+    pattern: "(?i)(costco|walmart|loblaws|sobeys|metro|superstore|grocery)"
     category: "Expenses:Food:Groceries"
     confidence: 0.90
   - id: dining
-    pattern: "(?i)\\b(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash)\\b"
+    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash)"
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
-    pattern: "(?i)\\b(payroll|salary|direct dep|pay cheque)\\b"
+    pattern: "(?i)(payroll|salary|direct dep|pay cheque|blackbaud)"
     category: "Income:Salary:Employer"
     confidence: 0.93
   - id: interest
-    pattern: "(?i)\\b(interest paid|interest earned|int pd|int earned)\\b"
+    pattern: "(?i)(interest paid|interest earned|int pd|int earned)"
     category: "Income:Interest:Bank"
     confidence: 0.91
+  - id: utilities
+    pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas|utilities)"
+    category: "Expenses:Utilities:Electric"
+    confidence: 0.88
   - id: transfer
-    pattern: "(?i)\\b(transfer|e-?transfer|xfer|tfr)\\b"
+    pattern: "(?i)(e-?transfer|interac|online transfer|scheduled transfer|xfer|\\btfr\\b)"
     category: "Expenses:Transfers:Internal"
     confidence: 0.75
 
