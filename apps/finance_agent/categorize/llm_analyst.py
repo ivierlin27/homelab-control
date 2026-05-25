@@ -48,17 +48,62 @@ def _normalize_category(raw: str, policy: CategorizePolicy) -> str | None:
     return None
 
 
-def _parse_llm_payload(summary: str) -> dict[str, Any]:
-    text = (summary or "").strip()
-    if not text:
-        raise SubCallSchemaError("empty LLM summary")
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise SubCallSchemaError(f"LLM summary is not JSON: {exc}") from exc
+_CONFIDENCE_WORDS = {"low": 0.65, "medium": 0.78, "high": 0.88}
+
+
+def _coerce_confidence(raw: Any) -> float:
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    text = str(raw or "").strip().lower()
+    if text in _CONFIDENCE_WORDS:
+        return _CONFIDENCE_WORDS[text]
+    return float(text)
+
+
+def _parse_llm_payload(summary: str | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(summary, dict):
+        payload = summary
+    else:
+        text = (summary or "").strip()
+        if not text:
+            raise SubCallSchemaError("empty LLM summary")
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise SubCallSchemaError(f"LLM summary is not JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise SubCallSchemaError("LLM summary JSON must be an object")
     return payload
+
+
+def _gateway_categorize_payload(
+    invoker: SubCallInvoker,
+    *,
+    sub_prompt: str,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Call gateway; accept sub-call JSON or nested summary object from the model."""
+    model = invoker.model_for_intent(_LLM_INTENT)
+    payload = invoker._build_payload(model=model, sub_prompt=sub_prompt, context=context)
+    if invoker.transport is not None:
+        raw = invoker.transport(_LLM_INTENT, model, payload)
+    else:
+        raw = invoker._http_post(
+            payload, intent=_LLM_INTENT, skill_id=FINANCE_CATEGORIZE_SKILL
+        )
+    text = invoker._extract_text(raw)
+    try:
+        envelope = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SubCallSchemaError(f"gateway response is not JSON: {exc}") from exc
+    if not isinstance(envelope, dict):
+        raise SubCallSchemaError("gateway response must be a JSON object")
+    summary = envelope.get("summary")
+    if isinstance(summary, dict):
+        return _parse_llm_payload(summary)
+    if isinstance(summary, str) and summary.strip():
+        return _parse_llm_payload(summary)
+    raise SubCallSchemaError("gateway response missing categorize summary")
 
 
 def _llm_propose(
@@ -90,20 +135,19 @@ def _llm_propose(
     if hint:
         sub_prompt += f"\nRisk reviewer notes (address these): {hint}\n"
 
-    result = invoker.call(
-        intent=_LLM_INTENT,
+    model = invoker.model_for_intent(_LLM_INTENT)
+    payload = _gateway_categorize_payload(
+        invoker,
         sub_prompt=sub_prompt,
         context={"task": "finance_categorize", "date": txn.date},
-        skill_id=FINANCE_CATEGORIZE_SKILL,
     )
-    payload = _parse_llm_payload(result.summary)
     category = _normalize_category(str(payload.get("proposed_category", "")), policy)
     if category is None:
         raise SubCallSchemaError(
             f"LLM proposed invalid category {payload.get('proposed_category')!r}"
         )
     try:
-        confidence = float(payload.get("confidence", 0))
+        confidence = _coerce_confidence(payload.get("confidence", 0))
     except (TypeError, ValueError) as exc:
         raise SubCallSchemaError(f"invalid confidence: {exc}") from exc
     confidence = max(0.0, min(_LLM_CONFIDENCE_CAP, confidence))
@@ -125,14 +169,14 @@ def _llm_propose(
                 {"category": alt_cat, "confidence": alt_conf, "rule_id": "llm-alt"}
             )
 
-    reason = str(payload.get("reason", "")).strip() or result.summary[:200]
+    reason = str(payload.get("reason", "")).strip()
     return {
         "category": category,
         "confidence": confidence,
         "alternatives": alternatives,
         "reason": reason,
-        "model": result.model,
-        "route": result.route,
+        "model": model,
+        "route": _LLM_INTENT,
     }
 
 

@@ -49,6 +49,44 @@ class LlmAnalystTests(unittest.TestCase):
         self.assertEqual(out["proposed_category"], rules["proposed_category"])
         self.assertEqual(calls, [])
 
+    def test_nested_summary_object_from_gateway(self) -> None:
+        policy = load_policy()
+        txn = _txn("NESTED SUMMARY CAFE")
+        rules = analyst_classify(txn, policy)
+        inner = json.dumps(
+            {
+                "proposed_category": "Expenses:Food:Dining",
+                "confidence": 0.87,
+                "alternatives": [],
+                "reason": "cafe",
+            }
+        )
+
+        def transport(intent: str, model: str, payload: dict) -> dict:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "summary": json.loads(inner),
+                                    "citations": [],
+                                    "confidence": "high",
+                                    "open_questions": [],
+                                }
+                            )
+                        }
+                    }
+                ],
+                "usage": {},
+            }
+
+        from apps.finance_agent.categorize.llm_analyst import _llm_propose
+
+        inv = SubCallInvoker(transport=transport)
+        out = _llm_propose(txn, policy, rules, invoker=inv)
+        self.assertEqual(out["category"], "Expenses:Food:Dining")
+
     def test_llm_classify_used_for_low_confidence(self) -> None:
         policy = load_policy()
         txn = _txn("OBSCURE FOREIGN MERCHANT ZZZ")
