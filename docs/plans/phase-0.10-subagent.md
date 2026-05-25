@@ -82,24 +82,22 @@ Helpers: `subagent_enabled()`, `try_spawn_subagent()`, `try_researcher_summary()
 ### Live smoke (Alienware)
 
 ```bash
-# Executive (needs agent-executive.env with MODEL_GATEWAY_*)
-python3 apps/executive_agent/main.py handle-request \
-  --title smoke-executive --request "live.smoke subagent test" \
-  --domain homelab --task-type research --plan-ready \
-  --conversation-id "live.smoke.subagent-$(date +%s)"
-
-# Maintainer (agent-homelab-maintainer.env must also export MODEL_GATEWAY_*)
-python3 apps/homelab_maintainer_agent/main.py triage-intake \
-  --intake-id "live.smoke.maintainer-$(date +%s)" \
-  --title smoke-homelab-maintainer --content "live.smoke test" --route local
-
-# Cleanup Planka litter
-python3 scripts/planka_cleanup_test_cards.py --execute
+cd ~/git/homelab-control
+./scripts/live_smoke_subagent.sh
 ```
 
+The script loads `agent-executive.env`, pings the gateway, runs executive
+`handle-request` and maintainer `triage-intake` (non–dry-run), asserts
+`subagent_spawn` / `subagent_complete` in each trust ledger, then runs
+`planka_cleanup_test_cards.py --execute`.
+
+Options: `--executive-only`, `--maintainer-only`, `--no-cleanup`,
+`--skip-gateway-ping`, `--timeout SEC`.
+
 Gateway must reach vLLM: `homelab-model-gateway` uses `--network host` and
-`HOMELAB_STRONG_LONG_API_BASE=http://127.0.0.1:8002/v1` in `model-gateway.env`
-(Podman pasta cannot reach `host.containers.internal:8002` reliably).
+`HOMELAB_STRONG_LONG_API_BASE=http://127.0.0.1:8002/v1` in `model-gateway.env`.
+`agent-homelab-maintainer.env` needs `MODEL_GATEWAY_*` (install script seeds
+them; the smoke script appends from executive env if missing).
 
 ## Not in 0.10 (follow-up)
 
