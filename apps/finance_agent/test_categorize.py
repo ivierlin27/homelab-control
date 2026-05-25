@@ -95,6 +95,7 @@ class CategorizeLedgerTests(unittest.TestCase):
             self.assertEqual(txn.source_amount, Decimal("-74.23"))
             claim = analyst_classify(txn, policy)
             self.assertEqual(claim["proposed_category"], "Expenses:Auto:Fuel")
+            self.assertEqual(txn.source_amount, Decimal("-74.23"))
             self.assertGreaterEqual(float(claim["confidence"]), 0.85)
             new_lines = apply_category(
                 txn,

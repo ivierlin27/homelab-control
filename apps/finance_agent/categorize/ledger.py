@@ -126,7 +126,8 @@ def apply_category(
 ) -> list[str]:
     """Return replacement lines: promote ! → *, swap counter leg, add metadata."""
     out: list[str] = []
-    inverse = -txn.amount
+    # Counter posting must balance the source leg (not the uncategorized leg copy).
+    inverse = -txn.source_amount
     meta_lines = [
         f'  categorize_confidence: "{confidence:.3f}"\n',
         f'  categorize_run: "{correlation_id}"\n',
