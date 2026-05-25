@@ -4,7 +4,6 @@
 threshold: 0.85
 max_verifier_rounds: 2
 
-# Substrings matched against full Beancount account paths (first match wins).
 account_roles:
   house_chequing:
     - ":Chequing:Joint-4969"
@@ -20,32 +19,33 @@ account_roles:
     - ":Kevin-4256"
     - ":Jennifer-4264"
     - ":Jennifer-Books-"
+  credit_card:
+    - ":CreditCard:"
   us_house:
     - ":BofA:"
     - ":Amplify:"
 
-# Evaluated before description-only rules; highest confidence wins.
 context_rules:
-  # --- Transfers: house (joint) chequing ---
+  # --- Transfers: house accounts (any TF0764 / BMO xfer memo) ---
   - id: house_outflow_allowance
-    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|xfer|#3954)"
-    source_roles: [house_chequing]
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|xfer|tf0764#)"
+    source_roles: [house_chequing, house_savings]
     flow: outflow
     category: "Expenses:Household:Allowance"
     confidence: 0.91
-    reason: "joint chequing outflow to family member"
+    reason: "house account outflow to family / internal xfer"
 
   - id: house_inflow_reimbursement
-    description_pattern: "(?i)(e-?transfer|interac.*received|online\\s*transfer|onlinetransfer|#3954)"
-    source_roles: [house_chequing]
+    description_pattern: "(?i)(e-?transfer|interac.*received|online\\s*transfer|onlinetransfer|scheduledtransfer|automatic\\s*pymt\\s*received|tf0764#)"
+    source_roles: [house_chequing, house_savings]
     flow: inflow
     category: "Income:Household:FamilyReimbursement"
     confidence: 0.89
-    reason: "joint chequing inflow — family paying house back (often CC)"
+    reason: "house inflow — reimbursement or xfer in"
 
-  # --- Transfers: person → joint (memo references 4969/969) ---
+  # --- Transfers: person ↔ joint (969 / 4969 in memo) ---
   - id: person_to_house_payment
-    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|#3954-969|#3954-4969)"
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|tf0764#)"
     source_roles: [child_personal, child_education, parent_personal]
     flow: outflow
     counterparty_pattern: "(?i)(#3954-969|#3954-4969|joint-4969)"
@@ -54,37 +54,40 @@ context_rules:
     reason: "personal outflow to joint house account"
 
   - id: house_to_person_allowance
-    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|#3954)"
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|tf0764#)"
     source_roles: [child_personal, child_education, parent_personal]
     flow: inflow
     category: "Income:Household:Allowance"
     confidence: 0.90
     reason: "personal inflow — allowance from house"
 
-  # --- Transfers: savings / less specific ---
-  - id: house_savings_outflow
-    description_pattern: "(?i)(transfer|xfer|#3954)"
-    source_roles: [house_savings]
+  # --- Transfers: personal e-transfer out (no joint marker in memo) ---
+  - id: personal_outflow_etransfer
+    description_pattern: "(?i)(interac.*sent|e-?transfer.*sent)"
+    source_roles: [child_personal, child_education, parent_personal]
     flow: outflow
-    category: "Expenses:Household:Allowance"
+    category: "Expenses:Transfers:External"
     confidence: 0.86
+    reason: "personal e-transfer sent"
 
-  - id: house_savings_inflow
-    description_pattern: "(?i)(transfer|xfer|#3954)"
-    source_roles: [house_savings]
+  - id: personal_inflow_etransfer
+    description_pattern: "(?i)(interac.*received|e-?transfer.*received)"
+    source_roles: [child_personal, child_education, parent_personal]
     flow: inflow
-    category: "Income:Household:FamilyReimbursement"
-    confidence: 0.84
+    category: "Income:Misc:TransferIn"
+    confidence: 0.86
+    reason: "personal e-transfer received"
 
-  # --- Recurring / deposits / ATM ---
-  - id: recurring_subscription
-    description_pattern: "(?i)(recurringpymnt|recurring\\s*payment)"
-    source_roles: []
-    flow: any
-    category: "Expenses:Utilities:Telecom"
-    confidence: 0.87
-    reason: "standing/recurring card payment (e.g. mobile)"
+  # --- House chequing: bill pay to credit cards ---
+  - id: house_cc_billpay
+    description_pattern: "(?i)(onlinebillpayment.*visa|onlinebillpayment.*mastercard|bill\\s*payment.*visa|royalbankvisa|bmo\\s*mastercard)"
+    source_roles: [house_chequing, house_savings]
+    flow: outflow
+    category: "Expenses:Financial:CreditCardPayment"
+    confidence: 0.90
+    reason: "paying credit card from bank account"
 
+  # --- Deposits / ATM ---
   - id: generic_deposit_personal
     description_pattern: "(?i)^deposit$"
     source_roles: [child_personal, child_education, parent_personal]
@@ -106,32 +109,95 @@ context_rules:
     category: "Expenses:Cash:ATM"
     confidence: 0.88
 
-# Payee-only rules (no account context required).
+  - id: incoming_wire
+    description_pattern: "(?i)incomingwirepayment"
+    source_roles: [house_chequing, house_savings, parent_personal]
+    flow: inflow
+    category: "Income:Wire:Incoming"
+    confidence: 0.88
+
+# Payee-only rules (DebitCardPurchase, Pre-AuthorizedPayment, etc.)
 rules:
   - id: fuel
     pattern: "(?i)(shell|petro[- ]?can|esso|chevron|\\bfuel\\b|gas bar)"
     category: "Expenses:Auto:Fuel"
     confidence: 0.92
   - id: groceries
-    pattern: "(?i)(costco|walmart|loblaws|sobeys|metro|superstore|grocery)"
+    pattern: "(?i)(costco|walmart|wal-?mart|dwal|save on foods|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery)"
     category: "Expenses:Food:Groceries"
     confidence: 0.90
+  - id: meal_kits
+    pattern: "(?i)(fresh prep|chefsplate|hellofresh|goodfood|meal kit)"
+    category: "Expenses:Food:MealKits"
+    confidence: 0.88
   - id: dining
-    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash)"
+    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|mcdonald|uber eats|doordash|blenz|subway|pizza)"
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
-    pattern: "(?i)(directdeposit|payroll|pay cheque|blackbaud)"
+    pattern: "(?i)(directdeposit.*pay|payroll|pay cheque|blackbaud)"
     category: "Income:Salary:Employer"
     confidence: 0.93
+  - id: dividend_income
+    pattern: "(?i)(/div|msp/div|saving.*div|investment.*div|tangerine.*div|indall)"
+    category: "Income:Investments:Dividend"
+    confidence: 0.90
   - id: interest
-    pattern: "(?i)(interest paid|interest earned|int pd|int earned)"
+    pattern: "(?i)(interest earned|interestearned|int earned|int pd)"
     category: "Income:Interest:Bank"
-    confidence: 0.91
-  - id: utilities
-    pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas|utilities)"
+    confidence: 0.92
+  - id: utilities_electric
+    pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas)"
     category: "Expenses:Utilities:Electric"
     confidence: 0.88
+  - id: utilities_telecom
+    pattern: "(?i)(shaw|rogers|telus|fido|koodo|bell canada|mobile\\b|recurringpymnt.*shaw)"
+    category: "Expenses:Utilities:Telecom"
+    confidence: 0.88
+  - id: mortgage
+    pattern: "(?i)(fnmtg|mortgage|hyp/)"
+    category: "Expenses:Housing:Mortgage"
+    confidence: 0.90
+  - id: insurance
+    pattern: "(?i)(manulife|sun life|desjardins|insurance|indall)"
+    category: "Expenses:Insurance:Life"
+    confidence: 0.87
+  - id: investment_contribution
+    pattern: "(?i)(fidelity|questrade|wealthsimple|pcf padw|investment|rrsp|tfsa contribution)"
+    category: "Expenses:Investments:Contribution"
+    confidence: 0.87
+  - id: bank_fees
+    pattern: "(?i)(performanceplanfee|wirepaymentfee|monthly fee|service charge|bank fee|bmo payment bpy)"
+    category: "Expenses:Bank:Fees"
+    confidence: 0.90
+  - id: shopping_online
+    pattern: "(?i)(amzn|amazon\\.ca|amazon mktp|temu\\.com|ebay|etsy\\b)"
+    category: "Expenses:Shopping:Online"
+    confidence: 0.87
+  - id: shopping_retail
+    pattern: "(?i)(value village|talize|michaels|winners|homesense|ikea|canadian tire|staples)"
+    category: "Expenses:Shopping:Retail"
+    confidence: 0.86
+  - id: subscriptions
+    pattern: "(?i)(google\\*youtube|netflix|spotify|apple\\.com/bill|disney\\+|prime video|microsoft.*365)"
+    category: "Expenses:Subscriptions:Digital"
+    confidence: 0.88
+  - id: transit
+    pattern: "(?i)(compass|translink|bc ferries|uber\\b|lyft)"
+    category: "Expenses:Transit:Public"
+    confidence: 0.87
+  - id: education
+    pattern: "(?i)(simon fraser|sfu |university|tuition|education)"
+    category: "Expenses:Education:Tuition"
+    confidence: 0.88
+  - id: medical
+    pattern: "(?i)(pharmasave|pharmacy|medical|dental|clinic)"
+    category: "Expenses:Health:Medical"
+    confidence: 0.87
+  - id: transfer_generic
+    pattern: "(?i)(onlinetransfer|scheduledtransfer|online transfer|scheduled transfer|tf0764#)"
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.86
 
 default_category: "Expenses:Misc"
 default_confidence: 0.55

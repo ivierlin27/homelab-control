@@ -141,6 +141,15 @@ class TransferContextTests(unittest.TestCase):
         claim = analyst_classify(txn, self.policy)
         self.assertEqual(claim["proposed_category"], "Income:Household:FamilyReimbursement")
 
+    def test_person_outflow_interac_sent_is_external_transfer(self) -> None:
+        txn = find_pending_from_text(
+            '2024-02-10 ! "INTERACe-TransferSent"\n'
+            f"  {MAKAELY}  -50.00 CAD\n  Expenses:Uncategorized  50.00 CAD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Expenses:Transfers:External")
+        self.assertGreaterEqual(float(claim["confidence"]), 0.85)
+
     def test_person_outflow_to_joint_is_cc_reimbursement(self) -> None:
         txn = find_pending_from_text(
             '2024-02-03 ! "OnlineTransfer,TF0764#3954-969"\n'

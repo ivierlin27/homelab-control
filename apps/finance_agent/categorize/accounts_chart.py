@@ -2,22 +2,39 @@
 
 from __future__ import annotations
 
-# Subset of F6 policy targets — extend when policy.yaml adds categories.
+# Keep in sync with categories in policy.yaml.
 CATEGORIZE_ACCOUNTS: tuple[str, ...] = (
     "Expenses:Auto:Fuel",
-    "Expenses:Food:Groceries",
+    "Expenses:Bank:Fees",
+    "Expenses:Cash:ATM",
+    "Expenses:Education:Tuition",
+    "Expenses:Financial:CreditCardPayment",
     "Expenses:Food:Dining",
-    "Expenses:Utilities:Electric",
-    "Expenses:Utilities:Telecom",
+    "Expenses:Food:Groceries",
+    "Expenses:Food:MealKits",
+    "Expenses:Health:Medical",
     "Expenses:Household:Allowance",
     "Expenses:Household:CC-Reimbursement",
-    "Expenses:Cash:ATM",
+    "Expenses:Housing:Mortgage",
+    "Expenses:Insurance:Life",
+    "Expenses:Investments:Contribution",
     "Expenses:Misc",
-    "Income:Salary:Employer",
-    "Income:Interest:Bank",
+    "Expenses:Shopping:Online",
+    "Expenses:Shopping:Retail",
+    "Expenses:Subscriptions:Digital",
+    "Expenses:Transit:Public",
+    "Expenses:Transfers:External",
+    "Expenses:Transfers:Internal",
+    "Expenses:Utilities:Electric",
+    "Expenses:Utilities:Telecom",
     "Income:Household:Allowance",
     "Income:Household:FamilyReimbursement",
+    "Income:Interest:Bank",
+    "Income:Investments:Dividend",
     "Income:Misc:Deposit",
+    "Income:Misc:TransferIn",
+    "Income:Salary:Employer",
+    "Income:Wire:Incoming",
 )
 
 
