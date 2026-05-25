@@ -35,7 +35,9 @@ git pull --ff-only forgejo "$(git branch --show-current)"
 ```
 
 `post_deploy_agent_stack.sh` runs `planka_cleanup_test_cards.py --execute` (smoke /
-A2A test cards) using `agent-executive.env` by default.
+A2A test cards) using `agent-executive.env` by default, then
+`live_smoke_subagent.sh` (executive + maintainer sub-agent wiring). Set
+`SKIP_SUBAGENT_SMOKE=1` to skip the LLM smoke when the gateway is down.
 
 Do not use service DNS names that terminate at the nginx/reverse-proxy host
 (`192.168.1.42`) unless Pi-hole has a host-specific override for SSH.

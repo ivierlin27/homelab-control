@@ -2,6 +2,7 @@
 # Post-deploy hooks for the Alienware agent stack (run after git pull / install).
 #
 # - Removes agent smoke / test Planka cards (verify-*, A2A help:, live.smoke*, …)
+# - Live sub-agent smoke (executive + maintainer) when gateway is configured
 # - Optionally restarts core agent units when RESTART_AGENT_SERVICES=1
 #
 # Usage (on Alienware):
@@ -30,6 +31,27 @@ cleanup_planka() {
   fi
 }
 
+smoke_subagent() {
+  if [[ "${SKIP_SUBAGENT_SMOKE:-0}" == "1" ]]; then
+    echo "post_deploy: skip sub-agent smoke (SKIP_SUBAGENT_SMOKE=1)" >&2
+    return 0
+  fi
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "post_deploy: skip sub-agent smoke (${ENV_FILE} missing)" >&2
+    return 0
+  fi
+  if [[ ! -x "${ROOT_DIR}/scripts/live_smoke_subagent.sh" ]]; then
+    echo "post_deploy: skip sub-agent smoke (live_smoke_subagent.sh missing)" >&2
+    return 0
+  fi
+  echo "post_deploy: sub-agent live smoke"
+  if "${ROOT_DIR}/scripts/live_smoke_subagent.sh"; then
+    echo "post_deploy: sub-agent smoke finished"
+  else
+    echo "post_deploy: sub-agent smoke failed (non-fatal)" >&2
+  fi
+}
+
 restart_agents() {
   if [[ "${RESTART_AGENT_SERVICES:-0}" != "1" ]]; then
     return 0
@@ -42,4 +64,5 @@ restart_agents() {
 }
 
 cleanup_planka
+smoke_subagent
 restart_agents

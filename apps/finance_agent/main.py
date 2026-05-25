@@ -249,6 +249,46 @@ def _cmd_ingest_ofx(args: argparse.Namespace) -> int:
     return 0 if (not bean_ran or bean_ok) else 1
 
 
+def _cmd_categorize(args: argparse.Namespace) -> int:
+    from .categorize.runner import CategorizeError, categorize_pending
+    from .ingest import DEFAULT_AUDIT_PATH
+
+    try:
+        result = categorize_pending(
+            ledger_dir=Path(args.ledger_dir).expanduser(),
+            audit_path=Path(args.audit_path).expanduser()
+            if args.audit_path
+            else DEFAULT_AUDIT_PATH,
+            policy_path=Path(args.policy).expanduser() if args.policy else None,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            run_bean_check=not args.skip_bean_check,
+        )
+    except CategorizeError as exc:
+        print(f"categorize failed: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+    else:
+        print(
+            f"✓ categorize {result.correlation_id}: "
+            f"scanned={result.scanned} approved={result.approved} "
+            f"deferred={result.deferred}"
+        )
+        for entry in result.outcomes:
+            print(
+                f"  {entry.date} {entry.status:8} "
+                f"{entry.description[:40]:40} "
+                f"{entry.category or '-':30} "
+                f"conf={entry.confidence:.2f}"
+            )
+        if result.bean_check_ran:
+            status = "passed" if result.bean_check_passed else "FAILED"
+            print(f"  bean-check: {status} — {result.bean_check_message}")
+    return 0 if result.deferred == 0 or args.dry_run else 0
+
+
 def _cmd_ingest_csv(args: argparse.Namespace) -> int:
     """Ingest a Bank of America CSV file."""
     from .importers.bofa_csv import BOFA_PROFILES, parse_bofa_csv
@@ -478,6 +518,49 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip post-ingest bean-check",
     )
     ingest_csv.set_defaults(func=_cmd_ingest_csv)
+
+    # categorize (F6) --------------------------------------------------------
+    categorize = subparsers.add_parser(
+        "categorize",
+        help="run analyst+risk loop on pending (!) uncategorized transactions (F6)",
+    )
+    categorize.add_argument(
+        "--ledger-dir",
+        default=str(DEFAULT_LEDGER_DIR),
+        help=f"ledger directory (default: {DEFAULT_LEDGER_DIR})",
+    )
+    categorize.add_argument(
+        "--audit-path",
+        default=None,
+        help="audit log path (default: agent-finance audit.jsonl)",
+    )
+    categorize.add_argument(
+        "--policy",
+        default=None,
+        help="categorization policy YAML (default: apps/finance_agent/categorize/policy.yaml)",
+    )
+    categorize.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="max pending transactions to process this run",
+    )
+    categorize.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="classify and verify only; do not rewrite ledger or write audit",
+    )
+    categorize.add_argument(
+        "--skip-bean-check",
+        action="store_true",
+        help="skip post-categorize bean-check",
+    )
+    categorize.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
+    categorize.set_defaults(func=_cmd_categorize)
 
     return parser
 
