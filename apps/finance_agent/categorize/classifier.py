@@ -31,6 +31,9 @@ def _description_variants(description: str) -> tuple[str, ...]:
         suffix = (trimmed or d)[m.end() :].strip()
         if suffix and suffix not in variants:
             variants.append(suffix)
+    # BMO appends multi-KB statement legalese after Pleasereportanyerrors — ignore full blob.
+    if trimmed != d and len(trimmed) < len(d) * 0.6:
+        variants = [v for v in variants if v != d]
     return tuple(variants)
 
 
