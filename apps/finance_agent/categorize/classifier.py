@@ -35,7 +35,16 @@ def _description_variants(description: str) -> tuple[str, ...]:
 
 
 def _any_variant_matches(pattern, description: str) -> bool:
-    return any(pattern.search(text) for text in _description_variants(description))
+    return _shortest_matching_variant_len(pattern, description) is not None
+
+
+def _shortest_matching_variant_len(pattern, description: str) -> int | None:
+    """Length of shortest description variant that matches (prefer precise payee text)."""
+    best: int | None = None
+    for text in _description_variants(description):
+        if pattern.search(text):
+            best = len(text) if best is None else min(best, len(text))
+    return best
 
 
 def _flow_matches(rule_flow: str, txn_flow: str) -> bool:
@@ -74,11 +83,13 @@ def _rank_description_rules(
     policy: CategorizePolicy, description: str
 ) -> list[tuple[str, float, str | None]]:
     """Return (category, confidence, rule_id) sorted by confidence desc."""
-    hits: list[tuple[str, float, str | None]] = []
+    hits: list[tuple[str, float, str | None, int]] = []
     for rule in policy.rules:
-        if _any_variant_matches(rule.pattern, description):
-            hits.append((rule.category, rule.confidence, rule.id))
-    hits.sort(key=lambda x: x[1], reverse=True)
+        variant_len = _shortest_matching_variant_len(rule.pattern, description)
+        if variant_len is not None:
+            hits.append((rule.category, rule.confidence, rule.id, variant_len))
+    # Higher confidence first; on ties prefer the rule that matched the shorter payee text.
+    hits.sort(key=lambda x: (-x[1], x[3]))
     return hits
 
 
@@ -104,7 +115,7 @@ def _best_classification(
 
     desc_ranked = _rank_description_rules(policy, txn.description)
     if desc_ranked:
-        category, confidence, rule_id = desc_ranked[0]
+        category, confidence, rule_id, _variant_len = desc_ranked[0]
         return category, confidence, rule_id, {
             "account_role": role,
             "source_flow": flow,
@@ -131,7 +142,7 @@ def analyst_classify(txn: PendingTransaction, policy: CategorizePolicy) -> dict[
             for c, conf, rid, _ in ctx_ranked[1:3]
         ] + [
             {"category": c, "confidence": conf, "rule_id": rid}
-            for c, conf, rid in desc_ranked[:2]
+            for c, conf, rid, _ in desc_ranked[:2]
         ]
         alternatives = pool[:3]
 

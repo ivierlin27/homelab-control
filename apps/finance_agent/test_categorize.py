@@ -141,6 +141,18 @@ class TransferContextTests(unittest.TestCase):
         claim = analyst_classify(txn, self.policy)
         self.assertEqual(claim["proposed_category"], "Income:Household:FamilyReimbursement")
 
+    def test_esso_does_not_match_addressof_in_bmo_boilerplate(self) -> None:
+        desc = (
+            "InterestEarned Pleasereportanyerrors,omissionsorirregularities "
+            "addressofeachbeneficiaryofthedepositaccount"
+        )
+        from apps.finance_agent.categorize.classifier import _rank_description_rules
+
+        ranked = _rank_description_rules(self.policy, desc)
+        self.assertTrue(ranked)
+        self.assertEqual(ranked[0][0], "Income:Interest:Bank")
+        self.assertNotEqual(ranked[0][0], "Expenses:Auto:Fuel")
+
     def test_debitcard_suffix_matches_groceries(self) -> None:
         txn = find_pending_from_text(
             '2024-03-01 ! "DebitCardPurchase,WALNUTGROVESE"\n'
