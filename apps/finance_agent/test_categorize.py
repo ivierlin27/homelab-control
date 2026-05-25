@@ -34,6 +34,20 @@ SAMPLE_TXNS = """\
   Expenses:Uncategorized                                    12.00 CAD
 """
 
+TXN_WITH_BALANCE = f"""\
+2024-03-01 ! "INTERACe-TransferSent"
+  source_importer: "test"
+  {JOINT}                                                 -100.00 CAD
+  Expenses:Uncategorized                                  100.00 CAD
+
+2024-03-02 balance {JOINT}  900.00 CAD
+
+2024-03-03 ! "Deposit"
+  source_importer: "test"
+  {JOINT}                                                  50.00 CAD
+  Expenses:Uncategorized                                  -50.00 CAD
+"""
+
 TRANSFER_TXNS = f"""\
 2024-02-01 ! "INTERACe-TransferSent"
   source_importer: "test"
@@ -93,6 +107,16 @@ class CategorizeLedgerTests(unittest.TestCase):
             self.assertIn("Expenses:Auto:Fuel", text)
             remaining = find_pending(txns)
             self.assertEqual(len(remaining), 1)
+
+
+class BalanceBoundaryTests(unittest.TestCase):
+    def test_balance_directive_not_in_transaction_block(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            txns = Path(tmp) / "transactions.beancount"
+            txns.write_text(TXN_WITH_BALANCE, encoding="utf-8")
+            pending = find_pending(txns)
+            self.assertEqual(len(pending), 2)
+            self.assertNotIn("balance", pending[0].block_text.lower())
 
 
 class TransferContextTests(unittest.TestCase):

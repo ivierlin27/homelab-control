@@ -15,6 +15,7 @@ from apps._shared.verifier import VerifierEscalation, VerifierVerdict, run_verif
 
 from ..ingest import MAIN_FILENAME, TRANSACTIONS_FILENAME
 
+from .accounts_chart import ensure_accounts_open
 from .classifier import analyst_classify, analyst_revise
 from .ledger import PendingTransaction, apply_category, find_pending, rewrite_blocks
 from .policy import CategorizePolicy, load_policy
@@ -99,6 +100,16 @@ def categorize_pending(
     if not main_path.is_file():
         raise CategorizeError(f"ledger not initialized: {main_path} missing")
 
+    accounts_path = ledger_dir / "accounts.beancount"
+    added_accounts = ensure_accounts_open(accounts_path)
+    if added_accounts:
+        import sys
+
+        print(
+            f"categorize: opened {len(added_accounts)} new accounts in {accounts_path}",
+            file=sys.stderr,
+        )
+
     policy = load_policy(policy_path)
     corr = correlation_id or str(uuid.uuid4())
     pending = find_pending(transactions_path, limit=limit)
@@ -167,13 +178,13 @@ def categorize_pending(
     deferred = sum(1 for o in outcomes if o.status == "deferred")
     failed = sum(1 for o in outcomes if o.status == "failed")
 
-    if replacements and not dry_run:
-        rewrite_blocks(transactions_path, replacements)
-
     bean_ran, bean_ok, bean_msg = False, None, "skipped (dry-run)"
-    if not dry_run and replacements:
+    if replacements and not dry_run:
+        original = transactions_path.read_text(encoding="utf-8")
+        rewrite_blocks(transactions_path, replacements)
         bean_ran, bean_ok, bean_msg = _maybe_bean_check(main_path, run=run_bean_check)
         if bean_ran and bean_ok is False:
+            transactions_path.write_text(original, encoding="utf-8")
             raise CategorizeError(f"bean-check failed after categorize: {bean_msg}")
 
     if not dry_run:

@@ -21,6 +21,10 @@ _POSTING_RE = re.compile(
 )
 #   source_importer: "bmo-ofx:slug"
 _META_RE = re.compile(r"^\s+(?P<key>[a-z_]+):\s+\"(?P<value>.*)\"\s*$")
+# Next directive starts a new entry — do not attach to the pending transaction.
+_DIRECTIVE_START_RE = re.compile(
+    r"^\s*(?P<date>\d{4}-\d{2}-\d{2})\s+(balance|pad)\s+"
+)
 
 
 @dataclass(frozen=True)
@@ -71,10 +75,14 @@ def find_pending(
         has_uncategorized = False
         amount = Decimal("0")
         currency = "CAD"
-        while i < len(lines) and not _HEADER_RE.match(lines[i].rstrip("\n")):
+        while i < len(lines):
+            stripped = lines[i].rstrip("\n")
+            if _HEADER_RE.match(stripped):
+                break
+            if _DIRECTIVE_START_RE.match(stripped):
+                break
             line = lines[i]
             block.append(line)
-            stripped = line.rstrip("\n")
             meta = _META_RE.match(stripped)
             if meta:
                 i += 1
@@ -119,18 +127,21 @@ def apply_category(
     """Return replacement lines: promote ! → *, swap counter leg, add metadata."""
     out: list[str] = []
     inverse = -txn.amount
+    meta_lines = [
+        f'  categorize_confidence: "{confidence:.3f}"\n',
+        f'  categorize_run: "{correlation_id}"\n',
+    ]
     for line in txn.lines:
         stripped = line.rstrip("\n")
         if _HEADER_RE.match(stripped):
             out.append(f'{txn.date} * "{txn.description}"\n')
+            out.extend(meta_lines)
             continue
         posting = _POSTING_RE.match(stripped)
         if posting and posting.group("account") == UNCATEGORIZED:
             out.append(f"  {category:<55} {inverse:>14.2f} {txn.currency}\n")
             continue
         out.append(line)
-    out.append(f'  categorize_confidence: "{confidence:.3f}"\n')
-    out.append(f'  categorize_run: "{correlation_id}"\n')
     return out
 
 
