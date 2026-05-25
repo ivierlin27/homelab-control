@@ -96,15 +96,31 @@ class SubCallInvoker:
         self.base_url = (base_url or os.environ.get("MODEL_GATEWAY_BASE_URL", "")).rstrip("/")
         self.api_key = api_key or os.environ.get("MODEL_GATEWAY_API_KEY", "")
         self.transport = transport
+        from apps._shared.gateway_routes import DEFAULT_LOCAL_MODEL
+
+        local_model = (
+            os.environ.get("RLM_LOCAL_MODEL", "").strip()
+            or os.environ.get("RLM_STRONG_MODEL", "").strip()
+            or os.environ.get("RLM_FAST_MODEL", "").strip()
+            or DEFAULT_LOCAL_MODEL
+        )
         self.intent_to_model = intent_to_model or {
-            "summarize": os.environ.get("RLM_FAST_MODEL", "homelab-fast"),
-            "classify": os.environ.get("RLM_FAST_MODEL", "homelab-fast"),
-            "code": os.environ.get("RLM_STRONG_MODEL", "homelab-strong"),
-            "plan": os.environ.get("RLM_STRONG_MODEL", "homelab-strong"),
+            "summarize": local_model,
+            "classify": local_model,
+            "code": local_model,
+            "plan": local_model,
         }
 
     def model_for_intent(self, intent: str) -> str:
-        return self.intent_to_model.get(intent, os.environ.get("RLM_FAST_MODEL", "homelab-fast"))
+        from apps._shared.gateway_routes import DEFAULT_LOCAL_MODEL
+
+        fallback = (
+            os.environ.get("RLM_LOCAL_MODEL", "").strip()
+            or os.environ.get("RLM_STRONG_MODEL", "").strip()
+            or os.environ.get("RLM_FAST_MODEL", "").strip()
+            or DEFAULT_LOCAL_MODEL
+        )
+        return self.intent_to_model.get(intent, fallback)
 
     def call(
         self,

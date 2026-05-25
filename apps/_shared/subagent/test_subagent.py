@@ -14,6 +14,7 @@ from apps._shared.subagent import (
     SubagentRouteError,
     spawn_subagent,
 )
+from apps._shared.gateway_routes import DEFAULT_LOCAL_MODEL
 from apps._shared.subagent.personas import get_persona
 
 
@@ -49,14 +50,14 @@ def test_spawn_subagent_returns_distilled_result(tmp_path: Path) -> None:
         ["grep", "read_file"],
         parent_correlation_id="parent-corr-1",
         audit_path=audit,
-        route="local-fast",
+        route="local",
         context={"handles": ["log-1"]},
         invoker=inv,
     )
     assert result.summary.startswith("done as")
     assert result.parent_correlation_id == "parent-corr-1"
-    assert result.route == "local-fast"
-    assert result.model == "homelab-fast"
+    assert result.route == "local"
+    assert result.model == DEFAULT_LOCAL_MODEL
     lines = audit.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
     spawn_row = json.loads(lines[0])
@@ -78,26 +79,43 @@ def test_spawn_subagent_rejects_unknown_role(tmp_path: Path) -> None:
         )
 
 
-def test_spawn_subagent_enforces_route_policy(tmp_path: Path) -> None:
-    policy = RoutePolicy(allowed_routes=frozenset({"local-fast"}), allow_cloud=False)
+def test_spawn_subagent_rejects_cloud_without_policy(tmp_path: Path) -> None:
+    policy = RoutePolicy(allowed_routes=frozenset({"local"}), allow_cloud=False)
     with pytest.raises(SubagentRouteError):
         spawn_subagent(
             "planner",
             "plan deploy",
             parent_correlation_id="p1",
             audit_path=tmp_path / "audit.jsonl",
-            route="local-strong",
+            route="cloud-frontier",
             route_policy=policy,
             invoker=_transport({}),
         )
 
 
-def test_planner_default_route_is_local_strong() -> None:
-    assert get_persona("planner").default_route == "local-strong"
+def test_legacy_local_tier_names_normalize_to_same_model(tmp_path: Path) -> None:
+    audit = tmp_path / "audit.jsonl"
+    inv = _transport({})
+    for tier in ("local", "local-fast", "local-strong"):
+        result = spawn_subagent(
+            "researcher",
+            "probe",
+            parent_correlation_id="p1",
+            audit_path=audit,
+            route=tier,
+            invoker=inv,
+        )
+        assert result.route == "local"
+        assert result.model == DEFAULT_LOCAL_MODEL
 
 
-def test_route_policy_from_manifest() -> None:
+def test_all_personas_default_to_local_route() -> None:
+    for role in ("researcher", "planner", "tool-runner", "verifier"):
+        assert get_persona(role).default_route == "local"
+
+
+def test_route_policy_from_manifest_normalizes_legacy_tiers() -> None:
     pol = RoutePolicy.from_manifest_routing(
         {"subagent_allowed_routes": ["local-fast", "local-strong"], "allow_cloud": False}
     )
-    assert "local-strong" in pol.allowed_routes
+    assert pol.allowed_routes == frozenset({"local"})

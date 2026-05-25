@@ -100,7 +100,7 @@ def spawn_subagent(
     prompt: str,
     tools: list[str] | None = None,
     *,
-    route: str = "local-fast",
+    route: str = "local",
     return_schema: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
     parent_correlation_id: str,
@@ -120,7 +120,10 @@ def spawn_subagent(
     tools:
         Tool names the parent authorizes for this sub-run (metadata only in 0.10).
     route:
-        ``local-fast`` (default), ``local-strong``, or ``cloud-frontier``.
+        ``local`` (default, resolves to ``homelab-strong-long`` on the gateway),
+        or ``cloud-frontier`` when the parent policy allows cloud.
+        Legacy ``local-fast`` / ``local-strong`` are accepted and normalized to
+        ``local``.
     return_schema:
         Optional JSON-schema-shaped hint merged into context for the sub-agent.
     context:
@@ -130,7 +133,7 @@ def spawn_subagent(
     audit_path:
         Hash-chained JSONL path (typically the parent agent trust ledger).
     route_policy:
-        Parent routing policy; defaults to local-fast only.
+        Parent routing policy; defaults to local only.
     skill_id:
         Optional skill id for local-only gateway enforcement.
     invoker:

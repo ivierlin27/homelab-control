@@ -396,7 +396,7 @@ master dashboard A2A tile, deploy Planka cleanup (`post_deploy_agent_stack.sh`).
   audit_path=...)` → `SubagentResult` (distilled JSON only).
 - Full gateway transcript under `subagent_complete` audit rows.
 - Personas: `researcher`, `planner`, `tool-runner`, `verifier`.
-- `RoutePolicy` gates `local-fast` / `local-strong` / `cloud-frontier`.
+- `RoutePolicy` gates logical `local` (→ `homelab-strong-long`) and optional `cloud-frontier`.
 
 **Follow-up:** call-site wiring in production agent handlers; sandbox-backed
 `tool-runner` execution; optional manifest validation for `subagent_allowed_routes`.

@@ -13,7 +13,7 @@ only in the hash-chained audit log under the parent's `correlation_id`.
 | File | Role |
 |------|------|
 | `personas.py` | Built-in roles: `researcher`, `planner`, `tool-runner`, `verifier` |
-| `routing.py` | `RoutePolicy`, route → model map (`homelab-fast` / `homelab-strong`) |
+| `routing.py` | `RoutePolicy`; logical `local` → `homelab-strong-long` via `gateway_routes` |
 | `spawner.py` | `spawn_subagent()`, `SubagentResult` |
 | `errors.py` | `SubagentRoleError`, `SubagentRouteError` |
 
@@ -26,10 +26,10 @@ result = spawn_subagent(
     "tool-runner",
     "Summarize ERROR lines from handle log-1.",
     ["grep"],
-    route="local-fast",
+    route="local",
     parent_correlation_id=parent_task_id,
     audit_path=state_dir / "trust-ledger.jsonl",
-    route_policy=RoutePolicy(allowed_routes=frozenset({"local-fast", "local-strong"})),
+    route_policy=RoutePolicy(allowed_routes=frozenset({"local"})),
     context={"handles": ["log-1"]},
 )
 # Parent sees only:
@@ -47,11 +47,18 @@ Replay: `python -m apps._shared.audit verify <ledger>` then filter
 
 ## Routes
 
-| Route | Model alias | Default roles |
-|-------|-------------|---------------|
-| `local-fast` | `homelab-fast` | researcher, tool-runner, verifier |
-| `local-strong` | `homelab-strong` | planner |
+Alienware runs a **single** vLLM backend (`homelab-strong-long` on both 3090s).
+Logical route `local` resolves to that alias. Legacy names `local-fast` /
+`local-strong` (and gateway aliases `homelab-fast` / `homelab-strong`) still
+work but all hit the same upstream — see `apps/_shared/gateway_routes.py`.
+
+| Route | Gateway model | Notes |
+|-------|---------------|-------|
+| `local` | `homelab-strong-long` | default for all personas |
+| `local-fast`, `local-strong` | `homelab-strong-long` | legacy; normalized to `local` |
 | `cloud-frontier` | `cloud-frontier` | only when `RoutePolicy.allow_cloud` |
+
+Override with env `HOMELAB_LOCAL_MODEL` if the canonical alias changes.
 
 Parents may pass `RoutePolicy.from_manifest_routing(manifest.get("routing"))`
 when manifests add `subagent_allowed_routes` / `allow_cloud_subagent`.
