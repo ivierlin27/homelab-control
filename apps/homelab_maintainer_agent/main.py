@@ -223,8 +223,35 @@ def triage_intake(job: dict[str, Any], *, queue_dir: Path, policy: dict[str, Any
     title = job.get("title") or "Homelab intake"
     labels = sorted(set(["assistant-created", "project:homelab", "type:intake", f"type:{job.get('task_class', 'research')}"]))
     card_result = {"created": False}
+    subagent_meta: dict[str, Any] | None = None
+    description = render_triage_description(job)
     if not bool(job.get("dry_run", False)):
-        created = create_planka_card(title, render_triage_description(job), labels)
+        from apps._shared.gateway_routes import normalize_logical_route
+        from apps._shared.subagent.wiring import append_subagent_section, try_researcher_summary
+
+        intake_id = str(job.get("intake_id", "")).strip() or "maintainer-intake"
+        route_name = normalize_logical_route(
+            str((job.get("routing") or {}).get("route", "local"))
+        )
+        sub = try_researcher_summary(
+            "Summarize this homelab maintainer intake for a Planka triage card. "
+            "Highlight risks, suggested next steps, and what should go to author vs review.\n\n"
+            f"{job.get('content', '')}",
+            parent_correlation_id=intake_id,
+            audit_path=queue_dir / "trust-ledger.jsonl",
+            policy=policy,
+            route=route_name,
+            context={
+                "intake_id": intake_id,
+                "task_class": job.get("task_class", ""),
+                "source_kind": job.get("source_kind", ""),
+            },
+            dry_run=bool(job.get("dry_run", False)),
+        )
+        if sub is not None:
+            subagent_meta = sub.as_dict()
+            description = append_subagent_section(description, sub, heading="Researcher summary")
+        created = create_planka_card(title, description, labels)
         card = created["card"]
         card_result = {
             "created": True,
@@ -270,9 +297,17 @@ def triage_intake(job: dict[str, Any], *, queue_dir: Path, policy: dict[str, Any
         "delegated": delegate_results,
         "requires_human_review": True,
     }
+    if subagent_meta:
+        event["subagent"] = subagent_meta
     append_jsonl(queue_dir / "trust-ledger.jsonl", event)
     append_jsonl(queue_dir / "lifecycle-events.jsonl", {**event, "event": "turn_end"})
-    return {"ok": True, "card": card_result, "memory": memory_result, "delegated": delegate_results}
+    return {
+        "ok": True,
+        "card": card_result,
+        "memory": memory_result,
+        "delegated": delegate_results,
+        "subagent": subagent_meta,
+    }
 
 
 def delegate_author_job(author_job: dict[str, Any], *, policy: dict[str, Any]) -> dict[str, Any]:
@@ -518,8 +553,8 @@ def main() -> int:
     triage.add_argument("--source-ref", default="")
     triage.add_argument("--task-class", default="summarize")
     triage.add_argument("--symbolic-intent", default="summarize")
-    triage.add_argument("--route", default="local-fast")
-    triage.add_argument("--model-tier", default="local-fast")
+    triage.add_argument("--route", default="local")
+    triage.add_argument("--model-tier", default="local")
     triage.add_argument("--dry-run", action="store_true")
     triage.add_argument("--write-memory", action="store_true")
     triage.add_argument("--policy", default=str(DEFAULT_POLICY))

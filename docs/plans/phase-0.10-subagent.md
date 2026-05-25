@@ -68,9 +68,20 @@ when manifests add `subagent_allowed_routes` / `allow_cloud_subagent`.
 Sub-agent runs appear in the master dashboard **audit** tile (trust ledger SSE)
 as `subagent_*` events. No separate tile in 0.10 — use audit + `verify-ledger`.
 
+## Production wiring (`apps/_shared/subagent/wiring.py`)
+
+Enabled when `MODEL_GATEWAY_BASE_URL` is set; disable with `HOMELAB_SUBAGENT_DISABLE=1`.
+
+| Call site | Behavior |
+|-----------|----------|
+| `executive_agent` `handle_request()` | Before `create_intake_card`, `try_researcher_summary()` enriches the Planka description; `subagent` on trust ledger + CLI JSON |
+| `homelab_maintainer_agent` `triage_intake()` | Same pattern on maintainer intake jobs (non-`dry_run`) |
+
+Helpers: `subagent_enabled()`, `try_spawn_subagent()`, `try_researcher_summary()`, `append_subagent_section()`.
+
 ## Not in 0.10 (follow-up)
 
-- Wiring `spawn_subagent` into executive / maintainer / author handlers (call sites)
+- Author agent / finance worker call sites
 - Sandbox-isolated tool execution inside `tool-runner` (tools are metadata only)
 - Sub-agent rows on the A2A dashboard tile
 - Manifest schema formalization for `routing.subagent_allowed_routes` in registry loader

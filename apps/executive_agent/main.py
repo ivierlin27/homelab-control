@@ -10,6 +10,7 @@ import shutil
 import sys
 import time
 import traceback
+import uuid
 from datetime import datetime, timedelta
 
 try:
@@ -769,8 +770,32 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
     }
 
     card_result: dict[str, Any] = {"created": False}
+    subagent_meta: dict[str, Any] | None = None
     if decision.get("can_create_card") and not args.dry_run:
         description = render_card_description(args.request, decision, args.domain, args.task_type)
+        from apps._shared.subagent.wiring import append_subagent_section, try_researcher_summary
+
+        from apps._shared.gateway_routes import normalize_logical_route
+
+        corr = conversation_id.strip() or str(uuid.uuid4())
+        route_name = normalize_logical_route(str(routing.get("route", "local")))
+        sub = try_researcher_summary(
+            f"Summarize this executive intake for a Planka card. "
+            f"Domain={args.domain}, task_type={args.task_type}, decision={decision['decision']}.\n\n"
+            f"{args.request}",
+            parent_correlation_id=corr,
+            audit_path=state_dir / "trust-ledger.jsonl",
+            policy=policy,
+            route=route_name,
+            context={
+                "memory_item_count": len(memory_context.get("items", [])),
+                "task_class": task_class.get("task_class", ""),
+            },
+            dry_run=args.dry_run,
+        )
+        if sub is not None:
+            subagent_meta = sub.as_dict()
+            description = append_subagent_section(description, sub, heading="Researcher summary")
         created = create_planka_card(title, description, decision["labels"], decision)
         card = created["card"]
         card_result = {
@@ -781,6 +806,8 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
         }
 
     event["card"] = card_result
+    if subagent_meta:
+        event["subagent"] = subagent_meta
     append_jsonl(state_dir / "trust-ledger.jsonl", event)
     append_jsonl(state_dir / "lifecycle-events.jsonl", {**event, "event": "turn_end"})
 
@@ -810,6 +837,7 @@ def handle_request(args: argparse.Namespace) -> dict[str, Any]:
         "memory": memory_result,
         "task_class": task_class,
         "routing": routing,
+        "subagent": subagent_meta,
     }
 
 
