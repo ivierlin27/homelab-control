@@ -16,6 +16,12 @@ DEFAULT_POLICY_PATH = Path(__file__).with_name("policy.yaml")
 _POLICY_RE_FLAGS = re.IGNORECASE
 
 
+def _compile_policy_pattern(pattern: str) -> re.Pattern[str]:
+    """Compile a policy regex; strip redundant inline ``(?i)`` (flags are always IGNORECASE)."""
+    normalized = str(pattern).replace("(?i)", "")
+    return re.compile(normalized, _POLICY_RE_FLAGS)
+
+
 @dataclass(frozen=True)
 class CategoryRule:
     id: str
@@ -65,8 +71,8 @@ def load_policy(path: Path | str | None = None) -> CategorizePolicy:
         context_rules.append(
             ContextRule(
                 id=str(item["id"]),
-                description_pattern=re.compile(
-                    str(item["description_pattern"]), _POLICY_RE_FLAGS
+                description_pattern=_compile_policy_pattern(
+                    str(item["description_pattern"])
                 ),
                 source_roles=frozenset(str(r) for r in (item.get("source_roles") or [])),
                 flow=str(item.get("flow", "any")),
@@ -74,7 +80,7 @@ def load_policy(path: Path | str | None = None) -> CategorizePolicy:
                 confidence=float(item["confidence"]),
                 reason=str(item.get("reason", "")),
                 counterparty_pattern=(
-                    re.compile(str(cp), _POLICY_RE_FLAGS) if cp else None
+                    _compile_policy_pattern(str(cp)) if cp else None
                 ),
             )
         )
@@ -84,7 +90,7 @@ def load_policy(path: Path | str | None = None) -> CategorizePolicy:
         rules.append(
             CategoryRule(
                 id=str(item["id"]),
-                pattern=re.compile(str(item["pattern"]), _POLICY_RE_FLAGS),
+                pattern=_compile_policy_pattern(str(item["pattern"])),
                 category=str(item["category"]),
                 confidence=float(item["confidence"]),
             )

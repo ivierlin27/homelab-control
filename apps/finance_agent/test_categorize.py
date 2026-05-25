@@ -151,6 +151,12 @@ class TransferContextTests(unittest.TestCase):
         ranked = _rank_description_rules(self.policy, desc)
         self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
 
+    def test_east_meets_west_matches_dining(self) -> None:
+        from apps.finance_agent.categorize.classifier import _rank_description_rules
+
+        ranked = _rank_description_rules(self.policy, "EASTMEETSWEST LANGLEY BC")
+        self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
+
     def test_square_pos_is_dining(self) -> None:
         from apps.finance_agent.categorize.classifier import _rank_description_rules
 
