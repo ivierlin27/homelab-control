@@ -31,7 +31,7 @@ Decisions locked at planning time:
 | Per-agent Discord presence         | 0.7     | done                |
 | Per-agent skill registry           | 0.8     | done                |
 | Inter-agent communication (A2A)    | 0.9     | done (2026-05-24)   |
-| Sub-agent spawner                  | 0.10    | not started         |
+| Sub-agent spawner                  | 0.10    | done (2026-05-24)   |
 | Tiered escalation                  | 0.11    | partial (see §0.11) |
 | Master dashboard + KB browser      | 0.12    | not started         |
 | Backup + restore                   | 0.13    | done (local + Proxmox SFTP) |
@@ -390,19 +390,16 @@ master dashboard A2A tile, deploy Planka cleanup (`post_deploy_agent_stack.sh`).
 
 ## 0.10 Sub-agent spawner — `apps/_shared/subagent/`
 
-Primitive: `spawn_subagent(role, prompt, tools, route="local-fast",
-return_schema=...)` returns only the structured result (or a short summary),
-not the full transcript. The transcript is captured to the audit log under the
-parent's correlation ID.
+**SHIPPED 2026-05-24.** See `docs/plans/phase-0.10-subagent.md`.
 
-- Default route is `local-fast`. Escalating to `local-strong` or cloud is
-  permitted only if the parent's routing policy allows.
-- Standard sub-roles ship with personas: `researcher`, `planner`, `tool-runner`,
-  `verifier`. The `tool-runner` is the default for any tool-heavy step (web
-  fetch, grep, file walk) so the parent's context stays clean.
-- Acceptance: a parent agent's context window stays under a fixed budget
-  regardless of how many tool calls were made under the hood; replays from the
-  audit can reconstruct any sub-agent's full transcript.
+- `spawn_subagent(role, prompt, tools, route=..., parent_correlation_id=...,
+  audit_path=...)` → `SubagentResult` (distilled JSON only).
+- Full gateway transcript under `subagent_complete` audit rows.
+- Personas: `researcher`, `planner`, `tool-runner`, `verifier`.
+- `RoutePolicy` gates `local-fast` / `local-strong` / `cloud-frontier`.
+
+**Follow-up:** call-site wiring in production agent handlers; sandbox-backed
+`tool-runner` execution; optional manifest validation for `subagent_allowed_routes`.
 
 ## 0.11 Tiered escalation — `apps/_shared/escalation/`
 

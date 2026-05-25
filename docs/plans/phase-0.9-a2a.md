@@ -62,6 +62,6 @@ print('ok', ok, 'reason', reason, 'payload', payload)
 
 Set `ESCALATION_APPROVALS_CHANNEL_ID` (or manifest `discord.channels[].id` for `#approvals`) on Alienware. Disable escalation in tests with `HOMELAB_ESCALATION_DISABLE=1`.
 
-**Sprint closed.** Still open elsewhere: Phase 0.10 sub-agent spawner; richer A2A retry/backoff per action class; finance queue worker.
+**Sprint closed.** Phase 0.10 sub-agent spawner shipped (`docs/plans/phase-0.10-subagent.md`). Still open: wire `spawn_subagent` into agents; richer A2A retry/backoff; finance queue worker.
 
 See also `docs/plans/phase-0-platform.md` §0.9 and §0.11.
