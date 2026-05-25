@@ -24,9 +24,25 @@ class CategoryRule:
 
 
 @dataclass(frozen=True)
+class ContextRule:
+    """Account- and flow-aware rule (evaluated before payee-only rules)."""
+
+    id: str
+    description_pattern: re.Pattern[str]
+    source_roles: frozenset[str]
+    flow: str  # inflow | outflow | any
+    category: str
+    confidence: float
+    reason: str
+    counterparty_pattern: re.Pattern[str] | None = None
+
+
+@dataclass(frozen=True)
 class CategorizePolicy:
     threshold: float
     max_verifier_rounds: int
+    account_roles: dict[str, tuple[str, ...]]
+    context_rules: tuple[ContextRule, ...]
     rules: tuple[CategoryRule, ...]
     default_category: str
     default_confidence: float
@@ -37,6 +53,27 @@ def load_policy(path: Path | str | None = None) -> CategorizePolicy:
     if yaml is None:
         raise RuntimeError("PyYAML is required to load categorization policy")
     raw: dict[str, Any] = yaml.safe_load(policy_path.read_text(encoding="utf-8")) or {}
+
+    account_roles: dict[str, tuple[str, ...]] = {}
+    for role_id, fragments in (raw.get("account_roles") or {}).items():
+        account_roles[str(role_id)] = tuple(str(f) for f in fragments)
+
+    context_rules: list[ContextRule] = []
+    for item in raw.get("context_rules") or []:
+        cp = item.get("counterparty_pattern")
+        context_rules.append(
+            ContextRule(
+                id=str(item["id"]),
+                description_pattern=re.compile(str(item["description_pattern"])),
+                source_roles=frozenset(str(r) for r in (item.get("source_roles") or [])),
+                flow=str(item.get("flow", "any")),
+                category=str(item["category"]),
+                confidence=float(item["confidence"]),
+                reason=str(item.get("reason", "")),
+                counterparty_pattern=re.compile(str(cp)) if cp else None,
+            )
+        )
+
     rules: list[CategoryRule] = []
     for item in raw.get("rules") or []:
         rules.append(
@@ -47,9 +84,12 @@ def load_policy(path: Path | str | None = None) -> CategorizePolicy:
                 confidence=float(item["confidence"]),
             )
         )
+
     return CategorizePolicy(
         threshold=float(raw.get("threshold", 0.85)),
         max_verifier_rounds=int(raw.get("max_verifier_rounds", 2)),
+        account_roles=account_roles,
+        context_rules=tuple(context_rules),
         rules=tuple(rules),
         default_category=str(raw.get("default_category", "Expenses:Misc")),
         default_confidence=float(raw.get("default_confidence", 0.55)),

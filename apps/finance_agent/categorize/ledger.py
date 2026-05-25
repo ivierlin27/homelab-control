@@ -32,6 +32,7 @@ class PendingTransaction:
     date: str
     description: str
     source_account: str
+    source_amount: Decimal
     amount: Decimal
     currency: str
     lines: tuple[str, ...]
@@ -66,6 +67,7 @@ def find_pending(
         i += 1
         block: list[str] = [lines[start]]
         source_account = ""
+        source_amount = Decimal("0")
         has_uncategorized = False
         amount = Decimal("0")
         currency = "CAD"
@@ -84,8 +86,10 @@ def find_pending(
                     has_uncategorized = True
                     amount = _parse_amount(posting.group("amount"))
                     currency = posting.group("currency")
-                elif not source_account and acct.startswith(("Assets:", "Liabilities:")):
-                    source_account = acct
+                elif acct.startswith(("Assets:", "Liabilities:")):
+                    if not source_account:
+                        source_account = acct
+                        source_amount = _parse_amount(posting.group("amount"))
             i += 1
         if has_uncategorized and source_account:
             txn = PendingTransaction(
@@ -94,6 +98,7 @@ def find_pending(
                 date=header.group("date"),
                 description=header.group("desc"),
                 source_account=source_account,
+                source_amount=source_amount,
                 amount=amount,
                 currency=currency,
                 lines=tuple(block),

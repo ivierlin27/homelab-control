@@ -1,9 +1,112 @@
 # Rule-based categorization policy (F6 MVP-B).
-# smart_importer / LLM personas can replace the analyst layer later.
+# Context rules use source account role + flow (in/out) + payee text.
 
 threshold: 0.85
 max_verifier_rounds: 2
 
+# Substrings matched against full Beancount account paths (first match wins).
+account_roles:
+  house_chequing:
+    - ":Chequing:Joint-4969"
+  house_savings:
+    - ":Savings:Joint-"
+  child_personal:
+    - ":MaKaely-Personal-"
+    - ":Ellowyn-Personal-"
+  child_education:
+    - ":MaKaely-Education-"
+    - ":Ellowyn-Education-"
+  parent_personal:
+    - ":Kevin-4256"
+    - ":Jennifer-4264"
+    - ":Jennifer-Books-"
+  us_house:
+    - ":BofA:"
+    - ":Amplify:"
+
+# Evaluated before description-only rules; highest confidence wins.
+context_rules:
+  # --- Transfers: house (joint) chequing ---
+  - id: house_outflow_allowance
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|xfer|#3954)"
+    source_roles: [house_chequing]
+    flow: outflow
+    category: "Expenses:Household:Allowance"
+    confidence: 0.91
+    reason: "joint chequing outflow to family member"
+
+  - id: house_inflow_reimbursement
+    description_pattern: "(?i)(e-?transfer|interac.*received|online\\s*transfer|onlinetransfer|#3954)"
+    source_roles: [house_chequing]
+    flow: inflow
+    category: "Income:Household:FamilyReimbursement"
+    confidence: 0.89
+    reason: "joint chequing inflow — family paying house back (often CC)"
+
+  # --- Transfers: person → joint (memo references 4969/969) ---
+  - id: person_to_house_payment
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|#3954-969|#3954-4969)"
+    source_roles: [child_personal, child_education, parent_personal]
+    flow: outflow
+    counterparty_pattern: "(?i)(#3954-969|#3954-4969|joint-4969)"
+    category: "Expenses:Household:CC-Reimbursement"
+    confidence: 0.90
+    reason: "personal outflow to joint house account"
+
+  - id: house_to_person_allowance
+    description_pattern: "(?i)(e-?transfer|interac|online\\s*transfer|scheduled\\s*transfer|onlinetransfer|scheduledtransfer|#3954)"
+    source_roles: [child_personal, child_education, parent_personal]
+    flow: inflow
+    category: "Income:Household:Allowance"
+    confidence: 0.90
+    reason: "personal inflow — allowance from house"
+
+  # --- Transfers: savings / less specific ---
+  - id: house_savings_outflow
+    description_pattern: "(?i)(transfer|xfer|#3954)"
+    source_roles: [house_savings]
+    flow: outflow
+    category: "Expenses:Household:Allowance"
+    confidence: 0.86
+
+  - id: house_savings_inflow
+    description_pattern: "(?i)(transfer|xfer|#3954)"
+    source_roles: [house_savings]
+    flow: inflow
+    category: "Income:Household:FamilyReimbursement"
+    confidence: 0.84
+
+  # --- Recurring / deposits / ATM ---
+  - id: recurring_subscription
+    description_pattern: "(?i)(recurringpymnt|recurring\\s*payment)"
+    source_roles: []
+    flow: any
+    category: "Expenses:Utilities:Telecom"
+    confidence: 0.87
+    reason: "standing/recurring card payment (e.g. mobile)"
+
+  - id: generic_deposit_personal
+    description_pattern: "(?i)^deposit$"
+    source_roles: [child_personal, child_education, parent_personal]
+    flow: inflow
+    category: "Income:Household:Allowance"
+    confidence: 0.86
+
+  - id: generic_deposit_house
+    description_pattern: "(?i)^deposit$"
+    source_roles: [house_chequing, house_savings]
+    flow: inflow
+    category: "Income:Misc:Deposit"
+    confidence: 0.82
+
+  - id: atm_withdrawal
+    description_pattern: "(?i)(abmwithdrawal|atm\\s*withdrawal)"
+    source_roles: []
+    flow: outflow
+    category: "Expenses:Cash:ATM"
+    confidence: 0.88
+
+# Payee-only rules (no account context required).
 rules:
   - id: fuel
     pattern: "(?i)(shell|petro[- ]?can|esso|chevron|\\bfuel\\b|gas bar)"
@@ -18,7 +121,7 @@ rules:
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
-    pattern: "(?i)(payroll|salary|direct dep|pay cheque|blackbaud)"
+    pattern: "(?i)(directdeposit|payroll|pay cheque|blackbaud)"
     category: "Income:Salary:Employer"
     confidence: 0.93
   - id: interest
@@ -29,10 +132,6 @@ rules:
     pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas|utilities)"
     category: "Expenses:Utilities:Electric"
     confidence: 0.88
-  - id: transfer
-    pattern: "(?i)(e-?transfer|interac|online transfer|scheduled transfer|xfer|\\btfr\\b)"
-    category: "Expenses:Transfers:Internal"
-    confidence: 0.75
 
 default_category: "Expenses:Misc"
 default_confidence: 0.55
