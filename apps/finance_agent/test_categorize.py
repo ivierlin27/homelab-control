@@ -151,6 +151,23 @@ class TransferContextTests(unittest.TestCase):
         ranked = _rank_description_rules(self.policy, desc)
         self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
 
+    def test_square_pos_is_dining(self) -> None:
+        from apps.finance_agent.categorize.classifier import _rank_description_rules
+
+        ranked = _rank_description_rules(
+            self.policy, "SQ *CRUST N CRUNCH - S Burnaby BC"
+        )
+        self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
+
+    def test_us_descriptive_allowance_with_dup_text(self) -> None:
+        txn = find_pending_from_text(
+            '2024-07-01 ! "Descriptive Withdrawal July Allo Descriptive Withdrawal July Allo"\n'
+            "  Assets:US:BofA:Checking-Joint-5396  -50.00 USD\n"
+            "  Expenses:Uncategorized  50.00 USD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Expenses:Household:Allowance")
+
     def test_us_withdrawal_allowance(self) -> None:
         txn = find_pending_from_text(
             '2024-06-01 ! "Withdrawal Allowance"\n'

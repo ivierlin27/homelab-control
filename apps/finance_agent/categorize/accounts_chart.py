@@ -25,6 +25,7 @@ CATEGORIZE_ACCOUNTS: tuple[str, ...] = (
     "Expenses:Subscriptions:Digital",
     "Expenses:Transit:Public",
     "Expenses:Travel:Hotel",
+    "Expenses:Travel:Transit",
     "Expenses:Transfers:External",
     "Expenses:Transfers:Internal",
     "Expenses:Utilities:Electric",
