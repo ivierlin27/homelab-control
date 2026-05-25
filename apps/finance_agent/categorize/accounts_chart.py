@@ -5,6 +5,7 @@ from __future__ import annotations
 # Keep in sync with categories in policy.yaml.
 CATEGORIZE_ACCOUNTS: tuple[str, ...] = (
     "Expenses:Auto:Fuel",
+    "Expenses:Auto:Loan",
     "Expenses:Bank:Fees",
     "Expenses:Cash:ATM",
     "Expenses:Education:Tuition",
@@ -23,6 +24,7 @@ CATEGORIZE_ACCOUNTS: tuple[str, ...] = (
     "Expenses:Shopping:Retail",
     "Expenses:Subscriptions:Digital",
     "Expenses:Transit:Public",
+    "Expenses:Travel:Hotel",
     "Expenses:Transfers:External",
     "Expenses:Transfers:Internal",
     "Expenses:Utilities:Electric",

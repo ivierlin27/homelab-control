@@ -170,6 +170,109 @@ context_rules:
     confidence: 0.88
     reason: "online bill pay from bank"
 
+  # --- US BofA / Amplify (checking & savings) ---
+  - id: us_withdrawal_allowance
+    description_pattern: "(?:descriptive )?withdrawal allowance"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Household:Allowance"
+    confidence: 0.90
+    reason: "US joint checking allowance transfer out"
+
+  - id: us_deposit_raise
+    description_pattern: "deposit 2019 raise"
+    source_roles: [us_house]
+    flow: inflow
+    category: "Income:Salary:Employer"
+    confidence: 0.88
+    reason: "payroll / raise deposit"
+
+  - id: us_withdrawal_raise
+    description_pattern: "withdrawal 2019 raise"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.87
+
+  - id: us_external_withdrawal
+    description_pattern: "external withdrawal"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Transfers:External"
+    confidence: 0.86
+    reason: "ACH/bill pay out of US account"
+
+  - id: us_external_deposit
+    description_pattern: "external deposit"
+    source_roles: [us_house]
+    flow: inflow
+    category: "Income:Misc:TransferIn"
+    confidence: 0.86
+
+  - id: us_credit_interest
+    description_pattern: "credit interest"
+    source_roles: [us_house]
+    flow: inflow
+    category: "Income:Interest:Bank"
+    confidence: 0.92
+
+  - id: us_automatic_savings_out
+    description_pattern: "withdrawal automatic savings"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.87
+
+  - id: us_automatic_savings_in
+    description_pattern: "deposit automatic savings"
+    source_roles: [us_house]
+    flow: inflow
+    category: "Income:Misc:TransferIn"
+    confidence: 0.87
+
+  - id: us_check_deposit
+    description_pattern: "^check$"
+    source_roles: [us_house]
+    flow: inflow
+    category: "Income:Misc:Deposit"
+    confidence: 0.86
+
+  - id: us_check_payment
+    description_pattern: "^check$"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Transfers:External"
+    confidence: 0.86
+
+  - id: us_mazda_auto_loan
+    description_pattern: "withdrawal mazda payment"
+    source_roles: [us_house]
+    flow: outflow
+    category: "Expenses:Auto:Loan"
+    confidence: 0.90
+
+  - id: us_hsa_movement
+    description_pattern: "(?:withdrawal|deposit) hsa cancellation"
+    source_roles: [us_house]
+    flow: any
+    category: "Expenses:Health:Medical"
+    confidence: 0.86
+
+  - id: us_bmo_xfer_marker
+    description_pattern: "tf 0764#3954-969"
+    source_roles: [us_house]
+    flow: any
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.88
+
+  - id: cc_payment_thank_you
+    description_pattern: "payment.*thank|paiement.*merci"
+    source_roles: [credit_card]
+    flow: inflow
+    category: "Expenses:Financial:CreditCardPayment"
+    confidence: 0.91
+    reason: "credit card payment received"
+
 # Payee-only rules (DebitCardPurchase, Pre-AuthorizedPayment, etc.)
 rules:
   - id: fuel
@@ -177,7 +280,7 @@ rules:
     category: "Expenses:Auto:Fuel"
     confidence: 0.92
   - id: groceries
-    pattern: "(?i)(costco|walmart|wal-?mart|dwal|saveonfoods|save on foods|walnutgrove|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery|t&t\\s*supermarket|dt&t|dmarketplace|\\biga\\b|whole foods|fresh st\\.? market|marketplaceiga)"
+    pattern: "(?i)(costco|walmart|wal-?mart|dwal|saveonfoods|save on foods|walnutgrove|shoppersdrug|superstore|sobeys|loblaws|metro\\b|grocery|t&t\\s*supermarket|dt&t|dmarketplace|\\biga\\b|whole foods|fresh st\\.? market|marketplaceiga|kin'?s\\s*farm|dkin'?sfarm)"
     category: "Expenses:Food:Groceries"
     confidence: 0.90
   - id: meal_kits
@@ -185,7 +288,7 @@ rules:
     category: "Expenses:Food:MealKits"
     confidence: 0.88
   - id: dining
-    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|timhortons|mcdonald|uber eats|doordash|blenz|subway|pizza|bengong|gong cha|cobsbread|cobs bread|chartwells|bubbleworld|gourmetdonut|sweet\\s*factory|secondwave|shvending|vending|food&beve|pnefood|macsconv|thinkaguil|pho\\b|donair|tea\\b|kfc|tacoholic|taco bell)"
+    pattern: "(?i)(restaurant|cafe|coffee|starbucks|tim hortons|timhortons|mcdonald|uber eats|doordash|blenz|subway|pizza|bengong|gong cha|cobsbread|cobs bread|chartwells|bubbleworld|gourmetdonut|sweet\\s*factory|secondwave|shvending|vending|food&beve|pnefood|macsconv|thinkaguil|pho\\b|donair|tea\\b|kfc|tacoholic|taco bell|papa johns|papajohns|booster juice|fatburger|chatime|new york fries|arby|pearlfever|gourmet donut|firecrust|domino)"
     category: "Expenses:Food:Dining"
     confidence: 0.88
   - id: payroll
@@ -201,7 +304,7 @@ rules:
     category: "Income:Interest:Bank"
     confidence: 0.92
   - id: utilities_electric
-    pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas)"
+    pattern: "(?i)(hydro|b\\.c\\. hydro|fortisbc|natgas|atmos energy|severn trent|pedernales)"
     category: "Expenses:Utilities:Electric"
     confidence: 0.88
   - id: utilities_telecom
@@ -213,7 +316,7 @@ rules:
     category: "Expenses:Housing:Mortgage"
     confidence: 0.90
   - id: insurance
-    pattern: "(?i)(manulife|sun life|desjardins|insurance|indall)"
+    pattern: "(?i)(manulife|sun life|desjardins|insurance|indall|state farm|american gen|sfpp|hughes.?mckinnon)"
     category: "Expenses:Insurance:Life"
     confidence: 0.87
   - id: investment_contribution
@@ -229,11 +332,11 @@ rules:
     category: "Expenses:Shopping:Online"
     confidence: 0.87
   - id: shopping_retail
-    pattern: "(?i)(value village|valuevillage|talize|michaels|winners|homesense|ikea|canadian tire|staples|dollarama|miniso|indigo|forever21|londondrugs|footlocker|pacific knit|shop makers|pnegeneral|ccmall)"
+    pattern: "(?i)(value village|valuevillage|talize|michaels|winners|homesense|ikea|canadian tire|staples|dollarama|miniso|indigo|forever21|londondrugs|footlocker|pacific knit|shop makers|pnegeneral|ccmall|home depot|thehomedepot|fabricland|south coast british)"
     category: "Expenses:Shopping:Retail"
     confidence: 0.86
   - id: subscriptions
-    pattern: "(?i)(google\\*youtube|netflix|spotify|apple\\.com/bill|disney\\+|prime video|microsoft.*365)"
+    pattern: "(?i)(google\\*youtube|netflix|spotify|apple\\.com/bill|disney\\+|prime video|microsoft.*365|steam\\b|steamgames)"
     category: "Expenses:Subscriptions:Digital"
     confidence: 0.88
   - id: transit
@@ -245,9 +348,37 @@ rules:
     category: "Expenses:Education:Tuition"
     confidence: 0.88
   - id: medical
-    pattern: "(?i)(pharmasave|pharmacy|medical|dental|clinic)"
+    pattern: "(?i)(pharmasave|pharmacy|medical|dental|clinic|dr\\.? dhillon|dhillon incl)"
     category: "Expenses:Health:Medical"
     confidence: 0.87
+  - id: auto_loan
+    pattern: "(?i)(bmw financia|midwest loan|mazda payment|auto loan|car payment)"
+    category: "Expenses:Auto:Loan"
+    confidence: 0.89
+  - id: travel_hotel
+    pattern: "(?i)(booking\\.com|\\bbkg\\*|hotel at booking)"
+    category: "Expenses:Travel:Hotel"
+    confidence: 0.87
+  - id: venmo_paypal
+    pattern: "(?i)(venmo|paypal)"
+    category: "Expenses:Transfers:External"
+    confidence: 0.86
+  - id: tangerine_invest
+    pattern: "(?i)tangerineftd|tangerine.*rii"
+    category: "Expenses:Investments:Contribution"
+    confidence: 0.87
+  - id: board_of_education
+    pattern: "(?i)boardofedu|board of edu"
+    category: "Expenses:Education:Tuition"
+    confidence: 0.87
+  - id: iphone_upgrade
+    pattern: "(?i)iphone upgrade|deposit iphone"
+    category: "Expenses:Utilities:Telecom"
+    confidence: 0.86
+  - id: refi_savings
+    pattern: "(?i)withdrawal refi savings|deposit refi"
+    category: "Expenses:Transfers:Internal"
+    confidence: 0.86
   - id: transfer_generic
     pattern: "(?i)(onlinetransfer|scheduledtransfer|online transfer|scheduled transfer|tf0764#)"
     category: "Expenses:Transfers:Internal"

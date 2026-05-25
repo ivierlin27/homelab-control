@@ -151,6 +151,26 @@ class TransferContextTests(unittest.TestCase):
         ranked = _rank_description_rules(self.policy, desc)
         self.assertEqual(ranked[0][0], "Expenses:Food:Dining")
 
+    def test_us_withdrawal_allowance(self) -> None:
+        txn = find_pending_from_text(
+            '2024-06-01 ! "Withdrawal Allowance"\n'
+            "  Assets:US:BofA:Checking-Joint-5396  -100.00 USD\n"
+            "  Expenses:Uncategorized  100.00 USD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Expenses:Household:Allowance")
+        self.assertGreaterEqual(float(claim["confidence"]), 0.85)
+
+    def test_cc_payment_thank_you(self) -> None:
+        txn = find_pending_from_text(
+            '2024-06-01 ! "PAYMENT-THANKYOU/PAIEMENT-MERCI"\n'
+            "  Liabilities:CA:RBC:CreditCard:AvionVisaPlatinum-Joint-1847  500.00 CAD\n"
+            "  Expenses:Uncategorized  -500.00 CAD\n"
+        )[0]
+        claim = analyst_classify(txn, self.policy)
+        self.assertEqual(claim["proposed_category"], "Expenses:Financial:CreditCardPayment")
+        self.assertGreaterEqual(float(claim["confidence"]), 0.85)
+
     def test_promotional_interest_on_joint_savings(self) -> None:
         desc = (
             ",PROMOTIONALINTEREST,NEWMONEYOFFER "
