@@ -51,6 +51,8 @@ class CategorizeBatchResult:
     bean_check_ran: bool = False
     bean_check_passed: bool | None = None
     bean_check_message: str = ""
+    defer_report_path: str = ""
+    planka_cards: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +67,8 @@ class CategorizeBatchResult:
             "bean_check_ran": self.bean_check_ran,
             "bean_check_passed": self.bean_check_passed,
             "bean_check_message": self.bean_check_message,
+            "defer_report_path": self.defer_report_path,
+            "planka_cards": self.planka_cards,
         }
 
 
@@ -94,6 +98,8 @@ def categorize_pending(
     run_bean_check: bool = True,
     correlation_id: str | None = None,
     use_llm: bool = False,
+    post_planka: bool | None = None,
+    defer_report_dir: Path | None = None,
 ) -> CategorizeBatchResult:
     """Categorize pending (!) uncategorized transactions in the ledger."""
     ledger_dir = Path(ledger_dir).expanduser()
@@ -202,6 +208,21 @@ def categorize_pending(
             transactions_path.write_text(original, encoding="utf-8")
             raise CategorizeError(f"bean-check failed after categorize: {bean_msg}")
 
+    defer_report_path = ""
+    planka_cards: list[dict[str, Any]] = []
+    if deferred and not dry_run:
+        from .defer_report import write_defer_report
+        from .planka import planka_defer_configured, post_defer_cards
+
+        report_dir = defer_report_dir or audit_path.parent
+        report = write_defer_report(outcomes, correlation_id=corr, output_dir=report_dir)
+        if report:
+            defer_report_path = str(report)
+
+        want_planka = post_planka if post_planka is not None else planka_defer_configured()
+        if want_planka and planka_defer_configured():
+            planka_cards = post_defer_cards(outcomes, correlation_id=corr)
+
     if not dry_run:
         audit = AuditLog(audit_path)
         audit.append(
@@ -216,6 +237,8 @@ def categorize_pending(
                 "dry_run": dry_run,
                 "use_llm": use_llm,
                 "bean_check_passed": bean_ok,
+                "defer_report_path": defer_report_path,
+                "planka_cards_posted": len(planka_cards),
             }
         )
 
@@ -231,4 +254,6 @@ def categorize_pending(
         bean_check_ran=bean_ran,
         bean_check_passed=bean_ok,
         bean_check_message=bean_msg,
+        defer_report_path=defer_report_path,
+        planka_cards=planka_cards,
     )

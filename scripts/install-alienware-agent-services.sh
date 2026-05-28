@@ -22,7 +22,8 @@ mkdir -p "${SYSTEMD_USER_DIR}" "${CONFIG_DIR}" \
   "${STATE_DIR}/agent-executive/inbox" \
   "${STATE_DIR}/agent-executive/processing" \
   "${STATE_DIR}/agent-executive/done" \
-  "${STATE_DIR}/agent-executive/failed"
+  "${STATE_DIR}/agent-executive/failed" \
+  "${STATE_DIR}/agent-finance"
 
 if [[ ! -f "${CONFIG_DIR}/agent-homelab.env" ]]; then
   cat > "${CONFIG_DIR}/agent-homelab.env" <<'EOF'
@@ -57,6 +58,19 @@ AGENT_GIT_AUTHOR_EMAIL=agent-review@forgejo.dev-path.org
 AGENT_PRINCIPAL=agent:review
 EOF
   chmod 600 "${CONFIG_DIR}/agent-review.env"
+fi
+
+if [[ ! -f "${CONFIG_DIR}/agent-finance.env" ]]; then
+  cat > "${CONFIG_DIR}/agent-finance.env" <<'EOF'
+AGENT_PRINCIPAL=agent:finance
+MODEL_GATEWAY_BASE_URL=http://127.0.0.1:4000/v1
+MODEL_GATEWAY_API_KEY=replace-me
+PLANKA_BASE_URL=https://planka.dev-path.org
+PLANKA_API_KEY=replace-me
+PLANKA_FINANCE_DEFER_LIST_ID=replace-me
+INFISICAL_TOKEN=replace-me
+EOF
+  chmod 600 "${CONFIG_DIR}/agent-finance.env"
 fi
 
 if [[ ! -f "${CONFIG_DIR}/agent-executive.env" ]]; then

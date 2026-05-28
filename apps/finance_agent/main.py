@@ -264,6 +264,7 @@ def _cmd_categorize(args: argparse.Namespace) -> int:
             dry_run=args.dry_run,
             run_bean_check=not args.skip_bean_check,
             use_llm=args.llm,
+            post_planka=False if args.no_planka else (True if args.planka else None),
         )
     except CategorizeError as exc:
         print(f"categorize failed: {exc}", file=sys.stderr)
@@ -288,6 +289,13 @@ def _cmd_categorize(args: argparse.Namespace) -> int:
         if result.bean_check_ran:
             status = "passed" if result.bean_check_passed else "FAILED"
             print(f"  bean-check: {status} — {result.bean_check_message}")
+        if result.defer_report_path:
+            print(f"  defer report: {result.defer_report_path}")
+        for card in result.planka_cards:
+            if card.get("url"):
+                print(f"  planka: {card['url']}")
+            elif card.get("error"):
+                print(f"  planka error: {card['error']}")
     return 0 if result.deferred == 0 or args.dry_run else 0
 
 
@@ -551,6 +559,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--llm",
         action="store_true",
         help="use local LLM for rows rules cannot approve (confidence below threshold)",
+    )
+    categorize.add_argument(
+        "--planka",
+        action="store_true",
+        help="post Planka cards for deferred rows (requires PLANKA_FINANCE_DEFER_LIST_ID)",
+    )
+    categorize.add_argument(
+        "--no-planka",
+        action="store_true",
+        help="do not post Planka cards even when Planka env is configured",
     )
     categorize.add_argument(
         "--dry-run",
