@@ -61,6 +61,24 @@ print('ready', planka_defer_configured())
 "
 ```
 
+**Cleanup** leftover finance smoke cards (separate from homelab
+`planka_cleanup_test_cards.py`). Set `PLANKA_FINANCE_BOARD_ID` in
+`agent-finance.env` (board id from the Planka URL).
+
+```bash
+source ~/.config/homelab-control/agent-finance.env
+export PYTHONPATH=~/git/homelab-control
+
+# preview
+python3 scripts/planka_cleanup_finance_test_cards.py
+
+# delete
+python3 scripts/planka_cleanup_finance_test_cards.py --execute
+```
+
+Normal `live_smoke_finance_planka.sh` runs delete automatically; use cleanup
+after `--no-cleanup` or a failed delete.
+
 ## LiteLLM gateway (Alienware)
 
 ```bash

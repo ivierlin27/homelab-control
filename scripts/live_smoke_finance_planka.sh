@@ -68,7 +68,7 @@ echo "${RESULT}"
 if [[ "${DO_CLEANUP}" -eq 1 ]]; then
   DELETED="$(python3 -c "import json,sys; print('true' if json.loads(sys.argv[1]).get('deleted') else 'false')" "${RESULT}")"
   if [[ "${DELETED}" != "true" ]]; then
-    fail "card created but delete failed — check finance board for smoke-finance-defer"
+    fail "card created but delete failed — run: python3 scripts/planka_cleanup_finance_test_cards.py --execute"
   fi
   log "OK — Planka finance defer path verified"
 else

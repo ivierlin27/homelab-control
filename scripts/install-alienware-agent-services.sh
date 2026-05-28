@@ -67,6 +67,7 @@ MODEL_GATEWAY_BASE_URL=http://127.0.0.1:4000/v1
 MODEL_GATEWAY_API_KEY=replace-me
 PLANKA_BASE_URL=https://planka.dev-path.org
 PLANKA_API_KEY=replace-me
+PLANKA_FINANCE_BOARD_ID=replace-me
 PLANKA_FINANCE_DEFER_LIST_ID=replace-me
 INFISICAL_TOKEN=replace-me
 EOF

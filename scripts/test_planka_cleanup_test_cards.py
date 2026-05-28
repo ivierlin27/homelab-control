@@ -19,7 +19,6 @@ def test_matches_agent_smoke_names() -> None:
     patterns = cleanup.compile_patterns(cleanup.DEFAULT_TEST_NAME_PATTERNS)
     assert cleanup.card_matches("verify-executive", patterns)
     assert cleanup.card_matches("smoke-homelab-maintainer", patterns)
-    assert cleanup.card_matches("smoke-finance-defer", patterns)
     assert cleanup.card_matches(
         "A2A help: live.smoke.help_request (agent:homelab-maintainer)",
         patterns,
