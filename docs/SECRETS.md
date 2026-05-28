@@ -18,6 +18,7 @@ Stored in the machine secret manager:
 - review/author agent SSH material
 - gateway credentials
 - service passwords
+- NPM admin login for API (`NPM_IDENTITY`, `NPM_SECRET`, `NPM_API_URL` at `/homelab/npm`)
 
 ## Delivery
 

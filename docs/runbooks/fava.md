@@ -36,18 +36,17 @@ transactions load.
 
 ## NPM reverse proxy
 
-Version-controlled config: `config/nginx-proxy-manager/fava.dev-path.org.conf`
-
-Deploy (from Mac or Alienware, requires SSH to `proxmox.dev-path.org`):
+**Preferred (updates NPM database + UI):** REST API via Infisical — see
+`docs/runbooks/nginx-proxy-manager.md` (`NPM_IDENTITY` + `NPM_SECRET` → short-lived JWT per run).
 
 ```bash
-cd ~/git/homelab-control
-chmod +x scripts/deploy_npm_fava_proxy.sh
-./scripts/deploy_npm_fava_proxy.sh
+# example: macOS Keychain after npm-keychain-store-token.sh
+./scripts/npm_ensure_fava_proxy.sh
 ```
 
-This writes `/data/nginx/proxy_host/18.conf` on NPM LXC **102** (`192.168.1.42`),
-upstream `http://192.168.1.45:5002`, SSL cert **npm-5** (shared `*.dev-path.org`).
+**Fallback (nginx only, no UI row):** `deploy_npm_fava_proxy.sh` without credentials
+copies `config/nginx-proxy-manager/fava.dev-path.org.conf` to LXC **102**
+(`192.168.1.42`), upstream `http://192.168.1.45:5002`.
 
 Pi-hole should already point `fava.dev-path.org` → `192.168.1.42`.
 

@@ -1,0 +1,12 @@
+# Copy to ~/.config/homelab-control/npm.config (non-secrets only).
+# NPM login secrets live in Infisical /homelab/npm — see docs/runbooks/nginx-proxy-manager.md
+
+# Infisical project UUID (Project Settings in Infisical UI)
+INFISICAL_PROJECT_ID=
+
+INFISICAL_ENVIRONMENT=prod
+INFISICAL_NPM_PATH=/homelab/npm
+
+# Defaults (also set in Infisical as NPM_API_URL for infisical run)
+NPM_API_URL=http://192.168.1.42:81
+NPM_WILDCARD_CERT_ID=5
