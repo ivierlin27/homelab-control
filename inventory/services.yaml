@@ -62,6 +62,16 @@ services:
     repo: homelab-control
     observability_profile: worker
 
+  - id: fava
+    host: alienware-r10-primary
+    type: docker
+    role: finance-ui
+    repo: homelab-control
+    observability_profile: web-app
+    endpoints:
+      - name: fava
+        url: https://fava.dev-path.org
+
   - id: homelab-author-agent
     host: alienware-r10-primary
     type: docker

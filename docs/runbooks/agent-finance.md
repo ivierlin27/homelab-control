@@ -95,3 +95,6 @@ The unit is `Type=oneshot` + `RemainAfterExit=yes` with `podman run -d` (detache
 
 Private repo: `~/finance/ledger` (Forgejo `finance/finance-ledger`).
 Always run `bean-check` after manual edits.
+
+Browse (read-only UI): `docs/runbooks/fava.md` — Fava at `https://fava.dev-path.org`
+after reverse-proxy + SSO are wired.

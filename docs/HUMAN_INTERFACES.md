@@ -27,6 +27,7 @@ Use these from the home network:
 - Review page: `https://forgejo.dev-path.org`
 - Password vault: `https://vaultwarden.dev-path.org`
 - Memory and chat: `https://khoj.dev-path.org`
+- Finance ledger (read-only): `https://fava.dev-path.org`
 - Agent dashboard: `https://agents.dev-path.org/?token=<agent-activity-token>`
 - Executive assistant chat: `http://192.168.1.45:8767/?token=<executive-chat-token>`
 

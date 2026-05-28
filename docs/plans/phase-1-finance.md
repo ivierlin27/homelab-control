@@ -55,7 +55,8 @@ explicit "we got this wrong" pass.
 | Beancount chart of accounts drafted | **done** — `finance-ledger` on Forgejo; accounts grow via categorize |
 | Tier-1 importers | **done** — BMO chequing/savings/MC, RBC Avion, BofA, Amplify (see sprint notes) |
 | Categorization loop (F6) | **done (MVP-B)** — rule policy + risk verifier + `categorize --llm`; **0** pending `!` rows (2026-05-26) |
-| Fava LXC | not started (F7) |
+| F6 Planka defer queue | **done** — finance board + `agent-finance` user; smoke + finance-only cleanup scripts |
+| Fava UI (F7) | **in progress** — `alienware-fava.service` + runbook; Authentik/reverse-proxy cutover pending |
 | Persona prompts | analyst + risk behavior wired (rules + local LLM); full `personas/*.md` files deferred to MVP-C |
 | Phase 1 plan document | **this file** |
 
@@ -574,6 +575,14 @@ python3 -m apps.finance_agent --skip-boot categorize --llm   # rules + local LLM
 
 **Still deferred:** `smart_importer` training store; persona markdown files on disk (`personas/` tree).
 
+### F6 Planka defer — completion notes (2026-05-27)
+
+- Finance board uses **`PLANKA_FINANCE_*` only** (`PLANKA_FINANCE_BOARD_ID`, `PLANKA_FINANCE_DEFER_LIST_ID`); do not set homelab `PLANKA_BOARD_ID` in `agent-finance.env`.
+- Live smoke: `scripts/live_smoke_finance_planka.sh` (create + delete `smoke-finance-defer`).
+- Finance cleanup (separate from homelab): `scripts/planka_cleanup_finance_test_cards.py`.
+- Unit tests: `apps/finance_agent/test_categorize_planka.py`, optional `FINANCE_PLANKA_LIVE=1` pytest.
+- Runbook: `docs/runbooks/agent-finance.md` (Planka smoke + cleanup sections).
+
 ---
 
 ## Sprint sequence
@@ -589,7 +598,7 @@ or take).
 | **F4** | First Tier-1 importer (BMO chequing) | OFX importer wired through smart_importer; CLI `ingest --institution bmo-chequing --file …`; sandboxed; audit row written | One real BMO statement ingests without manual edits, all entries land in the ledger, `bean-check` passes, `finance_ingest` audit row written |
 | **F5** | Remaining Tier-1 importers | BoA, Amplify CU, BMO Cash Back, RBC Visa, Discover, Capital One | Same acceptance per institution; each importer has a fixture + test |
 | **F6** | Categorization loop (analyst + risk) | `apps/finance_agent/categorize/` with rule-based analyst + risk verifier; `categorize` / `categorize --llm`; defer markdown + Planka cards; verifier-loop integrated | **SHIPPED 2026-05-26** — backlog cleared (`finance-ledger@29469ed`); F6 follow-ups in `docs/runbooks/agent-finance.md` |
-| **F7** | Fava deployment | Fava LXC behind Authentik at fava.dev-path.org; finance tile on master dashboard linking through | Kevin can SSO into Fava, see this month's transactions, filter by category |
+| **F7** | Fava deployment | `systemd/alienware-fava.service` (read-only podman mount of `~/finance/ledger`); `docs/runbooks/fava.md`; master dashboard link; Authentik at `fava.dev-path.org` (operator) | Kevin can SSO into Fava, see this month's transactions, filter by category |
 | **F8** | Inbox watcher + automation | `alienware-finance-inbox-watcher.service`; drop a statement file → auto-ingest → DM summary | One full cycle works without manual CLI; metrics show in `#finance` DM |
 | **F9 (MVP-B complete)** | Soak + tune | Run for 30 days, tune categorization thresholds, fix importer edge cases, fill out reusable category rules | Categorization confidence > 0.85 on ≥80% of real transactions |
 | **F10+ (MVP-C)** | Researcher + advisor personas | The other two personas; `advise` CLI; Planka finance board for advice cards; weekly digest piped into executive review | Out of scope of this document — separately scoped sprint with its own acceptance |
