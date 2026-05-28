@@ -9,12 +9,12 @@ Type=oneshot
 RemainAfterExit=yes
 EnvironmentFile=-%h/.config/homelab-control/fava.env
 Environment=FAVA_LEDGER_DIR=%h/finance/ledger
-Environment=FAVA_HOST=127.0.0.1
+Environment=FAVA_HOST=0.0.0.0
 Environment=FAVA_PORT=5002
 Environment=BEANCOUNT_FILE=/bean/main.beancount
 ExecStartPre=/usr/bin/test -f %h/finance/ledger/main.beancount
 ExecStart=/usr/bin/podman run -d --name homelab-fava --replace \
-  -p 127.0.0.1:5002:5000 \
+  -p 0.0.0.0:5002:5000 \
   -v %h/finance/ledger:/bean:ro,Z \
   -e BEANCOUNT_FILE=/bean/main.beancount \
   docker.io/yegle/fava:latest

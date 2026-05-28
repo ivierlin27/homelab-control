@@ -11,7 +11,7 @@ ledger_mount:
   readonly: true
 beancount_file: /bean/main.beancount
 listen:
-  bind: 127.0.0.1
+  bind: 0.0.0.0  # LAN; Authentik forward-auth on NPM
   port: 5002  # container Fava listens on 5000
 network:
   reverse_proxy:

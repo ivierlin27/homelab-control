@@ -34,16 +34,31 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5002/
 Open `http://127.0.0.1:5002/` on Alienware (or via SSH tunnel) and confirm
 transactions load.
 
-## Authentik / public URL
+## NPM reverse proxy
 
-Mirror the Planka/Forgejo pattern:
+Version-controlled config: `config/nginx-proxy-manager/fava.dev-path.org.conf`
 
-1. Upstream: Alienware `127.0.0.1:5002`
-2. Forward-auth: shared Authentik outpost
-3. Public hostname: `fava.dev-path.org`
+Deploy (from Mac or Alienware, requires SSH to `proxmox.dev-path.org`):
 
-Fava is **read-only** in deployment (`:ro` ledger mount). Writers remain
-`agent:finance` CLI and manual edits.
+```bash
+cd ~/git/homelab-control
+chmod +x scripts/deploy_npm_fava_proxy.sh
+./scripts/deploy_npm_fava_proxy.sh
+```
+
+This writes `/data/nginx/proxy_host/18.conf` on NPM LXC **102** (`192.168.1.42`),
+upstream `http://192.168.1.45:5002`, SSL cert **npm-5** (shared `*.dev-path.org`).
+
+Pi-hole should already point `fava.dev-path.org` → `192.168.1.42`.
+
+## Authentik SSO
+
+Fava is **read-only** on disk (`:ro` mount). Authentik only protects the web UI.
+
+Step-by-step: **`docs/runbooks/fava-authentik.md`**
+
+Snippet to paste into NPM Advanced:
+`config/nginx-proxy-manager/fava-authentik-advanced.conf`
 
 ## Cleanup / ops
 
