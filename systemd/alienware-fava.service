@@ -12,11 +12,11 @@ Environment=FAVA_LEDGER_DIR=%h/finance/ledger
 Environment=FAVA_HOST=127.0.0.1
 Environment=FAVA_PORT=5002
 Environment=BEANCOUNT_FILE=/bean/main.beancount
-ExecStartPre=/usr/bin/test -f ${FAVA_LEDGER_DIR}/main.beancount
+ExecStartPre=/usr/bin/test -f %h/finance/ledger/main.beancount
 ExecStart=/usr/bin/podman run -d --name homelab-fava --replace \
-  -p ${FAVA_HOST}:${FAVA_PORT}:5000 \
-  -v ${FAVA_LEDGER_DIR}:/bean:ro,Z \
-  -e BEANCOUNT_FILE=${BEANCOUNT_FILE} \
+  -p 127.0.0.1:5002:5000 \
+  -v %h/finance/ledger:/bean:ro,Z \
+  -e BEANCOUNT_FILE=/bean/main.beancount \
   yegle/fava:latest
 ExecStop=-/usr/bin/podman stop -t 15 homelab-fava
 TimeoutStartSec=120
