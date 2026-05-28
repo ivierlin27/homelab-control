@@ -17,7 +17,7 @@ ExecStart=/usr/bin/podman run -d --name homelab-fava --replace \
   -p 127.0.0.1:5002:5000 \
   -v %h/finance/ledger:/bean:ro,Z \
   -e BEANCOUNT_FILE=/bean/main.beancount \
-  yegle/fava:latest
+  docker.io/yegle/fava:latest
 ExecStop=-/usr/bin/podman stop -t 15 homelab-fava
 TimeoutStartSec=120
 

@@ -4,7 +4,7 @@
 service: fava
 host: alienware-r10-primary
 runtime: podman
-image: yegle/fava:latest  # pin digest before production cutover
+image: docker.io/yegle/fava:latest  # pin digest before production cutover
 ledger_mount:
   host: ~/finance/ledger
   container: /bean
