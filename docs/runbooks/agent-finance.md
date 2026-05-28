@@ -28,11 +28,12 @@ Env template: `config/env/agent-finance.env.example`.
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now alienware-model-gateway.service
+systemctl --user status alienware-model-gateway.service   # active (exited) is normal
 curl -s http://127.0.0.1:4000/v1/models -H "Authorization: Bearer $MODEL_GATEWAY_API_KEY" | head
 ```
 
-The unit uses `podman run --replace` (no pre-start `podman rm`) and
-`--num_workers 1` to avoid restart thrash.
+The unit is `Type=oneshot` + `RemainAfterExit=yes` with `podman run -d` (detached).
+`--num_workers 1`; no pre-start `podman rm` (uses `--replace` only).
 
 ## Ledger
 

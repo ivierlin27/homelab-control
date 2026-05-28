@@ -4,7 +4,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
+RemainAfterExit=yes
 Environment=LLM_CALLS_DIR=%h/.local/state/homelab-control/llm-calls
 Environment=HOMELAB_CONTROL_DIR=%h/git/homelab-control
 ExecStartPre=/usr/bin/install -d -m 0777 ${LLM_CALLS_DIR}
@@ -23,7 +24,7 @@ ExecStartPre=/usr/bin/env PYTHONPATH=${HOMELAB_CONTROL_DIR} /usr/bin/python3 \
 #                          the cost relay ships JSONL to memory-engine, and the
 #                          gateway's LocalOnlyGuard reads skill-policy.json from
 #                          /var/log/llm-calls/ inside the container)
-ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
+ExecStart=/usr/bin/podman run -d --name homelab-model-gateway --replace \
   --network host \
   --add-host=host.containers.internal:host-gateway \
   --env-file %h/.config/homelab-control/model-gateway.env \
@@ -36,8 +37,6 @@ ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
   ghcr.io/berriai/litellm:main-latest \
   --config /app/config.yaml --port 4000 --num_workers 1
 ExecStop=-/usr/bin/podman stop -t 20 homelab-model-gateway
-Restart=on-failure
-RestartSec=30
 TimeoutStartSec=180
 
 [Install]
