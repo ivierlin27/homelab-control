@@ -23,7 +23,8 @@ ExecStartPre=/usr/bin/env PYTHONPATH=${HOMELAB_CONTROL_DIR} /usr/bin/python3 \
 #                          the cost relay ships JSONL to memory-engine, and the
 #                          gateway's LocalOnlyGuard reads skill-policy.json from
 #                          /var/log/llm-calls/ inside the container)
-ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
+# podman run returns immediately unless we block on podman wait (keeps systemd MainPID alive).
+ExecStart=/usr/bin/bash -lc '/usr/bin/podman run -d --name homelab-model-gateway --replace \
   --network host \
   --add-host=host.containers.internal:host-gateway \
   --env-file %h/.config/homelab-control/model-gateway.env \
@@ -34,7 +35,8 @@ ExecStart=/usr/bin/podman run --name homelab-model-gateway --replace \
   -v %h/git/homelab-control/apps/_shared/litellm_callbacks/local_only_policy.py:/app/local_only_policy.py:ro,Z \
   -v ${LLM_CALLS_DIR}:/var/log/llm-calls:Z \
   ghcr.io/berriai/litellm:main-latest \
-  --config /app/config.yaml --port 4000 --num_workers 1
+  --config /app/config.yaml --port 4000 --num_workers 1 \
+  && exec /usr/bin/podman wait homelab-model-gateway'
 ExecStop=/usr/bin/podman stop -t 20 homelab-model-gateway
 Restart=on-failure
 RestartSec=30
