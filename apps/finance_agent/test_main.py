@@ -105,6 +105,47 @@ def test_main_requires_subcommand() -> None:
         main(["--skip-boot"])
 
 
+def test_categorize_no_planka_passes_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: dict = {}
+
+    def fake_categorize_pending(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        from apps.finance_agent.categorize.runner import CategorizeBatchResult
+
+        return CategorizeBatchResult(
+            correlation_id="c",
+            scanned=0,
+            approved=0,
+            deferred=0,
+            failed=0,
+            outcomes=[],
+            ledger_path=str(tmp_path),
+            audit_path=str(tmp_path / "audit.jsonl"),
+        )
+
+    monkeypatch.setattr(
+        "apps.finance_agent.categorize.runner.categorize_pending",
+        fake_categorize_pending,
+    )
+    ledger = tmp_path / "ledger"
+    ledger.mkdir()
+    (ledger / "main.beancount").write_text('include "transactions.beancount"\n', encoding="utf-8")
+    rc = main(
+        [
+            "--skip-boot",
+            "categorize",
+            "--ledger-dir",
+            str(ledger),
+            "--audit-path",
+            str(tmp_path / "audit.jsonl"),
+            "--no-planka",
+            "--skip-bean-check",
+        ]
+    )
+    assert rc == 0
+    assert captured.get("post_planka") is False
+
+
 # --- subprocess smoke (mirrors the F2 acceptance command line) ------------
 
 # --- ingest subcommand (F4) ---------------------------------------------

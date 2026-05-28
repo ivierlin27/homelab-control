@@ -23,6 +23,44 @@ per deferred row is created automatically. Use `--planka` to force or
 
 Env template: `config/env/agent-finance.env.example`.
 
+### Planka smoke tests
+
+**Unit tests** (no Planka network):
+
+```bash
+cd ~/git/homelab-control
+export PYTHONPATH=.
+python3 -m unittest apps.finance_agent.test_categorize_planka -v
+pytest apps/finance_agent/test_categorize_planka.py apps/finance_agent/test_main.py -q
+```
+
+**Live smoke** (create + delete `smoke-finance-defer` on the finance board):
+
+```bash
+source ~/.config/homelab-control/agent-finance.env
+export PYTHONPATH=~/git/homelab-control
+./scripts/live_smoke_finance_planka.sh
+```
+
+Or via pytest on Alienware:
+
+```bash
+export FINANCE_PLANKA_LIVE=1
+pytest apps/finance_agent/test_finance_planka_live.py -m live -v
+```
+
+Preflight only:
+
+```bash
+source ~/.config/homelab-control/agent-finance.env
+python3 -c "
+from apps.finance_agent.categorize.planka import planka_defer_configured
+from apps._shared.planka_client import planka_auth_configured
+print('auth', planka_auth_configured())
+print('ready', planka_defer_configured())
+"
+```
+
 ## LiteLLM gateway (Alienware)
 
 ```bash
