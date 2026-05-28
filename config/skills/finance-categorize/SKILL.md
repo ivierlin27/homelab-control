@@ -1,39 +1,43 @@
 ---
 id: finance-categorize
 name: Finance Transaction Categorizer
-description: Categorize a draft Beancount transaction by proposing the destination expense/income account; run analyst+risk personas in MVP-B and full TradingAgents debate in MVP-C; verifier loop confirms before any ledger write. STUB — full implementation lands in Sprint F5 of docs/plans/phase-1-finance.md.
+description: Categorize draft Beancount transactions via rule-based analyst + risk verifier; optional local LLM pass for sub-threshold rows (`categorize --llm`).
 local_only: true
 required_tools:
   - memory.write
   - memory.search
   - shell.beancount
 required_task_classes: [classify, plan]
-version: 1
+version: 2
 ---
 
-# Finance Transaction Categorizer  (STUB)
+# Finance Transaction Categorizer
 
-This skill is declared so the agent:finance manifest validates ahead of
-Sprint F5 (categorize loop + verifier integration). It is **not yet
-implemented**.
+MVP-B implementation in `apps/finance_agent/categorize/`. Full four-persona
+debate remains MVP-C (`finance-advise`).
 
-## Scope (when implemented, MVP-B)
+## Scope (MVP-B)
 
-You receive a draft transaction (from `finance-ingest`) with provisional
-category. You run a two-persona categorize loop:
+1. **Analyst** proposes category from `policy.yaml` (account roles, context
+   rules, merchant regexes). With `--llm`, rows below `threshold` (default
+   0.85) call the local LiteLLM gateway using this skill id
+   (`finance-categorize`).
+2. **Risk** verifies the proposal (`apps/finance_agent/categorize/risk.py`) —
+   valid account prefix, non-empty description, confidence ≥ threshold.
+3. Verifier loop (`apps/_shared/verifier`) allows one revise round; failures
+   defer (leave `!` on `Expenses:Uncategorized`).
+4. Approved rows promote to `*` and swap the counter leg; metadata:
+   `categorize_confidence`, `categorize_run`.
 
-1. **Analyst** proposes the destination account from the chart of
-   accounts (`~/finance/ledger/accounts.beancount`), citing similar past
-   transactions found via `memory.search` in `finance.transaction.*`.
-2. **Risk** reviews the proposal for:
-   - misclassification likelihood (vendor name + merchant category)
-   - tax-bucket / cost-basis implications (mark for human review if any)
-   - account-balance sanity (does this push an account negative?)
-3. Verifier loop confirms the analyst proposal vs the risk critique;
-   only on agreement is the row promoted from draft to committed.
+## CLI
 
-In MVP-C the full TradingAgents debate (analyst + researcher + advisor +
-risk) replaces this two-step.
+```bash
+python3 -m apps.finance_agent --skip-boot categorize [--limit N] [--dry-run]
+python3 -m apps.finance_agent --skip-boot categorize --llm [--limit N]
+```
+
+Requires `MODEL_GATEWAY_BASE_URL` / `MODEL_GATEWAY_API_KEY` for `--llm`.
+Set `AGENT_PRINCIPAL=agent:finance` for gateway attribution.
 
 ## Local-only invariant
 
@@ -41,15 +45,7 @@ risk) replaces this two-step.
 `docs/plans/phase-1-finance.md` "Local-only enforcement" for the
 three-layer defense.
 
-## Output
+## Output (batch summary)
 
-```json
-{
-  "tx_id": "2026-05-15-bmo-12345",
-  "decision": "commit|defer_to_human|hold",
-  "proposed_account": "Expenses:Groceries",
-  "confidence": "high|medium|low",
-  "verifier_rounds": 1,
-  "risk_notes": "..."
-}
-```
+Human: `✓ categorize … scanned=N approved=A deferred=D` plus per-row lines.
+Audit: `finance_categorize` event in agent-finance `audit.jsonl`.

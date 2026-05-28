@@ -48,15 +48,15 @@ explicit "we got this wrong" pass.
 
 | Item | Status |
 |---|---|
-| Phase 0 prereqs closed | partial — see Prereqs below |
-| `agent:finance` identity issued | not started (blocked on identity-followup-runbook-stub) |
-| `apps/finance_agent/` skeleton | not started |
-| Ingest pipeline (`apps/finance_agent/ingest/`) | not started |
-| Beancount chart of accounts drafted | not started |
-| Tier-1 importers | not started |
-| Categorization loop | not started |
-| Fava LXC | not started |
-| Persona prompts | drafted in this document, not yet wired |
+| Phase 0 prereqs closed | **done** (2026-05-18) — local-only gateway, identity stub, `agent:finance` issued, escalation + verifier loop |
+| `agent:finance` identity issued | **done** — see `docs/identity-runbook-agent-finance.md` |
+| `apps/finance_agent/` skeleton | **done** — `status`, `ingest`, `ingest-ofx`, `ingest-csv`, `categorize` |
+| Ingest pipeline (`apps/finance_agent/ingest/`) | **done** — PDF + OFX/QFX + BofA CSV; bulk history on Alienware |
+| Beancount chart of accounts drafted | **done** — `finance-ledger` on Forgejo; accounts grow via categorize |
+| Tier-1 importers | **done** — BMO chequing/savings/MC, RBC Avion, BofA, Amplify (see sprint notes) |
+| Categorization loop (F6) | **done (MVP-B)** — rule policy + risk verifier + `categorize --llm`; **0** pending `!` rows (2026-05-26) |
+| Fava LXC | not started (F7) |
+| Persona prompts | analyst + risk behavior wired (rules + local LLM); full `personas/*.md` files deferred to MVP-C |
 | Phase 1 plan document | **this file** |
 
 ---
@@ -137,9 +137,12 @@ apps/finance_agent/
 │   └── inbox/               # operator drops statement files here
 ├── categorize/
 │   ├── __init__.py
-│   ├── classifier.py        # smart_importer wrapper
-│   ├── verifier.py          # verifier-loop integration
-│   └── policy.yaml          # account → category rules, confidence thresholds
+│   ├── classifier.py        # rule-based analyst (policy.yaml)
+│   ├── llm_analyst.py       # local LLM fallback (`categorize --llm`)
+│   ├── runner.py            # batch classify → verify → ledger rewrite
+│   ├── risk.py              # risk persona verifier
+│   ├── ledger.py            # pending (!) scan + rewrite
+│   └── policy.yaml          # account roles, context rules, merchant patterns
 ├── personas/
 │   ├── analyst.md           # full system prompt
 │   ├── researcher.md
@@ -256,7 +259,7 @@ def categorize(entry: Posting, *, threshold: float = 0.85) -> CategorizeResult:
       - (NeedsReview, top_3_candidates, conf_each)  confidence < threshold
       - (Failed, reason)                            classifier raised
     """
-    # 1. analyst persona classifies (smart_importer)
+    # 1. analyst persona classifies (rules; optional --llm for sub-threshold rows)
     classification = analyst.classify(entry)
 
     # 2. risk persona verifies
@@ -545,6 +548,30 @@ the umbrella vision (line 365, 368). Confirm:
 
 ---
 
+## F6 categorization — completion notes (2026-05-26)
+
+Backlog cleared on Alienware after layered passes:
+
+| Stage | Pending `!` after | Mechanism |
+|---|---:|---|
+| Post-ingest baseline | ~6,385 | PDF/OFX history ingested, all `Expenses:Uncategorized` |
+| Rule policy expansion (several batches) | ~989 | `policy.yaml` context + merchant rules; BMO payee normalization |
+| `categorize --llm` (local gateway) | 7 | `apps/finance_agent/categorize/llm_analyst.py`; 982/989 approved in one run |
+| Hand review | **0** | Seven stragglers + IT SERVICES duplicate category fix |
+
+**CLI:**
+
+```bash
+python3 -m apps.finance_agent --skip-boot categorize          # rules only
+python3 -m apps.finance_agent --skip-boot categorize --llm   # rules + local LLM for confidence < 0.85
+```
+
+**Ops:** `MODEL_GATEWAY_*` must be set (today copied from `agent-homelab.env`; add to `agent-finance.env`). LiteLLM gateway on Alienware was started detached (`podman`, `--network host`) when `alienware-model-gateway.service` crash-looped — fix the unit before relying on systemd.
+
+**Not done in F6:** `smart_importer` training store (still rule + LLM); Planka cards for future defers; persona markdown files on disk (`personas/` tree in architecture diagram).
+
+---
+
 ## Sprint sequence
 
 Each sprint is sized for one focused work session (~3 days each, give
@@ -557,7 +584,7 @@ or take).
 | **F3** | Ledger init + chart of accounts | `~/finance/ledger/` initialized; `accounts.beancount`, `commodities.beancount`, `main.beancount` committed to private Forgejo repo; CAD/USD declared; placeholder accounts for all 14 institutions | `bean-check ~/finance/ledger/main.beancount` passes |
 | **F4** | First Tier-1 importer (BMO chequing) | OFX importer wired through smart_importer; CLI `ingest --institution bmo-chequing --file …`; sandboxed; audit row written | One real BMO statement ingests without manual edits, all entries land in the ledger, `bean-check` passes, `finance_ingest` audit row written |
 | **F5** | Remaining Tier-1 importers | BoA, Amplify CU, BMO Cash Back, RBC Visa, Discover, Capital One | Same acceptance per institution; each importer has a fixture + test |
-| **F6** | Categorization loop (analyst + risk) | `apps/finance_agent/categorize/` with rule-based analyst + risk verifier; `python -m apps.finance_agent categorize`; verifier-loop integrated | **IN PROGRESS** — CLI + ledger rewrite + audit; Planka defer cards next |
+| **F6** | Categorization loop (analyst + risk) | `apps/finance_agent/categorize/` with rule-based analyst + risk verifier; `python -m apps.finance_agent categorize` and `categorize --llm` (local gateway, `finance-categorize` skill); verifier-loop integrated | **SHIPPED 2026-05-26** — full ledger categorized (`finance-ledger@29469ed`, 0 pending `!`); Planka defer-export cards still optional |
 | **F7** | Fava deployment | Fava LXC behind Authentik at fava.dev-path.org; finance tile on master dashboard linking through | Kevin can SSO into Fava, see this month's transactions, filter by category |
 | **F8** | Inbox watcher + automation | `alienware-finance-inbox-watcher.service`; drop a statement file → auto-ingest → DM summary | One full cycle works without manual CLI; metrics show in `#finance` DM |
 | **F9 (MVP-B complete)** | Soak + tune | Run for 30 days, tune categorization thresholds, fix importer edge cases, fill out reusable category rules | Categorization confidence > 0.85 on ≥80% of real transactions |
