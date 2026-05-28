@@ -7,11 +7,19 @@ npm_load_config() {
   NPM_API_URL="${NPM_API_URL:-http://192.168.1.42:81}"
   NPM_WILDCARD_CERT_ID="${NPM_WILDCARD_CERT_ID:-5}"
 
-  local defaults="${NPM_CONFIG_FILE:-${HOME}/.config/homelab-control/npm.config}"
+  local config_dir="${HOMELAB_CONFIG_DIR:-${HOME}/.config/homelab-control}"
+  local defaults="${NPM_CONFIG_FILE:-${config_dir}/npm.config}"
+  local infisical_env="${INFISICAL_HOMELAB_ENV_FILE:-${config_dir}/infisical-homelab.env}"
+
   if [[ -f "${defaults}" ]]; then
     # shellcheck disable=SC1090
     set -a && source "${defaults}" && set +a
   fi
+  if [[ -f "${infisical_env}" ]]; then
+    # shellcheck disable=SC1090
+    set -a && source "${infisical_env}" && set +a
+  fi
+  export INFISICAL_API_URL="${INFISICAL_API_URL:-https://infisical.dev-path.org}"
 }
 
 npm_require_jq() {
@@ -55,11 +63,16 @@ npm_load_infisical_credentials() {
   local path="${INFISICAL_NPM_PATH:-/homelab/npm}"
   local env_name="${INFISICAL_ENVIRONMENT:-prod}"
   local dotenv
-  dotenv="$(infisical export \
-    --projectId "${INFISICAL_PROJECT_ID}" \
-    --env "${env_name}" \
-    --path "${path}" \
-    --format dotenv 2>/dev/null)" || return 1
+  local -a infisical_args=(export
+    --domain "${INFISICAL_API_URL}"
+    --projectId "${INFISICAL_PROJECT_ID}"
+    --env "${env_name}"
+    --path "${path}"
+    --format dotenv)
+  if [[ -n "${INFISICAL_TOKEN:-}" ]]; then
+    infisical_args+=(--token "${INFISICAL_TOKEN}")
+  fi
+  dotenv="$(infisical "${infisical_args[@]}" 2>/dev/null)" || return 1
   npm_parse_dotenv_credentials "${dotenv}"
 }
 

@@ -46,8 +46,7 @@ Do **not** store JWTs in Infisical; they expire and are recreated each script ru
 
 ### Step 2 — Pick project and environment
 
-1. Open the homelab project (the one other stacks use — same `INFISICAL_PROJECT_ID`
-   as Forgejo / operator secrets).
+1. Open the **`homelab`** project (separate from `finance` agent scopes).
 2. Select environment **`prod`** (must match `INFISICAL_ENVIRONMENT` in scripts;
    default is `prod`).
 
@@ -67,53 +66,54 @@ Optional: add a note on `NPM_SECRET` like “NPM admin — rotate with Vaultward
 
 ---
 
-### Step 4 — CLI access on your Mac (operator)
+### Step 4 — Alienware config (primary operator host)
 
-Install CLI if needed: `brew install infisical/get-cli/infisical`
-
-**One-time login** (stores Infisical session locally, not NPM password in shell profile):
+Homelab automation runs on **Alienware**; config lives in
+`~/.config/homelab-control/` (not required on your Mac).
 
 ```bash
-infisical login --domain https://infisical.dev-path.org
+ssh alienware
+mkdir -p ~/.config/homelab-control
+cd ~/git/homelab-control && git pull
+
+# Infisical CLI (user install, no sudo)
+mkdir -p ~/bin
+# if missing: see scripts/bootstrap-infisical-cli.sh
+
+cp config/env/npm.config.example ~/.config/homelab-control/npm.config
+cp config/env/infisical-homelab.env.example ~/.config/homelab-control/infisical-homelab.env
+chmod 600 ~/.config/homelab-control/infisical-homelab.env
 ```
 
-**Non-secret config** on your Mac:
+Edit **`npm.config`**: set `INFISICAL_PROJECT_ID` = homelab project UUID.
+
+Edit **`infisical-homelab.env`**: set `INFISICAL_TOKEN` = machine identity token for the
+**homelab** project (finance agent tokens cannot read this project).
+
+Create the token: Infisical → **homelab** project → **Access** → **Machine Identities**
+→ create → allow read on `/homelab/npm` → copy token once.
+
+Ensure `~/bin` is on `PATH` (add to `~/.bashrc` if needed):
 
 ```bash
-mkdir -p ~/.config/homelab-control
-cp ~/git/homelab-control/config/env/npm.config.example ~/.config/homelab-control/npm.config
-# Edit: set INFISICAL_PROJECT_ID=<uuid from step 2>
+export PATH="$HOME/bin:$PATH"
 ```
 
 ---
 
-### Step 5 — Verify Infisical → NPM login (no secrets on disk)
+### Step 5 — Verify Infisical → NPM login (on Alienware)
 
 ```bash
-export INFISICAL_PROJECT_ID="<your-project-uuid>"
+ssh alienware
+export PATH="$HOME/bin:$PATH"
+set -a && source ~/.config/homelab-control/infisical-homelab.env && source ~/.config/homelab-control/npm.config && set +a
 
-# Print keys only (not values)
-infisical export \
-  --projectId "$INFISICAL_PROJECT_ID" \
-  --env prod \
-  --path /homelab/npm \
-  --format dotenv | cut -d= -f1
+# Keys only (not values)
+infisical export --domain https://infisical.dev-path.org \
+  --token "$INFISICAL_TOKEN" --projectId "$INFISICAL_PROJECT_ID" \
+  --env prod --path /homelab/npm --format dotenv | cut -d= -f1
 
-# Login test: should print a long JWT string
-infisical run \
-  --projectId "$INFISICAL_PROJECT_ID" \
-  --env prod \
-  --path /homelab/npm \
-  -- bash -c 'source <(infisical export --projectId "$INFISICAL_PROJECT_ID" --env prod --path /homelab/npm --format dotenv); \
-    curl -sk -X POST "$NPM_API_URL/api/tokens" -H "Content-Type: application/json" \
-    -d "{\"identity\":\"$NPM_IDENTITY\",\"secret\":\"$NPM_SECRET\"}" | jq -r .token | head -c 40; echo ...'
-```
-
-Simpler — use homelab-control script (fetches from Infisical, logs in, calls API):
-
-```bash
 cd ~/git/homelab-control
-export INFISICAL_PROJECT_ID="<uuid>"
 ./scripts/npm_ensure_fava_proxy.sh
 ```
 
