@@ -12,6 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/npm_api.sh
 source "${ROOT_DIR}/scripts/lib/npm_api.sh"
 
+export PATH="${HOME}/bin:${PATH}"
 npm_load_config
 npm_require_jq
 

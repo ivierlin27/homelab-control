@@ -29,6 +29,17 @@ npm_require_jq() {
   }
 }
 
+# Strip optional surrounding quotes from Infisical/dotenv values.
+npm_dotenv_unquote() {
+  local v="$1"
+  if [[ "${v}" =~ ^\".*\"$ ]]; then
+    v="${v:1:${#v}-2}"
+  elif [[ "${v}" =~ ^\'.*\'$ ]]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "${v}"
+}
+
 # Load NPM_IDENTITY / NPM_SECRET (and optional NPM_API_URL) from a dotenv blob in memory.
 npm_parse_dotenv_credentials() {
   local dotenv="$1"
@@ -38,7 +49,7 @@ npm_parse_dotenv_credentials() {
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -z "${line}" || "${line}" =~ ^# ]] && continue
     key="${line%%=*}"
-    val="${line#*=}"
+    val="$(npm_dotenv_unquote "${line#*=}")"
     case "${key}" in
       NPM_IDENTITY) NPM_IDENTITY="${val}" ;;
       NPM_SECRET) NPM_SECRET="${val}" ;;
@@ -72,7 +83,10 @@ npm_load_infisical_credentials() {
   if [[ -n "${INFISICAL_TOKEN:-}" ]]; then
     infisical_args+=(--token "${INFISICAL_TOKEN}")
   fi
-  dotenv="$(infisical "${infisical_args[@]}" 2>/dev/null)" || return 1
+  if ! dotenv="$(infisical "${infisical_args[@]}" 2>&1)"; then
+    echo "npm_api: infisical export failed: ${dotenv}" >&2
+    return 1
+  fi
   npm_parse_dotenv_credentials "${dotenv}"
 }
 
@@ -83,13 +97,19 @@ npm_login() {
     echo "npm_api: NPM_IDENTITY and NPM_SECRET required for login" >&2
     return 1
   }
-  local resp token
+  local resp token payload
+  payload="$(jq -n --arg identity "${NPM_IDENTITY}" --arg secret "${NPM_SECRET}" \
+    '{identity: $identity, secret: $secret}')"
   resp="$(curl -sk -X POST "${NPM_API_URL}/api/tokens" \
     -H "Content-Type: application/json" \
-    -d "{\"identity\":\"${NPM_IDENTITY}\",\"secret\":\"${NPM_SECRET}\"}")"
+    -d "${payload}")"
   token="$(echo "${resp}" | jq -r '.token // empty')"
   if [[ -z "${token}" ]]; then
-    echo "npm_api: login failed: $(echo "${resp}" | jq -c '.error // .')" >&2
+    if [[ -z "${resp}" ]]; then
+      echo "npm_api: login failed: empty response from ${NPM_API_URL}/api/tokens (check URL/quotes in NPM_API_URL)" >&2
+    else
+      echo "npm_api: login failed: $(echo "${resp}" | jq -c '.error // .' 2>/dev/null || echo "${resp}")" >&2
+    fi
     return 1
   fi
   echo "${token}"
