@@ -195,3 +195,32 @@ npm_find_proxy_host_id() {
   fi
   echo "${id}"
 }
+
+npm_get_proxy_host() {
+  local host_id="$1"
+  npm_api GET "/api/nginx/proxy-hosts/${host_id}"
+}
+
+# Build PUT body from GET response (drops read-only nested objects).
+npm_proxy_host_put_body() {
+  local current_json="$1"
+  local advanced="${2:-}"
+  if [[ -n "${advanced}" ]]; then
+    echo "${current_json}" | jq --arg adv "${advanced}" '
+      del(.certificate, .owner, .access_list) | .advanced_config = $adv'
+  else
+    echo "${current_json}" | jq 'del(.certificate, .owner, .access_list)'
+  fi
+}
+
+npm_put_proxy_host() {
+  local host_id="$1" body="$2"
+  npm_api PUT "/api/nginx/proxy-hosts/${host_id}" "${body}"
+}
+
+# Render Authentik forward-auth snippet for NPM Advanced tab.
+npm_render_fava_authentik_advanced() {
+  local template="${1:?template path}"
+  local upstream="${AUTHENTIK_UPSTREAM:?set AUTHENTIK_UPSTREAM in npm.config (e.g. http://192.168.1.73:9000)}"
+  sed "s|http://AUTHENTIK_UPSTREAM|${upstream%/}|g; s|AUTHENTIK_UPSTREAM|${upstream%/}|g" "${template}"
+}

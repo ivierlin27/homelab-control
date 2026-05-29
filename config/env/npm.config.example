@@ -10,3 +10,6 @@ INFISICAL_NPM_PATH=/homelab/npm
 # Defaults (also set in Infisical as NPM_API_URL for infisical run)
 NPM_API_URL=http://192.168.1.42:81
 NPM_WILDCARD_CERT_ID=5
+
+# Embedded Authentik outpost (after deploy — docs/runbooks/authentik-deploy.md)
+AUTHENTIK_UPSTREAM=http://192.168.1.73:9000

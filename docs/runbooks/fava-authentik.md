@@ -64,22 +64,23 @@ unless hairpin NAT is known-good).
 
 ---
 
-## 4. NPM — Enable forward auth (Advanced tab)
+## 4. NPM — Enable forward auth (API or UI)
 
-1. Open **Nginx Proxy Manager** → **Hosts → Proxy Hosts**.
-2. Edit **`fava.dev-path.org`** (or rely on deployed `18.conf` and add Advanced via UI).
-3. Open the **Advanced** tab.
-4. Paste the contents of
-   `config/nginx-proxy-manager/fava-authentik-advanced.conf` from homelab-control.
-5. Replace `AUTHENTIK_UPSTREAM` with your Authentik internal base, e.g.:
-   - `http://192.168.1.XX:9000` (embedded outpost on Authentik server)
-6. Save. NPM reloads nginx automatically when saved through the UI.
+**API (preferred):** set `AUTHENTIK_UPSTREAM` in `npm.config`, then:
 
-If you deployed only via `deploy_npm_fava_proxy.sh` (file copy), either:
+```bash
+./scripts/npm_apply_fava_authentik.sh
+```
 
-- Add the same Advanced block through the NPM UI (recommended — keeps UI in sync), or
-- Merge the auth snippets into `config/nginx-proxy-manager/fava.dev-path.org.conf`
-  manually and re-run the deploy script.
+**UI:** Edit **`fava.dev-path.org`** → **Advanced** → paste
+`config/nginx-proxy-manager/fava-authentik-advanced.conf` with `AUTHENTIK_UPSTREAM`
+replaced (e.g. `http://192.168.1.73:9000`).
+
+**All-in-one** (Authentik API + NPM API):
+
+```bash
+./scripts/fava_enable_authentik.sh
+```
 
 Official reference: [Authentik nginx / NPM template](https://docs.goauthentik.io/add-secure-apps/providers/proxy/server_nginx/).
 

@@ -1,0 +1,5 @@
+# Copy to ~/.config/homelab-control/authentik.config (mode 0600).
+# Or store AUTHENTIK_API_TOKEN in Infisical /homelab/authentik.
+
+AUTHENTIK_URL=https://authentik.dev-path.org
+AUTHENTIK_API_TOKEN=
