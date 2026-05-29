@@ -12,7 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/npm_api.sh
 source "${ROOT_DIR}/scripts/lib/npm_api.sh"
 
-npm_load_env
+npm_load_config
 npm_require_jq
 
 DOMAIN="${NPM_FAVA_DOMAIN:-fava.dev-path.org}"
