@@ -113,6 +113,25 @@ authentik_default_authorization_flow_pk() {
   echo "${pk}"
 }
 
+# First flow slug matching provider invalidation (default install).
+authentik_default_invalidation_flow_pk() {
+  authentik_require_token || return 1
+  local resp
+  resp="$(authentik_api GET "/flows/instances/?search=default-provider-invalidation")"
+  local pk
+  pk="$(echo "${resp}" | jq -r '.results[0].pk // empty')"
+  if [[ -z "${pk}" ]]; then
+    resp="$(authentik_api GET "/flows/instances/?page_size=50")"
+    pk="$(echo "${resp}" | jq -r '
+      .results[] | select(.designation == "invalidation") | .pk' | head -1)"
+  fi
+  [[ -n "${pk}" ]] || {
+    echo "authentik_api: no invalidation flow found" >&2
+    return 1
+  }
+  echo "${pk}"
+}
+
 authentik_find_proxy_provider_pk() {
   local name="$1"
   authentik_require_token || return 1

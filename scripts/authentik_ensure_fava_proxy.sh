@@ -32,7 +32,8 @@ authentik_require_token || {
 }
 
 FLOW_PK="$(authentik_default_authorization_flow_pk)" || exit 1
-log "authorization flow pk=${FLOW_PK}"
+INVALIDATION_PK="$(authentik_default_invalidation_flow_pk)" || exit 1
+log "authorization flow pk=${FLOW_PK} invalidation pk=${INVALIDATION_PK}"
 
 PROVIDER_PK="$(authentik_find_proxy_provider_pk "${PROVIDER_NAME}")"
 if [[ -z "${PROVIDER_PK}" ]]; then
@@ -40,10 +41,12 @@ if [[ -z "${PROVIDER_PK}" ]]; then
   BODY="$(jq -n \
     --arg name "${PROVIDER_NAME}" \
     --arg flow "${FLOW_PK}" \
+    --arg invalidation "${INVALIDATION_PK}" \
     --arg ext "${EXTERNAL_HOST}" \
     '{
       name: $name,
       authorization_flow: $flow,
+      invalidation_flow: $invalidation,
       external_host: $ext,
       mode: "forward_single",
       cookie_domain: "dev-path.org"
