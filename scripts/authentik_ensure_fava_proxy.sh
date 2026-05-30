@@ -14,6 +14,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/authentik_api.sh
 source "${ROOT_DIR}/scripts/lib/authentik_api.sh"
 
+export PATH="${HOME}/bin:${PATH}"
 command -v jq >/dev/null || { echo "jq required" >&2; exit 1; }
 
 authentik_load_config
@@ -25,20 +26,10 @@ EXTERNAL_HOST="${AUTHENTIK_FAVA_EXTERNAL_HOST:-https://fava.dev-path.org}"
 
 log() { echo "authentik_ensure_fava_proxy: $*"; }
 
-# Optional: load token from Infisical homelab project
-if [[ -z "${AUTHENTIK_API_TOKEN:-}" && -n "${INFISICAL_PROJECT_ID:-}" ]] && command -v infisical >/dev/null 2>&1; then
-  path="${INFISICAL_AUTHENTIK_PATH:-/homelab/authentik}"
-  dotenv="$(infisical export --domain "${INFISICAL_API_URL:-https://infisical.dev-path.org}" \
-    --projectId "${INFISICAL_PROJECT_ID}" --env "${INFISICAL_ENVIRONMENT:-prod}" \
-    --path "${path}" --format dotenv ${INFISICAL_TOKEN:+--token "$INFISICAL_TOKEN"} 2>/dev/null)" || true
-  if [[ -n "${dotenv}" ]]; then
-  while IFS= read -r line; do
-    [[ "${line}" =~ ^AUTHENTIK_API_TOKEN= ]] && AUTHENTIK_API_TOKEN="${line#AUTHENTIK_API_TOKEN=}"
-  done <<< "${dotenv}"
-  fi
-fi
-
-authentik_require_token || exit 1
+authentik_require_token || {
+  echo "authentik_ensure_fava_proxy: set AUTHENTIK_API_TOKEN in Infisical /homelab/authentik or ~/.config/homelab-control/authentik.config" >&2
+  exit 1
+}
 
 FLOW_PK="$(authentik_default_authorization_flow_pk)" || exit 1
 log "authorization flow pk=${FLOW_PK}"

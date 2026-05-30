@@ -4,12 +4,49 @@
 authentik_load_config() {
   local config_dir="${HOMELAB_CONFIG_DIR:-${HOME}/.config/homelab-control}"
   local defaults="${AUTHENTIK_CONFIG_FILE:-${config_dir}/authentik.config}"
+  local npm_config="${NPM_CONFIG_FILE:-${config_dir}/npm.config}"
+  local infisical_env="${INFISICAL_HOMELAB_ENV_FILE:-${config_dir}/infisical-homelab.env}"
+  if [[ -f "${npm_config}" ]]; then
+    # shellcheck disable=SC1090
+    set -a && source "${npm_config}" && set +a
+  fi
+  if [[ -f "${infisical_env}" ]]; then
+    # shellcheck disable=SC1090
+    set -a && source "${infisical_env}" && set +a
+  fi
   if [[ -f "${defaults}" ]]; then
     # shellcheck disable=SC1090
     set -a && source "${defaults}" && set +a
   fi
   AUTHENTIK_URL="${AUTHENTIK_URL:-https://authentik.dev-path.org}"
   AUTHENTIK_API_URL="${AUTHENTIK_API_URL:-${AUTHENTIK_URL%/}/api/v3}"
+  authentik_load_token_from_infisical || true
+}
+
+authentik_load_token_from_infisical() {
+  [[ -n "${AUTHENTIK_API_TOKEN:-}" ]] && return 0
+  command -v infisical >/dev/null 2>&1 || return 1
+  [[ -n "${INFISICAL_PROJECT_ID:-}" ]] || return 1
+  local path="${INFISICAL_AUTHENTIK_PATH:-/homelab/authentik}"
+  local dotenv
+  dotenv="$(infisical export --domain "${INFISICAL_API_URL:-https://infisical.dev-path.org}" \
+    --projectId "${INFISICAL_PROJECT_ID}" \
+    --env "${INFISICAL_ENVIRONMENT:-prod}" \
+    --path "${path}" \
+    --format dotenv ${INFISICAL_TOKEN:+--token "$INFISICAL_TOKEN}"} 2>/dev/null)" || return 1
+  local line key val
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" =~ ^# ]] && continue
+    key="${line%%=*}"
+    val="${line#*=}"
+    if [[ "${key}" == "AUTHENTIK_API_TOKEN" ]]; then
+      # shellcheck disable=SC2034
+      AUTHENTIK_API_TOKEN="${val%\"}"; AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN#\"}"
+      AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN%\'}"; AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN#\'}"
+      return 0
+    fi
+  done <<< "${dotenv}"
+  return 1
 }
 
 authentik_require_token() {

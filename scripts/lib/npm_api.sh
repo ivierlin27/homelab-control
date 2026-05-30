@@ -201,15 +201,56 @@ npm_get_proxy_host() {
   npm_api GET "/api/nginx/proxy-hosts/${host_id}"
 }
 
-# Build PUT body from GET response (drops read-only nested objects).
+# Build PUT body from GET response (NPM PUT rejects id, created_on, owner_user_id, etc.).
 npm_proxy_host_put_body() {
   local current_json="$1"
   local advanced="${2:-}"
   if [[ -n "${advanced}" ]]; then
     echo "${current_json}" | jq --arg adv "${advanced}" '
-      del(.certificate, .owner, .access_list) | .advanced_config = $adv'
+      {
+        domain_names,
+        forward_scheme,
+        forward_host,
+        forward_port,
+        access_list_id,
+        certificate_id,
+        ssl_forced,
+        caching_enabled,
+        block_exploits,
+        advanced_config: $adv,
+        meta,
+        allow_websocket_upgrade,
+        http2_support,
+        enabled,
+        locations,
+        hsts_enabled,
+        hsts_subdomains,
+        trust_forwarded_proto
+      }
+      | .trust_forwarded_proto //= false'
   else
-    echo "${current_json}" | jq 'del(.certificate, .owner, .access_list)'
+    echo "${current_json}" | jq '
+      {
+        domain_names,
+        forward_scheme,
+        forward_host,
+        forward_port,
+        access_list_id,
+        certificate_id,
+        ssl_forced,
+        caching_enabled,
+        block_exploits,
+        advanced_config,
+        meta,
+        allow_websocket_upgrade,
+        http2_support,
+        enabled,
+        locations,
+        hsts_enabled,
+        hsts_subdomains,
+        trust_forwarded_proto
+      }
+      | .trust_forwarded_proto //= false'
   fi
 }
 
