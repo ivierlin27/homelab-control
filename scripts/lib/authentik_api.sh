@@ -18,34 +18,58 @@ authentik_load_config() {
     # shellcheck disable=SC1090
     set -a && source "${defaults}" && set +a
   fi
+  export INFISICAL_API_URL="${INFISICAL_API_URL:-https://infisical.dev-path.org}"
+  export PATH="${HOME}/bin:${PATH}"
   AUTHENTIK_URL="${AUTHENTIK_URL:-https://authentik.dev-path.org}"
   AUTHENTIK_API_URL="${AUTHENTIK_API_URL:-${AUTHENTIK_URL%/}/api/v3}"
   authentik_load_token_from_infisical || true
+}
+
+authentik_dotenv_unquote() {
+  local v="$1"
+  if [[ "${v}" =~ ^\".*\"$ ]]; then
+    v="${v:1:${#v}-2}"
+  elif [[ "${v}" =~ ^\'.*\'$ ]]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "${v}"
 }
 
 authentik_load_token_from_infisical() {
   [[ -n "${AUTHENTIK_API_TOKEN:-}" ]] && return 0
   command -v infisical >/dev/null 2>&1 || return 1
   [[ -n "${INFISICAL_PROJECT_ID:-}" ]] || return 1
+
   local path="${INFISICAL_AUTHENTIK_PATH:-/homelab/authentik}"
+  local env_name="${INFISICAL_ENVIRONMENT:-prod}"
   local dotenv
-  dotenv="$(infisical export --domain "${INFISICAL_API_URL:-https://infisical.dev-path.org}" \
-    --projectId "${INFISICAL_PROJECT_ID}" \
-    --env "${INFISICAL_ENVIRONMENT:-prod}" \
-    --path "${path}" \
-    --format dotenv ${INFISICAL_TOKEN:+--token "$INFISICAL_TOKEN}"} 2>/dev/null)" || return 1
-  local line key val
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    [[ -z "${line}" || "${line}" =~ ^# ]] && continue
-    key="${line%%=*}"
-    val="${line#*=}"
-    if [[ "${key}" == "AUTHENTIK_API_TOKEN" ]]; then
+  local -a infisical_args=(export
+    --domain "${INFISICAL_API_URL:-https://infisical.dev-path.org}"
+    --projectId "${INFISICAL_PROJECT_ID}"
+    --env "${env_name}"
+    --path "${path}"
+    --format dotenv)
+  if [[ -n "${INFISICAL_TOKEN:-}" ]]; then
+    infisical_args+=(--token "${INFISICAL_TOKEN}")
+  fi
+  if ! dotenv="$(infisical "${infisical_args[@]}" 2>&1)"; then
+    echo "authentik_api: infisical export failed (${path}): ${dotenv}" >&2
+    return 1
+  fi
+
+  local _line _key _val
+  while IFS= read -r _line || [[ -n "${_line}" ]]; do
+    [[ -z "${_line}" || "${_line}" =~ ^# ]] && continue
+    [[ "${_line}" != *=* ]] && continue
+    _key="${_line%%=*}"
+    _val="${_line#*=}"
+    if [[ "${_key}" == "AUTHENTIK_API_TOKEN" ]]; then
       # shellcheck disable=SC2034
-      AUTHENTIK_API_TOKEN="${val%\"}"; AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN#\"}"
-      AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN%\'}"; AUTHENTIK_API_TOKEN="${AUTHENTIK_API_TOKEN#\'}"
-      return 0
+      AUTHENTIK_API_TOKEN="$(authentik_dotenv_unquote "${_val}")"
+      [[ -n "${AUTHENTIK_API_TOKEN}" ]] && return 0
     fi
   done <<< "${dotenv}"
+  echo "authentik_api: AUTHENTIK_API_TOKEN missing in Infisical ${path}" >&2
   return 1
 }
 
