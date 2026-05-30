@@ -7,10 +7,18 @@ unset HF_HUB_ENABLE_HF_TRANSFER
 GGUF_DIR="${GGUF_DIR:-/mnt/data/models/gguf}"
 mkdir -p "${HF_HOME}" "${GGUF_DIR}"
 
+# Fedora's /usr/bin/huggingface-cli runs `python3 -sP`, which ignores user site-packages
+# and cannot see hf_xet. Use a normal interpreter so Xet-backed GGUF pulls are fast.
+HF_PYTHON="${HF_PYTHON:-python3.14}"
+
+hf_download() {
+  "${HF_PYTHON}" -m huggingface_hub.cli download "$@"
+}
+
 download_hf() {
   local repo="$1"
-  echo "== huggingface-cli download ${repo}"
-  huggingface-cli download "${repo}" --local-dir-use-symlinks False
+  echo "== hf download ${repo} (${HF_PYTHON}, xet via hf_xet if installed)"
+  hf_download "${repo}"
 }
 
 download_gguf_file() {
@@ -19,11 +27,9 @@ download_gguf_file() {
   local dest_name="${3:-}"
   echo "== GGUF ${repo} :: ${file}"
   if [[ -n "${dest_name}" ]]; then
-    huggingface-cli download "${repo}" "${file}" \
-      --local-dir "${GGUF_DIR}/${dest_name}" --local-dir-use-symlinks False
+    hf_download "${repo}" "${file}" --local-dir "${GGUF_DIR}/${dest_name}"
   else
-    huggingface-cli download "${repo}" "${file}" \
-      --local-dir "${GGUF_DIR}" --local-dir-use-symlinks False
+    hf_download "${repo}" "${file}" --local-dir "${GGUF_DIR}"
   fi
 }
 
