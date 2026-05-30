@@ -224,10 +224,8 @@ npm_proxy_host_put_body() {
         enabled,
         locations,
         hsts_enabled,
-        hsts_subdomains,
-        trust_forwarded_proto
-      }
-      | .trust_forwarded_proto //= false'
+        hsts_subdomains
+      }'
   else
     echo "${current_json}" | jq '
       {
@@ -247,10 +245,8 @@ npm_proxy_host_put_body() {
         enabled,
         locations,
         hsts_enabled,
-        hsts_subdomains,
-        trust_forwarded_proto
-      }
-      | .trust_forwarded_proto //= false'
+        hsts_subdomains
+      }'
   fi
 }
 
