@@ -37,13 +37,18 @@ PROMOTION = {
 }
 
 
-def load_summary(key: str) -> dict[str, Any] | None:
+def load_summary(key: str, kind: str = "micro") -> dict[str, Any] | None:
+    suffix = {
+        "micro": "summary-micro.json",
+        "bfcl": "summary-bfcl.json",
+        "ruler": "summary-ruler.json",
+    }.get(kind, "summary.json")
     for base in (BENCH_DATA, BENCH_DOCS):
-        for suffix in ("summary-micro.json", "summary.json"):
-            p = base / f"{DATE}-{key}" / suffix
+        for name in (suffix, "summary.json"):
+            p = base / f"{DATE}-{key}" / name
             if p.is_file():
                 return json.loads(p.read_text(encoding="utf-8"))
-            p = base / f"{DATE}-{key}-{suffix}"
+            p = base / f"{DATE}-{key}-{name}"
             if p.is_file():
                 return json.loads(p.read_text(encoding="utf-8"))
     return None
@@ -59,21 +64,26 @@ def load_smoke(key: str) -> dict[str, Any] | None:
 def micro_row(summary: dict[str, Any] | None, test: str) -> str:
     if not summary:
         return "— / — / —"
-    tests = summary.get("tests") or summary.get("micro") or {}
-    t = tests.get(test) or {}
+    per = summary.get("per_test") or summary.get("tests") or summary.get("micro") or {}
+    t = per.get(test) or {}
     lat = t.get("latency_ms") or {}
     tok = t.get("decode_tok_s") or {}
     p50 = lat.get("p50") if isinstance(lat, dict) else "—"
-    mean_tok = tok.get("mean") if isinstance(tok, dict) else "—"
+    tok_p50 = tok.get("p50") if isinstance(tok, dict) else tok.get("mean", "—")
     extra = ""
     if test == "tool_call_contract":
-        extra = f" match={t.get('tool_match_rate', '—')}"
-    return f"{p50}ms / {mean_tok} tok/s{extra}"
+        extra = f" match={t.get('tool_call_match_rate', t.get('tool_match_rate', '—'))}"
+    return f"{p50}ms / {tok_p50} tok/s{extra}"
 
 
 def bfcl_row(summary: dict[str, Any] | None) -> str:
     if not summary:
         return "—"
+    if "overall_selection_rate" in summary:
+        return (
+            f"{summary.get('overall_selection_rate', '—')} / "
+            f"{summary.get('overall_args_rate', '—')}"
+        )
     bfcl = summary.get("bfcl") or summary.get("tests", {}).get("bfcl") or {}
     if isinstance(bfcl, dict) and "selection_mean" in bfcl:
         return f"sel {bfcl.get('selection_mean')} / args {bfcl.get('args_mean')}"
@@ -137,7 +147,7 @@ def render(partial: bool = False) -> None:
         ]
     )
     for key in KEYS:
-        s = load_summary(key)
+        s = load_summary(key, "micro")
         lines.append(
             f"| `{key}` | {micro_row(s, 'code_config_review')} "
             f"| {micro_row(s, 'short_ops_summary')} "
@@ -154,7 +164,7 @@ def render(partial: bool = False) -> None:
         ]
     )
     for key in KEYS:
-        lines.append(f"| `{key}` | {bfcl_row(load_summary(key))} |")
+        lines.append(f"| `{key}` | {bfcl_row(load_summary(key, 'bfcl'))} |")
 
     lines.extend(
         [

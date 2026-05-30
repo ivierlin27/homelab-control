@@ -23,6 +23,12 @@ bash scripts/model-lab/reap/run_reap_phase.sh 3   # harness
 bash scripts/model-lab/reap/run_reap_phase.sh 5   # verdict + restart prod
 ```
 
+Optional gap-fill (Test C/E harness, Test A long-context, Test A vLLM):
+
+```bash
+bash scripts/model-lab/reap/run_reap_phase.sh rerun
+```
+
 Optional dual-route test (Test D) after Test A smoke passes:
 
 ```bash

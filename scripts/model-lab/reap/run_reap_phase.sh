@@ -195,9 +195,40 @@ case "${PHASE}" in
   prod)
     restart_prod
     ;;
+  rerun)
+    # Targeted reruns after phase 3 exited early or smoke masked launch failures.
+    stop_prod
+    mkdir -p "${SMOKE_DOC}"
+    export LAB_READY_TIMEOUT_SEC="${LAB_READY_TIMEOUT_SEC:-1200}"
+
+    echo "== Test C smoke + harness (82B IQ4_XS)"
+    if smoke_llamacpp "${LAB_DIR}/profiles/test-c-glm45air-reap82-llamacpp.env" "test-c" \
+      >"${SMOKE_DOC}/test-c-rerun.log" 2>&1; then
+      harness_llamacpp "${LAB_DIR}/profiles/test-c-glm45air-reap82-llamacpp.env" "test-c" \
+        "micro bfcl ruler" || true
+    else
+      echo "WARN: Test C smoke failed — see ${SMOKE_DOC}/test-c-rerun.log" >&2
+    fi
+
+    echo "== Test E harness"
+    harness_llamacpp "${LAB_DIR}/profiles/test-e-qwen36-28b-reap-llamacpp.env" "test-e" \
+      "micro bfcl ruler" || true
+
+    echo "== Test A llama.cpp long-context rerun (131K ctx)"
+    harness_llamacpp "${LAB_DIR}/profiles/test-a-glm47-flash-reap23-llamacpp.env" "test-a-llamacpp" \
+      "micro ruler" || true
+
+    echo "== Test A vLLM promotion path"
+    export LAB_READY_TIMEOUT_SEC="${LAB_READY_TIMEOUT_SEC:-900}"
+    harness_vllm "${LAB_DIR}/profiles/test-a-glm47-flash-reap23-vllm.env" "test-a-vllm" \
+      "micro bfcl ruler" || true
+
+    python3 "${LAB_DIR}/render_verdict.py" --partial
+    echo "Rerun complete — verdict updated (partial). Prod still stopped unless REAP_LEAVE_PROD_STOPPED=0."
+    ;;
   *)
-    echo "Usage: REAP_DATE=YYYY-MM-DD $0 {1|2|3|4|5|prod}" >&2
-    echo "  1=download  2=smoke  3=harness  4=dual(experimental)  5=verdict+restart prod" >&2
+    echo "Usage: REAP_DATE=YYYY-MM-DD $0 {1|2|3|4|5|rerun|prod}" >&2
+    echo "  1=download  2=smoke  3=harness  4=dual  5=verdict+prod  rerun=optional gaps" >&2
     exit 2
     ;;
 esac

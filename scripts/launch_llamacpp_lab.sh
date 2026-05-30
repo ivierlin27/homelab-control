@@ -90,7 +90,7 @@ echo "+ ${CMD_LINE[*]}"
 "${CMD_LINE[@]}"
 
 echo "Waiting for endpoint http://127.0.0.1:${LAB_PORT}/v1/models ..."
-deadline=$(( $(date +%s) + 600 ))
+deadline=$(( $(date +%s) + ${LAB_READY_TIMEOUT_SEC:-600} ))
 while [[ $(date +%s) -lt $deadline ]]; do
   if curl -fsS -m 3 "http://127.0.0.1:${LAB_PORT}/v1/models" \
         -H "Authorization: Bearer ${LAB_API_KEY}" >/dev/null 2>&1; then
