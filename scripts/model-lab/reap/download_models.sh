@@ -56,17 +56,11 @@ download_gguf_file \
   "cerebras_Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf" \
   "qwen3-coder-reap25-q4km"
 
-# --- Test C: GLM-4.5-Air-REAP-82B IQ4_XS (2 shards) ---
-REAP_GLM45_DIR="${GGUF_DIR}/glm45air-reap82-iq4xs"
-mkdir -p "${REAP_GLM45_DIR}"
-for shard in \
-  "GLM-4.5-Air-REAP-82B-A12B-IQ4_XS-00001-of-00002.gguf" \
-  "GLM-4.5-Air-REAP-82B-A12B-IQ4_XS-00002-of-00002.gguf"; do
-  download_gguf_file \
-    "bartowski/cerebras_GLM-4.5-Air-REAP-82B-A12B-GGUF" \
-    "${shard}" \
-    "glm45air-reap82-iq4xs"
-done
+# --- Test C: GLM-4.5-Air-REAP-82B IQ4_XS (single GGUF on bartowski) ---
+download_gguf_file \
+  "bartowski/cerebras_GLM-4.5-Air-REAP-82B-A12B-GGUF" \
+  "cerebras_GLM-4.5-Air-REAP-82B-A12B-IQ4_XS.gguf" \
+  "glm45air-reap82-iq4xs"
 
 # --- Test E: Qwen3.6-28B-REAP (0xSero) ---
 download_gguf_file \
