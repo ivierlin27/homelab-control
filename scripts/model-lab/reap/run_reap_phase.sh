@@ -131,7 +131,7 @@ case "${PHASE}" in
     smoke_llamacpp "${LAB_DIR}/profiles/test-a-glm47-flash-reap23-llamacpp.env" "test-a-llamacpp" \
       | tee "${SMOKE_DOC}/test-a-llamacpp.log" || true
     echo "== Test B qwen3 coder REAP (vLLM BF16 or GGUF fallback)"
-    if [[ -f /mnt/data/models/gguf/qwen3-coder-reap25-q4km/Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf ]]; then
+    if [[ -f /mnt/data/models/gguf/qwen3-coder-reap25-q4km/cerebras_Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf ]]; then
       smoke_llamacpp "${LAB_DIR}/profiles/test-b-qwen3-coder-reap25-llamacpp.env" "test-b-llamacpp" \
         | tee "${SMOKE_DOC}/test-b-llamacpp.log" || true
     else
@@ -155,7 +155,7 @@ case "${PHASE}" in
       echo "Test A smoke passed — optional vLLM promotion harness"
       harness_vllm "${LAB_DIR}/profiles/test-a-glm47-flash-reap23-vllm.env" "test-a-vllm" "micro bfcl ruler" || true
     fi
-    if [[ -f /mnt/data/models/gguf/qwen3-coder-reap25-q4km/Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf ]]; then
+    if [[ -f /mnt/data/models/gguf/qwen3-coder-reap25-q4km/cerebras_Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf ]]; then
       harness_llamacpp "${LAB_DIR}/profiles/test-b-qwen3-coder-reap25-llamacpp.env" "test-b-llamacpp" "micro bfcl ruler"
     else
       harness_vllm "${LAB_DIR}/profiles/test-b-qwen3-coder-reap25-vllm.env" "test-b-vllm" "micro bfcl ruler"

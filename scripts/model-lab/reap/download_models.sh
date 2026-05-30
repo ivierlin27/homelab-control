@@ -53,7 +53,7 @@ download_hf "cerebras/GLM-4.7-Flash-REAP-23B-A3B"
 download_hf "cerebras/Qwen3-Coder-REAP-25B-A3B"
 download_gguf_file \
   "bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF" \
-  "Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf" \
+  "cerebras_Qwen3-Coder-REAP-25B-A3B-Q4_K_M.gguf" \
   "qwen3-coder-reap25-q4km"
 
 # --- Test C: GLM-4.5-Air-REAP-82B IQ4_XS (2 shards) ---
