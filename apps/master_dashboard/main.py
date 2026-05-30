@@ -116,6 +116,9 @@ PRESENCE_UNITS: dict[str, list[str]] = {
         "alienware-agent-homelab-maintainer-discord.service",
         "alienware-agent-review-discord.service",
     ],
+    "Finance": [
+        "alienware-fava.service",
+    ],
     "Glue": [
         "alienware-agent-event-dispatcher.service",
         "alienware-agent-activity.service",

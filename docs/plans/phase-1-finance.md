@@ -56,7 +56,7 @@ explicit "we got this wrong" pass.
 | Tier-1 importers | **done** — BMO chequing/savings/MC, RBC Avion, BofA, Amplify (see sprint notes) |
 | Categorization loop (F6) | **done (MVP-B)** — rule policy + risk verifier + `categorize --llm`; **0** pending `!` rows (2026-05-26) |
 | F6 Planka defer queue | **done** — finance board + `agent-finance` user; smoke + finance-only cleanup scripts |
-| Fava UI (F7) | **in progress** — `alienware-fava.service` + runbook; Authentik/reverse-proxy cutover pending |
+| Fava UI (F7) | **done** — `alienware-fava.service`, `fava.dev-path.org` (NPM + Authentik SSO), master dashboard link, image digest pinned |
 | Persona prompts | analyst + risk behavior wired (rules + local LLM); full `personas/*.md` files deferred to MVP-C |
 | Phase 1 plan document | **this file** |
 
@@ -598,7 +598,7 @@ or take).
 | **F4** | First Tier-1 importer (BMO chequing) | OFX importer wired through smart_importer; CLI `ingest --institution bmo-chequing --file …`; sandboxed; audit row written | One real BMO statement ingests without manual edits, all entries land in the ledger, `bean-check` passes, `finance_ingest` audit row written |
 | **F5** | Remaining Tier-1 importers | BoA, Amplify CU, BMO Cash Back, RBC Visa, Discover, Capital One | Same acceptance per institution; each importer has a fixture + test |
 | **F6** | Categorization loop (analyst + risk) | `apps/finance_agent/categorize/` with rule-based analyst + risk verifier; `categorize` / `categorize --llm`; defer markdown + Planka cards; verifier-loop integrated | **SHIPPED 2026-05-26** — backlog cleared (`finance-ledger@29469ed`); F6 follow-ups in `docs/runbooks/agent-finance.md` |
-| **F7** | Fava deployment | `systemd/alienware-fava.service` (read-only podman mount of `~/finance/ledger`); `docs/runbooks/fava.md`; master dashboard link; Authentik at `fava.dev-path.org` (operator) | Kevin can SSO into Fava, see this month's transactions, filter by category |
+| **F7** | Fava deployment | **SHIPPED 2026-05-30** — `alienware-fava.service`, `docs/runbooks/fava.md` + `fava-authentik.md`, NPM API + Authentik forward-auth, master dashboard services tile | Kevin can SSO into Fava, see this month's transactions, filter by category |
 | **F8** | Inbox watcher + automation | `alienware-finance-inbox-watcher.service`; drop a statement file → auto-ingest → DM summary | One full cycle works without manual CLI; metrics show in `#finance` DM |
 | **F9 (MVP-B complete)** | Soak + tune | Run for 30 days, tune categorization thresholds, fix importer edge cases, fill out reusable category rules | Categorization confidence > 0.85 on ≥80% of real transactions |
 | **F10+ (MVP-C)** | Researcher + advisor personas | The other two personas; `advise` CLI; Planka finance board for advice cards; weekly digest piped into executive review | Out of scope of this document — separately scoped sprint with its own acceptance |

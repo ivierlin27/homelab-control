@@ -68,8 +68,20 @@ Snippet to paste into NPM Advanced:
 | Finance Planka smoke cleanup | `scripts/planka_cleanup_finance_test_cards.py` |
 | Categorize defer Planka | `docs/runbooks/agent-finance.md` |
 
+## Image pin
+
+Production unit uses a digest-pinned image (see `systemd/alienware-fava.service`).
+After `git pull`, reinstall the unit and restart if the digest changed:
+
+```bash
+cp systemd/alienware-fava.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user restart alienware-fava.service
+```
+
 ## Related
 
-- Phase plan: `docs/plans/phase-1-finance.md` (F7)
+- Phase plan: `docs/plans/phase-1-finance.md` (F7 — shipped)
+- Master dashboard: homelab services tile links to `https://fava.dev-path.org`
 - Inventory: `config/inventory/services/fava.yaml`
 - Agent finance: `docs/runbooks/agent-finance.md`

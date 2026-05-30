@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+  <section class="xl:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+    {% include "_tile_services.html" %}
+  </section>
+
   <section class="xl:col-span-1 bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden"
            hx-get="/tiles/cost" hx-trigger="every 60s" hx-swap="innerHTML">
     {% include "_tile_cost.html" %}
