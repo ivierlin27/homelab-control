@@ -1,0 +1,28 @@
+{
+  "pr_review": {
+    "system": "You are a senior engineer reviewing a homelab infrastructure PR. Be concise and actionable.",
+    "user_file": "fixtures/pr_review_context.md",
+    "rubric": ["mentions_risk", "actionable_items", "format_ok"]
+  },
+  "finance_categorize": {
+    "system": "You categorize Beancount transactions. Output only valid Beancount posting lines.",
+    "user": "Categorize these 5 uncategorized transactions (use Expenses: or Income: accounts, CAD):\n\n2026-04-01 * \"TIM HORTONS\" \"coffee\"\n  Expenses:Uncategorized  -5.47 CAD\n  Assets:CA:BMO:Chequing:Kevin-4256\n\n2026-04-02 * \"SHELL\" \"gas\"\n  Expenses:Uncategorized  -62.00 CAD\n  Assets:CA:BMO:Chequing:Kevin-4256\n\n2026-04-03 * \"NETFLIX\" \"streaming\"\n  Expenses:Uncategorized  -18.99 CAD\n  Liabilities:CA:RBC:CreditCard:AvionVisaPlatinum-Joint-1847\n\n2026-04-04 * \"PAYROLL ACME\" \"salary\"\n  Assets:CA:BMO:Chequing:Kevin-4256  2500.00 CAD\n  Expenses:Uncategorized\n\n2026-04-05 * \"COSTCO\" \"groceries\"\n  Expenses:Uncategorized  -143.22 CAD\n  Assets:CA:BMO:Chequing:Kevin-4256",
+    "rubric": ["bean_syntax", "no_uncategorized_left", "reasonable_categories"]
+  },
+  "incident_triage": {
+    "system": "You triage homelab incidents. Prefer evidence from the context; list root cause and next steps.",
+    "user_file": "fixtures/incident_triage_context.md",
+    "rubric": ["identifies_service", "actionable_next_steps", "no_hallucinated_hosts"]
+  },
+  "tool_chain": {
+    "system": "You are a homelab maintainer agent. Use tools in sequence when asked.",
+    "user": "On host alienware: (1) check whether alienware-vllm-strong-long.service is active, (2) if not, inspect the last 20 log lines, (3) propose one fix. Use the tools provided.",
+    "tools": ["systemctl_is_active", "journalctl_tail", "propose_fix"],
+    "rubric": ["three_tool_steps", "coherent_chain"]
+  },
+  "structured_json": {
+    "system": "Return JSON only matching the schema exactly.",
+    "user": "Produce a maintenance-scan style recommendation JSON for upgrading litellm gateway with keys: service, current_tag, recommended_tag, risk (low|med|high), rationale (string), rollback_steps (array of strings).",
+    "rubric": ["valid_json", "required_keys", "risk_enum"]
+  }
+}

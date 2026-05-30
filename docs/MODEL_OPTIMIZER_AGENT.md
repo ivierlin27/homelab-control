@@ -30,6 +30,8 @@ Each run should gather:
 - model-card updates and high-signal Hugging Face discussions
 - current repo strategy in `docs/STRONG_MODEL_STRATEGY.md`
 - prior experiment notes under `docs/model-lab/`
+- REAP MoE pruning experiments: `docs/model-lab/2026-05-29-reap-benchmark.md` and
+  `scripts/model-lab/reap/`
 - live service constraints: GPU VRAM, route layout, one-model mode, latency
 - local benchmark results from the current fast and strong baselines
 

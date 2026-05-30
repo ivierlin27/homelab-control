@@ -1,0 +1,81 @@
+# Registry for Qwopus3.6 benchmark runs (see README.md).
+date_prefix_env: QWOPUS36_DATE
+
+candidates:
+  qwopus36-35b-a3b-v1:
+    hf_model: Avesed/Qwopus3.6-35B-A3B-v1-int4-mixed
+    served_name: lab-qwopus36-35b-a3b-v1
+    engine: vllm
+    tensor_parallel: 2
+    quantization: compressed-tensors
+    dtype: bfloat16
+    max_model_len: 131072
+    tool_parser: qwen3_xml
+    harness_full: true
+    agent_tasks: true
+
+  qwen36-35b-a3b-awq:
+    hf_model: QuantTrio/Qwen3.6-35B-A3B-AWQ
+    served_name: lab-qwen36-35b-a3b-awq
+    engine: vllm
+    tensor_parallel: 2
+    quantization: awq_marlin
+    dtype: bfloat16
+    max_model_len: 131072
+    tool_parser: qwen3_xml
+    harness_full: true
+    agent_tasks: true
+    harness_baseline_artifact: docs/model-lab/bench-artifacts/2026-05-15-qwen36-35b-a3b-awq-baseline
+
+  qwopus36-27b-v2:
+    hf_model: mconcat/Qwopus3.6-27B-v2-AWQ-4bit
+    served_name: lab-qwopus36-27b-v2
+    engine: vllm
+    tensor_parallel: 2
+    quantization: awq_marlin
+    dtype: bfloat16
+    max_model_len: 131072
+    tool_parser: qwen3_xml
+    harness_full: true
+    agent_tasks: true
+
+  qwen36-27b-awq:
+    hf_model: QuantTrio/Qwen3.6-27B-AWQ
+    served_name: lab-qwen36-27b-awq
+    engine: vllm
+    tensor_parallel: 2
+    quantization: awq_marlin
+    dtype: bfloat16
+    max_model_len: 131072
+    tool_parser: qwen3_xml
+    harness_full: true
+    agent_tasks: true
+
+  qwopus36-27b-v2-mtp:
+    hf_repo: Jackrong/Qwopus3.6-27B-v2-MTP-GGUF
+    gguf_file: Qwopus3.6-27B-v2-MTP-Q4_K_M.gguf
+    served_name: lab-qwopus36-27b-v2-mtp
+    engine: llamacpp
+    tensor_parallel: 1
+    gpus: "0,1"
+    max_model_len: 32768
+    harness_full: false
+    harness_cmds: [micro, bfcl, ruler]
+    agent_tasks: false
+
+  qwopus36-35b-mxfp4:
+    hf_repo: noctrex/Qwopus3.6-35B-A3B-v1-MXFP4_MOE-GGUF
+    gguf_file: Qwopus3.6-35B-A3B-v1-MXFP4_MOE_BF16.gguf
+    served_name: lab-qwopus36-35b-mxfp4
+    engine: llamacpp
+    tensor_parallel: 1
+    gpus: "0"
+    max_model_len: 131072
+    harness_full: false
+    harness_cmds: [micro, bfcl]
+    agent_tasks: false
+
+daily_baseline:
+  key: qwen3-coder-30b-a3b-awq
+  hf_model: QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ
+  harness_artifact: docs/model-lab/bench-artifacts/2026-05-15-qwen3-coder-30b-a3b-awq
