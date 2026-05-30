@@ -8,16 +8,23 @@ GGUF_DIR="${GGUF_DIR:-/mnt/data/models/gguf}"
 mkdir -p "${HF_HOME}" "${GGUF_DIR}"
 
 # Fedora's /usr/bin/huggingface-cli runs `python3 -sP`, which ignores user site-packages
-# and cannot see hf_xet. Use a normal interpreter so Xet-backed GGUF pulls are fast.
-HF_PYTHON="${HF_PYTHON:-python3.14}"
+# and cannot see hf_xet. Prefer ~/.local/bin/hf (hub 1.x + hf-xet) when present.
+HF_CLI="${HF_CLI:-}"
+if [[ -z "${HF_CLI}" ]]; then
+  if [[ -x "${HOME}/.local/bin/hf" ]]; then
+    HF_CLI="${HOME}/.local/bin/hf"
+  else
+    HF_CLI="hf"
+  fi
+fi
 
 hf_download() {
-  "${HF_PYTHON}" -m huggingface_hub.cli download "$@"
+  "${HF_CLI}" download "$@"
 }
 
 download_hf() {
   local repo="$1"
-  echo "== hf download ${repo} (${HF_PYTHON}, xet via hf_xet if installed)"
+  echo "== hf download ${repo} (${HF_CLI}, xet via hf_xet if installed)"
   hf_download "${repo}"
 }
 
