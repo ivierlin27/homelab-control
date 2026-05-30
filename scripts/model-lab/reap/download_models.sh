@@ -62,10 +62,10 @@ download_gguf_file \
   "cerebras_GLM-4.5-Air-REAP-82B-A12B-IQ4_XS.gguf" \
   "glm45air-reap82-iq4xs"
 
-# --- Test E: Qwen3.6-28B-REAP (0xSero) ---
+# --- Test E: Qwen3.6-28B-REAP (0xSero; repo id is Qwen3.6-28B-GGUF on HF) ---
 download_gguf_file \
-  "0xSero/Qwen3.6-28B-REAP20-A3B-GGUF" \
-  "Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf" \
+  "0xSero/Qwen3.6-28B-GGUF" \
+  "model.q4_k_m.gguf" \
   "qwen36-28b-reap-q4km"
 
 # Baseline (if not already present)
