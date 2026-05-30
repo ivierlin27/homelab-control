@@ -85,6 +85,10 @@ else
   log "application exists pk=${APP_PK}"
 fi
 
-log "OK — add application to Embedded Outpost in UI if not already:"
-log "  Applications → Outposts → authentik Embedded Outpost → Applications → ${APP_NAME}"
+if authentik_ensure_embedded_outpost_provider "${PROVIDER_PK}"; then
+  log "embedded outpost includes provider pk=${PROVIDER_PK}"
+else
+  log "WARN — add ${APP_NAME} to Embedded Outpost in UI:"
+  log "  Applications → Outposts → authentik Embedded Outpost → Applications"
+fi
 log "Then: ./scripts/npm_apply_fava_authentik.sh"

@@ -149,3 +149,23 @@ authentik_find_application_pk() {
   echo "${resp}" | jq -r --arg s "${slug}" '
     .results[] | select(.slug == $s) | .pk' | head -1
 }
+
+# Attach provider pk to the embedded outpost (required for forward-auth).
+authentik_ensure_embedded_outpost_provider() {
+  local provider_pk="$1"
+  authentik_require_token || return 1
+  local list_resp outpost_pk detail providers body
+  list_resp="$(authentik_api GET "/outposts/instances/?search=embedded")"
+  outpost_pk="$(echo "${list_resp}" | jq -r '
+    .results[] | select(.managed == "goauthentik.io/outposts/embedded") | .pk' | head -1)"
+  [[ -n "${outpost_pk}" ]] || outpost_pk="$(echo "${list_resp}" | jq -r '.results[0].pk // empty')"
+  [[ -n "${outpost_pk}" ]] || {
+    echo "authentik_api: no embedded outpost found" >&2
+    return 1
+  }
+  detail="$(authentik_api GET "/outposts/instances/${outpost_pk}/")"
+  providers="$(echo "${detail}" | jq -c --argjson pk "${provider_pk}" '
+    (.providers // []) as $p | if ($p | index($pk)) != null then $p else ($p + [$pk]) end')"
+  body="$(jq -n --argjson providers "${providers}" '{providers: $providers}')"
+  authentik_api PATCH "/outposts/instances/${outpost_pk}/" "${body}" >/dev/null
+}
