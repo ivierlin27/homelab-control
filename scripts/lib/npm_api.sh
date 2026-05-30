@@ -255,6 +255,25 @@ npm_put_proxy_host() {
   npm_api PUT "/api/nginx/proxy-hosts/${host_id}" "${body}"
 }
 
+# NPM sometimes leaves DB row but drops proxy_host/N.conf after advanced_config PUT.
+npm_proxy_host_conf_path() {
+  local host_id="$1"
+  echo "/data/nginx/proxy_host/${host_id}.conf"
+}
+
+npm_verify_proxy_host_conf() {
+  local host_id="$1"
+  local proxmox="${PROXMOX_SSH:-root@proxmox.dev-path.org}"
+  local npm_ct="${NPM_CT_ID:-102}"
+  ssh "${proxmox}" "pct exec ${npm_ct} -- test -f $(npm_proxy_host_conf_path "${host_id}")"
+}
+
+npm_reload_nginx() {
+  local proxmox="${PROXMOX_SSH:-root@proxmox.dev-path.org}"
+  local npm_ct="${NPM_CT_ID:-102}"
+  ssh "${proxmox}" "pct exec ${npm_ct} -- nginx -t && pct exec ${npm_ct} -- nginx -s reload"
+}
+
 # Render Authentik forward-auth snippet for NPM Advanced tab.
 npm_render_fava_authentik_advanced() {
   local template="${1:?template path}"

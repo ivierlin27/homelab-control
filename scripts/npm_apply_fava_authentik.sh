@@ -56,8 +56,21 @@ if ! echo "${RESP}" | jq -e '.id' >/dev/null 2>&1; then
   exit 1
 fi
 
-log "OK — NPM regenerated nginx for ${DOMAIN}"
+HOST_ID="$(echo "${RESP}" | jq -r '.id')"
 
-# Unauthenticated curl should redirect to Authentik when provider is configured.
-CODE="$(curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:192.168.1.42" "https://${DOMAIN}/" || true)"
-log "smoke https://${DOMAIN}/ → HTTP ${CODE} (expect 302 to login after Authentik app exists)"
+if ! npm_verify_proxy_host_conf "${HOST_ID}"; then
+  log "WARN — ${HOST_ID}.conf missing after PUT; recreating host without advanced, then re-applying"
+  npm_api DELETE "/api/nginx/proxy-hosts/${HOST_ID}" >/dev/null || true
+  "${ROOT_DIR}/scripts/npm_ensure_fava_proxy.sh"
+  exec "${ROOT_DIR}/scripts/npm_apply_fava_authentik.sh" "$@"
+fi
+
+npm_reload_nginx
+log "OK — NPM proxy host id=${HOST_ID} (${DOMAIN})"
+
+# Smoke: use DNS (Pi-hole → NPM). --resolve to 192.168.1.42 can fail TLS SNI on some curl builds.
+CODE="$(curl -sk -o /dev/null -w '%{http_code}' "https://${DOMAIN}/" 2>/dev/null || echo 000)"
+if [[ "${CODE}" == "000" ]]; then
+  CODE="$(curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:192.168.1.42" "https://${DOMAIN}/" 2>/dev/null || echo 000)"
+fi
+log "smoke https://${DOMAIN}/ → HTTP ${CODE} (302 = OK without SSO; 302 to Authentik after outpost wired)"
