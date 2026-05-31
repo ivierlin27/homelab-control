@@ -1,0 +1,136 @@
+{
+  "by_task_length": {
+    "common_words_extract": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_multi_key": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_multi_value": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_single_simple": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "vt_2hop": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    }
+  },
+  "finished_at": "2026-05-30T11:41:04-0700",
+  "lengths": [
+    32768,
+    65536,
+    131072
+  ],
+  "model": "lab-qwen36-28b-reap-llamacpp",
+  "model_key": "test-e",
+  "samples": 5,
+  "started_at": "2026-05-30T11:40:56-0700",
+  "tasks": [
+    "niah_single_simple",
+    "niah_multi_key",
+    "niah_multi_value",
+    "vt_2hop",
+    "common_words_extract"
+  ]
+}

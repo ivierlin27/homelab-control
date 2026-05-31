@@ -1,0 +1,37 @@
+{
+  "base_url": "http://127.0.0.1:8002/v1",
+  "model": "lab-qwen3-coder-30b-awq-baseline",
+  "passed": true,
+  "cases": [
+    {
+      "name": "short_ping",
+      "ok": true,
+      "wall_s": 0.5766516529256478,
+      "prompt_tokens": 13,
+      "completion_tokens": 2,
+      "tool_calls": 0,
+      "content_preview": "pong",
+      "error": ""
+    },
+    {
+      "name": "tool_call",
+      "ok": true,
+      "wall_s": 0.2954195380443707,
+      "prompt_tokens": 321,
+      "completion_tokens": 35,
+      "tool_calls": 1,
+      "content_preview": "",
+      "error": ""
+    },
+    {
+      "name": "json_contract",
+      "ok": true,
+      "wall_s": 0.10598792508244514,
+      "prompt_tokens": 27,
+      "completion_tokens": 16,
+      "tool_calls": 0,
+      "content_preview": "{\"route\":\"strong\",\"escalation_condition\":\"none\",\"confidence\":\"high\"}",
+      "error": ""
+    }
+  ]
+}

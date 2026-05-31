@@ -1,0 +1,37 @@
+{
+  "base_url": "http://127.0.0.1:8002/v1",
+  "model": "lab-qwen36-28b-reap-llamacpp",
+  "passed": true,
+  "cases": [
+    {
+      "name": "short_ping",
+      "ok": true,
+      "wall_s": 0.24630849401000887,
+      "prompt_tokens": 17,
+      "completion_tokens": 2,
+      "tool_calls": 0,
+      "content_preview": "pong",
+      "error": ""
+    },
+    {
+      "name": "tool_call",
+      "ok": true,
+      "wall_s": 0.4575412510894239,
+      "prompt_tokens": 304,
+      "completion_tokens": 41,
+      "tool_calls": 1,
+      "content_preview": "",
+      "error": ""
+    },
+    {
+      "name": "json_contract",
+      "ok": true,
+      "wall_s": 0.18558281601872295,
+      "prompt_tokens": 31,
+      "completion_tokens": 16,
+      "tool_calls": 0,
+      "content_preview": "{\"route\":\"strong\",\"escalation_condition\":\"none\",\"confidence\":\"high\"}",
+      "error": ""
+    }
+  ]
+}

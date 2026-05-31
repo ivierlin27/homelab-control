@@ -1,0 +1,176 @@
+{
+  "by_task_length": {
+    "common_words_extract": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "cv": 0.0015,
+          "max": 8080,
+          "mean": 8060.0,
+          "min": 8048,
+          "n": 5,
+          "p50": 8053.0,
+          "p95": 8077.8,
+          "p99": 8079.56,
+          "stdev": 12.4419
+        },
+        "match_rate": 0.4
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_multi_key": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "cv": 0.0026,
+          "max": 7937,
+          "mean": 7915.6,
+          "min": 7886,
+          "n": 5,
+          "p50": 7920.0,
+          "p95": 7936.8,
+          "p99": 7936.96,
+          "stdev": 20.2247
+        },
+        "match_rate": 1.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_multi_value": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "cv": 0.0061,
+          "max": 8094,
+          "mean": 8025.2,
+          "min": 7957,
+          "n": 5,
+          "p50": 8016.0,
+          "p95": 8088.2,
+          "p99": 8092.84,
+          "stdev": 49.0445
+        },
+        "match_rate": 0.4
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "niah_single_simple": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "cv": 0.1111,
+          "max": 7739,
+          "mean": 6334.0,
+          "min": 5918,
+          "n": 5,
+          "p50": 6024.0,
+          "p95": 7398.6,
+          "p99": 7670.92,
+          "stdev": 703.8912
+        },
+        "match_rate": 0.8
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    },
+    "vt_2hop": {
+      "131072": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      },
+      "32768": {
+        "attempts": 5,
+        "latency_ms": {
+          "cv": 0.0027,
+          "max": 7933,
+          "mean": 7910.2,
+          "min": 7870,
+          "n": 5,
+          "p50": 7917.0,
+          "p95": 7931.0,
+          "p99": 7932.6,
+          "stdev": 21.6832
+        },
+        "match_rate": 1.0
+      },
+      "65536": {
+        "attempts": 5,
+        "latency_ms": {
+          "n": 0
+        },
+        "match_rate": 0.0
+      }
+    }
+  },
+  "finished_at": "2026-05-30T09:50:19-0700",
+  "lengths": [
+    32768,
+    65536,
+    131072
+  ],
+  "model": "lab-qwen3-coder-reap25-llamacpp",
+  "model_key": "test-b-llamacpp",
+  "samples": 5,
+  "started_at": "2026-05-30T09:45:26-0700",
+  "tasks": [
+    "niah_single_simple",
+    "niah_multi_key",
+    "niah_multi_value",
+    "vt_2hop",
+    "common_words_extract"
+  ]
+}
