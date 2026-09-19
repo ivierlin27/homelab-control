@@ -9,3 +9,4 @@ __pycache__/
 /.venv-test/
 scripts/lxc.env
 compose/immich/.env
+secrets/.plain/

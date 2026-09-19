@@ -1,0 +1,12 @@
+# Recipients for secrets/*.env (and *.yml). First matching creation_rule wins.
+# Private keys live on the matching host at /root/.config/sops/age/keys.txt
+# (Mac operator: ~/.config/age/keys.txt via SOPS_AGE_KEY_FILE). Never commit them.
+creation_rules:
+  - path_regex: secrets/.*\.(env|yml|yaml)$
+    key_groups:
+      - age:
+          - age1jz0uvxrsxkjmjeuf4t6s2ty6yp0mxp0953r80f3kjzc3nqf2aehq9u3gdp # mac operator
+          - age1updzw5z56petsq4uj9uxaxh9uhdpakccmrm5jml9c58wjagqlumshclnx2 # proxmox1
+          - age1julfn7u2yz9cqppfpjn57ue4mx7allp4u9mfahzvnr5svuqq5geqsd8zv9 # proxmox2
+          - age1htfsa4r8wqjyvcu23c9gncjmch8xl4j2acdwky93na237ff5ad9sw8ywxl # proxmox3
+          - age1yvdmfarge0w7n2f6kyxyv2rp9dkt69uzepln3gt0wc7nse80zdzqq3785a # proxnas

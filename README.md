@@ -4,7 +4,7 @@ GitOps home for the Proxmox-based control plane around:
 
 - self-hosted Git (`Forgejo`)
 - human credentials (`Vaultwarden`)
-- machine secrets (`Infisical`-class store)
+- machine secrets (`SOPS` + `age` in `secrets/`)
 - routed model gateway (`LiteLLM`)
 - Planka orchestration
 - homelab author / review agents
@@ -16,7 +16,7 @@ GitOps home for the Proxmox-based control plane around:
 1. **No agent writes directly to `main`.**
 2. **Every task starts on Planka.**
 3. **Every agent has its own Git identity, secret scope, and memory principal.**
-4. **Human passwords live in Vaultwarden; machine secrets do not.**
+4. **Human passwords live in Vaultwarden; machine secrets live in SOPS.**
 5. **A stable OpenAI-compatible gateway hides model/provider churn.**
 
 ## Repo layout
@@ -37,15 +37,8 @@ GitOps home for the Proxmox-based control plane around:
 
 ## Secrets
 
-Nothing in this repo should contain live credentials. Compose files expect
-runtime env files rendered from the machine secret store into `/run/...`.
-
-Examples:
-
-- `/run/homelab-control/forgejo.env`
-- `/run/homelab-control/infisical.env`
-- `/run/homelab-control/model-gateway.env`
-- `/run/homelab-control/agent-homelab.env`
+Runtime env files are decrypted from `secrets/*.env` into `/run/homelab-control/`
+via `scripts/sops-render.sh`. See `docs/SECRETS.md`.
 
 ## Review flow
 
