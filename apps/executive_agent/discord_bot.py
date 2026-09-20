@@ -27,6 +27,11 @@ from conversation_store import ConversationStore  # noqa: E402
 
 from apps._shared.discord_bridge import BridgeConfig, MessageContext, run_bridge  # noqa: E402
 
+try:
+    from apps.move_command_center import discord_commands as move_discord  # noqa: E402
+except ImportError:
+    move_discord = None  # type: ignore[assignment]
+
 
 DEFAULT_STATE_DIR = Path.home() / ".local/state/homelab-control/agent-executive"
 DEFAULT_COMMAND_PREFIX = "!assistant"
@@ -49,6 +54,7 @@ def _build_handler(
             metadata["guild_id"] = ctx.guild_id
 
         content = ctx.content if ctx.content else "status"
+        lowered = content.lower().strip()
 
         conversation = store.conversation_for_source(
             source=ctx.source,
@@ -63,7 +69,15 @@ def _build_handler(
             metadata=metadata,
         )
 
-        lowered = content.lower().strip()
+        if move_discord is not None and os.environ.get("MOVE_COMMAND_CENTER_URL"):
+            if lowered.startswith("move ") or lowered == "move" or lowered.startswith("house "):
+                try:
+                    reply = await asyncio.to_thread(move_discord.handle_text_command, content.strip())
+                    if reply:
+                        return reply
+                except Exception as exc:  # noqa: BLE001
+                    return f"Move command center error: {exc}"
+
         if lowered in {"help", "/help"}:
             return "\n".join(
                 [
@@ -120,12 +134,44 @@ def main() -> int:
         command_prefix=command_prefix,
     )
 
+    slash_registrar = None
+    if move_discord is not None and os.environ.get("MOVE_COMMAND_CENTER_URL"):
+        slash_registrar = move_discord.register_slash_commands
+
+    forum_ids: tuple[str, ...] = ()
+    thread_hook = None
+    if move_discord is not None and os.environ.get("MOVE_COMMAND_CENTER_URL"):
+        forum_ids = tuple(
+            x.strip()
+            for x in os.environ.get("MOVE_FORUM_CHANNEL_IDS", "1516955162974097430").split(",")
+            if x.strip()
+        )
+        thread_hook = move_discord.on_forum_thread_create
+
+    reaction_hook = None
+    thread_update_hook = None
+    if move_discord is not None and os.environ.get("MOVE_COMMAND_CENTER_URL"):
+        try:
+            from apps.move_command_center import discord_forum as move_forum  # noqa: E402
+
+            reaction_hook = move_forum.on_forum_reaction
+            thread_update_hook = move_forum.on_forum_thread_update
+        except ImportError:
+            reaction_hook = None
+            thread_update_hook = None
+
     config = BridgeConfig(
         principal="agent:executive",
         bot_label="executive",
         command_prefix=command_prefix,
+        alternate_command_prefixes=("!move",),
         handler=handler,
         audit_log_path=state_dir / "trust-ledger.jsonl",
+        register_slash_commands=slash_registrar,
+        forum_channel_ids=forum_ids,
+        on_thread_create=thread_hook,
+        on_reaction_add=reaction_hook,
+        on_thread_update=thread_update_hook,
     )
     return asyncio.run(run_bridge(config))
 

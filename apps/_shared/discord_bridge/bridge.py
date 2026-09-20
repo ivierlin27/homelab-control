@@ -124,24 +124,51 @@ class BridgeConfig:
     extra_env: dict[str, str] = field(default_factory=dict)
     """Optional extra metadata recorded in audit entries."""
 
+    alternate_command_prefixes: tuple[str, ...] = ()
+    """Extra prefixes that trigger the handler, e.g. ``("!move",)``."""
+
+    register_slash_commands: Callable[[Any], None] | None = None
+    """Register slash commands on a CommandTree before sync."""
+
+    forum_channel_ids: tuple[str, ...] = ()
+    """Parent forum channel IDs for auto property stub on new threads."""
+
+    on_thread_create: Callable[[Any], Awaitable[None]] | None = None
+    """Async callback(thread) when a forum thread is created in forum_channel_ids."""
+
+    on_reaction_add: Callable[[Any, Any, bool], Awaitable[None]] | None = None
+    """Async callback(reaction, user, added) for emoji → status sync."""
+
+    on_thread_update: Callable[[Any, Any], Awaitable[None]] | None = None
+    """Async callback(before, after) when forum thread tags/metadata change."""
+
 
 def _parse_message(
     message: "discord.Message",
     bot_user_id: int,
     command_prefix: str,
+    alternate_command_prefixes: tuple[str, ...] = (),
 ) -> MessageContext | None:
     if message.author.bot:
         return None
 
     is_dm = message.guild is None
     bot_mentioned = bot_user_id in (u.id for u in message.mentions)
-    starts_with_prefix = message.content.startswith(command_prefix)
-    if not (is_dm or bot_mentioned or starts_with_prefix):
+    prefixes = (command_prefix, *alternate_command_prefixes)
+    matched_prefix = next((p for p in prefixes if message.content.startswith(p)), None)
+    starts_with_prefix = matched_prefix is not None
+    lowered_content = message.content.lower()
+    pseudo_slash = lowered_content.startswith("/move") or lowered_content.startswith("/house")
+    if not (is_dm or bot_mentioned or starts_with_prefix or pseudo_slash):
         return None
 
     content = message.content
-    if starts_with_prefix:
-        content = content.removeprefix(command_prefix).strip()
+    if pseudo_slash:
+        content = message.content.lstrip("/").strip()
+    elif starts_with_prefix and matched_prefix:
+        content = content.removeprefix(matched_prefix).strip()
+        if matched_prefix in alternate_command_prefixes:
+            content = f"move {content}".strip() if content else "move"
     content = (
         content.replace(f"<@{bot_user_id}>", "")
         .replace(f"<@!{bot_user_id}>", "")
@@ -236,13 +263,91 @@ async def run_bridge(config: BridgeConfig) -> int:
     intents.members = True
     client = discord.Client(intents=intents)
 
+    tree = None
+    if config.register_slash_commands is not None:
+        tree = discord.app_commands.CommandTree(client)
+        config.register_slash_commands(tree)
+
     @client.event
     async def on_ready() -> None:
         print(f"{config.bot_label} discord bridge connected as {client.user}")
+        if tree is not None:
+            guild_ids = _split_ids(os.environ.get("DISCORD_SLASH_GUILD_IDS", os.environ.get("DISCORD_ALLOWED_GUILD_IDS", "")))
+            if guild_ids:
+                for gid in guild_ids:
+                    guild = discord.Object(id=int(gid))
+                    synced = await tree.sync(guild=guild)
+                    print(f"{config.bot_label}: synced {len(synced)} slash command(s) to guild {gid}")
+            else:
+                synced = await tree.sync()
+                print(f"{config.bot_label}: synced {len(synced)} global slash command(s)")
+
+    if config.on_thread_create is not None and config.forum_channel_ids:
+
+        @client.event
+        async def on_thread_create(thread: "discord.Thread") -> None:
+            if str(thread.parent_id) not in set(config.forum_channel_ids):
+                return
+            try:
+                await config.on_thread_create(thread)
+            except Exception:
+                logging.exception("%s on_thread_create error", config.principal)
+
+    if tree is not None:
+
+        @client.event
+        async def on_interaction(interaction: "discord.Interaction") -> None:
+            await tree.on_interaction(interaction)
+
+
+
+    if config.on_thread_update is not None and config.forum_channel_ids:
+
+        @client.event
+        async def on_thread_update(before: "discord.Thread", after: "discord.Thread") -> None:
+            if str(after.parent_id) not in set(config.forum_channel_ids):
+                return
+            try:
+                await config.on_thread_update(before, after)
+            except Exception:
+                logging.exception("%s on_thread_update error", config.principal)
+
+    if config.on_reaction_add is not None:
+
+        @client.event
+        async def on_raw_reaction_add(payload: "discord.RawReactionActionEvent") -> None:
+            if payload.user_id == client.user.id:
+                return
+            try:
+                channel = client.get_channel(payload.channel_id) or await client.fetch_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                user = payload.member or await client.fetch_user(payload.user_id)
+                emoji = payload.emoji
+                import discord as _discord
+
+                class _Reaction:
+                    pass
+
+                reaction = _Reaction()
+                reaction.emoji = emoji
+                reaction.message = message
+                await config.on_reaction_add(reaction, user, True)
+            except Exception:
+                logging.exception("%s on_reaction_add error", config.principal)
+
+        @client.event
+        async def on_raw_reaction_remove(payload: "discord.RawReactionActionEvent") -> None:
+            pass
+
 
     @client.event
     async def on_message(message: "discord.Message") -> None:
-        ctx = _parse_message(message, client.user.id, config.command_prefix)
+        ctx = _parse_message(
+            message,
+            client.user.id,
+            config.command_prefix,
+            config.alternate_command_prefixes,
+        )
         if ctx is None:
             return
         if allowed_users and ctx.user_id not in allowed_users:

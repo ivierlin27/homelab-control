@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Move Command Center</title>
+  <style>
+    :root {
+      --bg:#0f1419; --card:#1a2332; --text:#e7ecf3; --muted:#8b9cb3;
+      --accent:#5b9fd4; --crit:#e05a5a; --high:#e0a050; --ok:#6bc98a;
+      --border:#2a3544;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: .75rem 1.5rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+    header h1 { margin: 0 0 .35rem; font-size: 1.15rem; }
+    .countdown { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; font-size: .8rem; }
+    .countdown span { background: var(--card); padding: .2rem .5rem; border-radius: 999px; }
+    .countdown .urgent { background: var(--crit); color: #fff; }
+    nav { display: flex; flex-wrap: wrap; gap: .35rem; }
+    nav a { color: var(--accent); text-decoration: none; padding: .25rem .55rem; border-radius: 4px; font-size: .9rem; }
+    nav a.active { background: var(--card); }
+    main { padding: 1.25rem 1.5rem; max-width: 1200px; margin: 0 auto; width: 100%; flex: 1; }
+    footer { padding: .75rem 1.5rem; border-top: 1px solid var(--border); font-size: .85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+    .card { background: var(--card); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .card h2 { margin: 0 0 .75rem; font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .card h3 { margin: 0 0 .5rem; font-size: .9rem; }
+    .badge { display: inline-block; font-size: .72rem; padding: .12rem .4rem; border-radius: 999px; background: #2a3544; }
+    .badge.crit { background: var(--crit); color: #fff; }
+    .badge.high { background: var(--high); color: #111; }
+    ul { margin: 0; padding-left: 1.1rem; }
+    li { margin-bottom: .35rem; }
+    .muted { color: var(--muted); font-size: .88rem; }
+    .page { display: none; }
+    .page.active { display: block; }
+    form.inline { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; align-items: center; }
+    input, select, textarea, button { padding: .45rem .6rem; border-radius: 4px; border: 1px solid var(--border); background: #111820; color: var(--text); font: inherit; }
+    button, .btn { background: var(--accent); border: none; cursor: pointer; color: #111; font-weight: 600; text-decoration: none; display: inline-block; }
+    button.secondary { background: #2a3544; color: var(--text); }
+    a.ext { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { text-align: left; padding: .45rem .35rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .pipeline { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .75rem; overflow-x: auto; }
+    .pipe-col { background: #111820; border-radius: 6px; padding: .5rem; min-height: 120px; }
+    .pipe-col h3 { font-size: .75rem; text-transform: uppercase; color: var(--muted); margin: 0 0 .5rem; }
+    .prop-card { background: var(--card); border-radius: 6px; padding: .55rem; margin-bottom: .45rem; font-size: .82rem; border: 1px solid var(--border); }
+    .prop-card strong { display: block; margin-bottom: .25rem; }
+    .prop-card select { width: 100%; margin: .35rem 0; font-size: .78rem; }
+    .prop-links a { margin-right: .5rem; font-size: .78rem; }
+    details summary { cursor: pointer; color: var(--accent); margin-bottom: .5rem; }
+    .checklist label { display: flex; gap: .5rem; align-items: flex-start; margin-bottom: .4rem; cursor: pointer; }
+    .checklist input { margin-top: .15rem; }
+    .ws-card .stat { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    .tabs button { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .tabs button.active { background: var(--card); color: var(--text); }
+    #export-out { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .75rem; max-height: 200px; overflow: auto; background: #111820; padding: .75rem; border-radius: 4px; margin-top: .5rem; display: none; }
+    .compare-tray { background: #111820; border: 1px solid var(--accent); border-radius: 8px; padding: .75rem; margin-bottom: 1rem; }
+    .compare-result { white-space: pre-wrap; font-size: .88rem; line-height: 1.45; max-height: 420px; overflow: auto; background: #111820; padding: .75rem; border-radius: 6px; margin-top: .75rem; }
+    .cal-month { margin-bottom: 1.25rem; }
+    .cal-month h3 { font-size: .95rem; margin: 0 0 .5rem; color: var(--muted); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; font-size: .72rem; }
+    .cal-head { text-align: center; color: var(--muted); padding: .2rem; }
+    .cal-day { min-height: 2.8rem; border: 1px solid var(--border); border-radius: 4px; padding: .2rem .25rem; background: #111820; }
+    .cal-day.other { opacity: .35; }
+    .cal-day.today { border-color: var(--accent); }
+    .cal-day .num { font-weight: 600; }
+    .cal-dot { display: block; font-size: .65rem; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .1rem; }
+    .cal-dot.milestone { color: var(--high); }
+    textarea { width: 100%; min-height: 3rem; resize: vertical; }
+    .temp-card { border: 1px solid var(--border); border-radius: 8px; padding: .75rem; margin-bottom: .65rem; background: #111820; }
+    .temp-card.editing { border-color: var(--accent); }
+    .temp-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+    .temp-actions button { font-size: .78rem; padding: .3rem .5rem; }
+    .temp-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .35rem .75rem; font-size: .82rem; margin: .35rem 0; }
+    .llm-out { white-space: pre-wrap; font-size: .88rem; line-height: 1.45; max-height: 360px; overflow: auto; background: #111820; padding: .75rem; border-radius: 6px; margin-top: .75rem; }
+    @media (max-width: 640px) {
+      .mobile-hint { display: block; background: var(--card); padding: .5rem .75rem; margin-bottom: 1rem; border-radius: 6px; font-size: .85rem; }
+    }
+    @media (min-width: 641px) { .mobile-hint { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Move Command Center</h1>
+    <div id="countdown" class="countdown"></div>
+    <nav>
+      <a href="#home" data-page="home" class="active">Home</a>
+      <a href="#buy" data-page="buy">House buying</a>
+      <a href="#move" data-page="move">Move logistics</a>
+      <a href="#temp" data-page="temp">Temp housing</a>
+      <a href="#timeline" data-page="timeline">Timeline</a>
+      <a href="#tasks" data-page="tasks">Tasks &amp; risks</a>
+    </nav>
+  </header>
+  <main>
+    <p class="mobile-hint">On phone? Use Discord <code>/move</code> and <code>/house</code> commands — dashboard is desktop-first.</p>
+    <section id="page-home" class="page active"></section>
+    <section id="page-buy" class="page"></section>
+    <section id="page-move" class="page"></section>
+    <section id="page-temp" class="page"></section>
+    <section id="page-timeline" class="page"></section>
+    <section id="page-tasks" class="page"></section>
+  </main>
+  <footer>
+    <span id="sync-time">Loading…</span>
+    <button type="button" id="export-btn" class="secondary">Export to vault</button>
+    <button type="button" id="copy-export" class="secondary" style="display:none">Copy markdown</button>
+    <pre id="export-out"></pre>
+  </footer>
+  <script>
+    const PIPELINE = ['discovered','reviewing','visit_scheduled','visited','shortlisted','backup','rejected','offer'];
+    const PIPELINE_LABELS = {
+      discovered:'Discovered', reviewing:'Reviewing', visit_scheduled:'Visit sched.',
+      visited:'Visited', shortlisted:'Shortlisted', backup:'Backup', rejected:'Rejected', offer:'Offer'
+    };
+    const WS_LABELS = { sell:'Sell', move:'Move', temp_housing:'Temp housing', buy:'Buy' };
+    let lastExport = '';
+    let compareSelected = new Set();
+    let tempCompareSelected = new Set();
+    let tempEditingId = null;
+    const TEMP_STATUSES = ['researching','contacted','toured','shortlisted','booked','rejected'];
+    const TEMP_STATUS_LABELS = {
+      researching:'Researching', contacted:'Contacted', toured:'Toured',
+      shortlisted:'Shortlisted', booked:'Booked', rejected:'Rejected'
+    };
+
+    const pages = ['home','buy','move','temp','timeline','tasks'];
+    function showPage(name) {
+      pages.forEach(p => {
+        document.getElementById('page-' + p).classList.toggle('active', p === name);
+        document.querySelector(`nav a[data-page="${p}"]`)?.classList.toggle('active', p === name);
+      });
+      location.hash = name;
+    }
+    document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', e => {
+      e.preventDefault(); showPage(a.dataset.page);
+    }));
+    if (location.hash) showPage(location.hash.replace('#','') || 'home');
+
+    async function api(path, opts) {
+      const r = await fetch('/api/v1/' + path, opts);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    function sevBadge(s) {
+      const cls = s === 'critical' ? 'crit' : (s === 'high' ? 'high' : '');
+      return `<span class="badge ${cls}">${s}</span>`;
+    }
+
+    function fmtPrice(n) {
+      if (!n) return '';
+      return n >= 1e6 ? '$' + (n/1e6).toFixed(2).replace(/\.00$/,'') + 'M' : '$' + n.toLocaleString();
+    }
+
+    function propLinks(p) {
+      return [
+        p.listing_url ? `<a class="ext" href="${p.listing_url}" target="_blank">listing</a>` : '',
+        p.discord_forum_url ? `<a class="ext" href="${p.discord_forum_url}" target="_blank">forum</a>` : '',
+        p.sheet_row_url ? `<a class="ext" href="${p.sheet_row_url}" target="_blank">sheet</a>` : '',
+      ].filter(Boolean).join(' ');
+    }
+
+    async function patchProperty(id, status) {
+      await api('properties/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      renderBuy(); renderHome();
+    }
+
+    async function renderHeaderCountdown() {
+      const ms = await api('milestones');
+      document.getElementById('countdown').innerHTML = ms.map(m => {
+        const cls = m.days_until <= 7 ? 'urgent' : '';
+        return `<span class="${cls}">${m.label}: ${m.days_until}d</span>`;
+      }).join('');
+      document.getElementById('sync-time').textContent = 'Updated ' + new Date().toLocaleString();
+    }
+
+    async function renderHome() {
+      const s = await api('status');
+      const links = s.external_links || {};
+      const health = s.workstream_health || {};
+      const wsCards = Object.entries(health).map(([k, v]) => `
+        <div class="card ws-card">
+          <h2>${WS_LABELS[k] || k}</h2>
+          <div class="stat">${v.open_tasks ?? v.properties ?? 0}</div>
+          <p class="muted">${k === 'buy' ? 'properties indexed' : 'open tasks'}</p>
+          ${v.top_blocker ? `<p class="muted">Waiting: ${v.top_blocker}</p>` : ''}
+        </div>`).join('');
+      document.getElementById('page-home').innerHTML = `
+        <div class="grid">${wsCards}</div>
+        <div class="grid-2" style="margin-top:1rem">
+          <div class="card"><h2>Critical dates</h2>
+            ${s.milestones.map(m => `<div class="milestone"><strong>${m.label}</strong><br><span class="muted">${m.date} · ${m.days_until}d</span></div>`).join('')}
+          </div>
+          <div class="card"><h2>Next actions</h2>
+            <ul>${s.next_tasks.map(t => `<li>${t.title} <span class="muted">(${t.workstream}${t.due_date ? ', due '+t.due_date : ''})</span></li>`).join('') || '<li class="muted">None</li>'}</ul>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><h2>Waiting on</h2>
+            <ul>${(s.waiting||[]).map(t => `<li>${t.title} <span class="muted">${t.workstream}</span></li>`).join('') || '<li class="muted">Nothing blocked</li>'}</ul>
+          </div>
+          <div class="card"><h2>High risks</h2>
+            <ul>${s.risks.map(r => `<li>${sevBadge(r.severity)} ${r.title}</li>`).join('') || '<li class="muted">None</li>'}</ul>
+          </div>
+        </div>
+        <div class="card"><h2>Recent properties</h2>
+          <table><tr><th>Address</th><th>Status</th><th>Links</th></tr>
+            ${(s.recent_properties||[]).map(p => `<tr><td>${p.address_normalized}</td><td>${p.status}</td><td class="prop-links">${propLinks(p)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No properties yet</td></tr>'}
+          </table>
+        </div>
+        <div class="card"><h2>Quick links</h2>
+          ${links.google_sheet ? `<p><a class="ext" href="${links.google_sheet}" target="_blank">Google Sheet</a></p>` : ''}
+          ${links.discord_channel ? `<p><a class="ext" href="${links.discord_channel}" target="_blank">#coquitlam-2026</a></p>` : ''}
+          ${links.discord_forum ? `<p><a class="ext" href="${links.discord_forum}" target="_blank">#coquitlam-houses forum</a></p>` : ''}
+        </div>
+        <form id="add-task-form" class="inline">
+          <input name="title" placeholder="New task" required style="flex:2;min-width:180px"/>
+          <select name="workstream"><option value="move">move</option><option value="sell">sell</option><option value="temp_housing">temp_housing</option><option value="buy">buy</option></select>
+          <input name="due_date" type="date"/>
+          <select name="priority"><option value="normal">normal</option><option value="high">high</option><option value="critical">critical</option></select>
+          <button type="submit">Add task</button>
+        </form>`;
+      document.getElementById('add-task-form').onsubmit = async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        await api('tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.fromEntries(fd)) });
+        e.target.reset();
+        renderHome(); renderTasks(); renderMove();
+      };
+    }
+
+    async function renderBuy() {
+      const [props, criteria, status] = await Promise.all([
+        api('properties'), api('criteria'), api('house/status')
+      ]);
+      const links = status.external_links || {};
+      const byStatus = Object.fromEntries(PIPELINE.map(s => [s, []]));
+      props.forEach(p => { (byStatus[p.status] || byStatus.discovered).push(p); });
+      const compareList = [...compareSelected].map(id => props.find(p => p.id === id)).filter(Boolean);
+      const pipelineHtml = PIPELINE.filter(s => s !== 'offer' || byStatus.offer.length).map(st => `
+        <div class="pipe-col">
+          <h3>${PIPELINE_LABELS[st]} (${byStatus[st].length})</h3>
+          ${byStatus[st].map(p => `
+            <div class="prop-card">
+              <label style="font-size:.72rem;display:flex;gap:.35rem;align-items:center;margin-bottom:.25rem">
+                <input type="checkbox" data-compare="${p.id}" ${compareSelected.has(p.id)?'checked':''}/> compare
+              </label>
+              <strong>${p.address_normalized}</strong>
+              ${p.price ? `<span class="muted">${fmtPrice(p.price)}</span><br>` : ''}
+              <select data-prop="${p.id}" data-status>
+                ${PIPELINE.map(s => `<option value="${s}" ${p.status===s?'selected':''}>${PIPELINE_LABELS[s]}</option>`).join('')}
+              </select>
+              <div class="prop-links">${propLinks(p)}</div>
+              ${p.ai_summary ? `<p class="muted" style="margin:.35rem 0 0;font-size:.75rem">${p.ai_summary.slice(0,120)}…</p>` : ''}
+            </div>`).join('') || '<p class="muted" style="font-size:.75rem">—</p>'}
+        </div>`).join('');
+      document.getElementById('page-buy').innerHTML = `
+        <div class="compare-tray" id="compare-tray">
+          <strong>Compare tray</strong> — select 2–4 properties, then run LLM compare
+          <div class="muted" style="margin:.35rem 0">${compareList.map(p=>p.address_normalized).join(' · ') || 'None selected'}</div>
+          <button type="button" id="run-compare" ${compareList.length < 2 ? 'disabled' : ''}>Compare (${compareList.length})</button>
+          <button type="button" class="secondary" id="clear-compare">Clear</button>
+          <div id="compare-result" class="compare-result" style="display:none"></div>
+        </div>
+        <details open><summary>Search criteria</summary>
+          <div class="grid-2">
+            <div><h3>Must-haves</h3><ul>${(criteria.must_haves||[]).map(x=>`<li>${x}</li>`).join('')}</ul></div>
+            <div><h3>Red flags</h3><ul>${(criteria.red_flags||[]).map(x=>`<li>${x}</li>`).join('')}</ul></div>
+          </div>
+        </details>
+        <div class="card"><h2>Pipeline</h2><div class="pipeline">${pipelineHtml}</div></div>
+        <div class="card"><h2>Add from Redfin URL</h2>
+          <p class="muted">Sheet row + forum post + dashboard index (same as Discord <code>/house intake</code>).</p>
+          <form id="intake-form" class="inline">
+            <input name="listing_url" placeholder="https://www.redfin.ca/..." required style="flex:3;min-width:240px"/>
+            <button type="submit">Intake</button>
+          </form>
+          <p id="intake-result" class="muted"></p>
+        </div>
+        <div class="card"><h2>Sheet &amp; Discord</h2>
+          ${links.google_sheet ? `<p><a class="ext" href="${links.google_sheet}" target="_blank">Google Sheet</a></p>` : ''}
+          ${links.discord_forum ? `<p><a class="ext" href="${links.discord_forum}" target="_blank">#coquitlam-houses forum</a></p>` : ''}
+        </div>`;
+      document.querySelectorAll('[data-status]').forEach(sel => {
+        sel.onchange = () => patchProperty(sel.dataset.prop, sel.value);
+      });
+      document.querySelectorAll('[data-compare]').forEach(cb => {
+        cb.onchange = () => {
+          if (cb.checked) {
+            if (compareSelected.size >= 4) { cb.checked = false; return; }
+            compareSelected.add(cb.dataset.compare);
+          } else {
+            compareSelected.delete(cb.dataset.compare);
+          }
+          renderBuy();
+        };
+      });
+      document.getElementById('clear-compare')?.addEventListener('click', () => {
+        compareSelected.clear();
+        renderBuy();
+      });
+      document.getElementById('run-compare')?.addEventListener('click', async () => {
+        const out = document.getElementById('compare-result');
+        out.style.display = 'block';
+        out.textContent = 'Calling vLLM…';
+        try {
+          const r = await api('house/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ property_ids: [...compareSelected] }),
+          });
+          out.textContent = r.comparison + (r.model === 'fallback' ? '\n\n(LLM unavailable — property list only)' : '');
+        } catch (err) {
+          out.textContent = 'Error: ' + err.message;
+        }
+      });
+      document.getElementById('intake-form').onsubmit = async e => {
+        e.preventDefault();
+        const url = new FormData(e.target).get('listing_url');
+        const out = document.getElementById('intake-result');
+        out.textContent = 'Running intake…';
+        try {
+          const r = await api('house/intake', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ listing_url: url }) });
+          const forum = r.forum_url || r.property?.discord_forum_url;
+          const forumNote = forum ? `<a class="ext" href="${forum}">forum</a>` : (r.forum_error ? `forum failed: ${r.forum_error}` : '');
+          out.innerHTML = `Added <strong>${r.property.address_normalized}</strong> — MLS ${r.parsed?.mls || '—'}, ${r.parsed?.neighborhood || ''} <a class="ext" href="${r.property.sheet_row_url||'#'}">sheet</a> ${forumNote}`;
+          renderBuy(); renderHome();
+        } catch (err) {
+          out.textContent = 'Error: ' + err.message;
+        }
+      };
+    }
+
+    async function renderMove() {
+      const [checklist, tasks] = await Promise.all([
+        api('checklist/move'), api('tasks?workstream=move')
+      ]);
+      const groups = checklist.groups.map(g => `
+        <div class="card"><h3>${g.group}</h3>
+          <div class="checklist">${g.items.map(it => `
+            <label><input type="checkbox" data-key="${it.key}" ${it.done?'checked':''}/> ${it.label}</label>`).join('')}
+          </div>
+        </div>`).join('');
+      document.getElementById('page-move').innerHTML = `
+        <div class="card"><h2>Handover — Jul 16</h2><p class="muted">Possession handoff target. Checklist + move tasks below.</p></div>
+        <div class="grid-2">${groups}</div>
+        <div class="card"><h2>Move tasks</h2>
+          <ul>${tasks.filter(t=>t.status!=='done').map(t=>`<li>${t.title} <span class="muted">${t.status}${t.due_date?' · due '+t.due_date:''}</span></li>`).join('') || '<li class="muted">No open move tasks</li>'}</ul>
+        </div>`;
+      document.querySelectorAll('.checklist input').forEach(cb => {
+        cb.onchange = async () => {
+          await api('checklist/move/' + encodeURIComponent(cb.dataset.key) + '?done=' + cb.checked, { method: 'PATCH' });
+        };
+      });
+    }
+
+    async function patchTemp(id, body) {
+      await api('temp-housing/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      renderTemp();
+    }
+
+    function fillTempAddForm(p) {
+      const f = document.getElementById('temp-form');
+      if (!f || !p) return;
+      f.name.value = p.name || '';
+      f.listing_url.value = p.listing_url || '';
+      f.monthly_cost.value = p.monthly_cost || '';
+      f.status.value = p.status || 'researching';
+      f.querySelector('[name=parking]').checked = !!p.parking;
+      f.querySelector('[name=dog_ok]').checked = !!p.dog_ok;
+      f.available_from.value = p.available_from || '';
+      f.available_to.value = p.available_to || '';
+      f.transit_to_sfu_notes.value = p.transit_to_sfu_notes || '';
+      f.notes.value = p.notes || '';
+      f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      f.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { f.style.outline = ''; }, 2000);
+    }
+
+    async function intakeTempUrl(url, save) {
+      const out = document.getElementById('temp-url-result');
+      out.textContent = 'Fetching page + calling vLLM…';
+      const r = await api('temp-housing/intake-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listing_url: url, save }),
+      });
+      const p = r.parsed || {};
+      const conf = p.confidence ? ` (${p.confidence} confidence)` : '';
+      const fetchNote = r.fetch_status && r.fetch_status !== 'ok'
+        ? ' Page fetch failed — filled from URL/LLM guess; verify fields.'
+        : '';
+      if (save && r.candidate) {
+        out.textContent = `Added ${r.candidate.name}${conf}.${fetchNote}`;
+        tempEditingId = null;
+        renderTemp();
+        return;
+      }
+      fillTempAddForm(p);
+      out.textContent = `Prefilled form for ${p.name || 'listing'}${conf}.${fetchNote} Edit, then click Add candidate.`;
+    }
+
+    async function renderTemp() {
+      const [items, reqs] = await Promise.all([api('temp-housing'), api('temp-housing/requirements')]);
+      const budget = reqs.budget_min && reqs.budget_max
+        ? `$${reqs.budget_min.toLocaleString()}–$${reqs.budget_max.toLocaleString()}/mo`
+        : '$5k–$8k/mo';
+      const compareList = [...tempCompareSelected].map(id => items.find(i => i.id === id)).filter(Boolean);
+      const cards = items.map(i => {
+        const editing = tempEditingId === i.id;
+        if (editing) {
+          return `<div class="temp-card editing" data-id="${i.id}">
+            <form class="temp-edit-form">
+              <div class="inline" style="flex-direction:column;align-items:stretch">
+                <input name="name" value="${esc(i.name)}" required placeholder="Name / area"/>
+                <input name="listing_url" value="${esc(i.listing_url||'')}" placeholder="Listing URL"/>
+                <div class="inline">
+                  <input name="monthly_cost" type="number" value="${i.monthly_cost||''}" placeholder="$/mo" style="width:100px"/>
+                  <select name="status">${TEMP_STATUSES.map(s=>`<option value="${s}" ${i.status===s?'selected':''}>${TEMP_STATUS_LABELS[s]}</option>`).join('')}</select>
+                  <label><input type="checkbox" name="parking" ${i.parking?'checked':''}/> parking</label>
+                  <label><input type="checkbox" name="dog_ok" ${i.dog_ok?'checked':''}/> dog ok</label>
+                </div>
+                <div class="inline">
+                  <input name="available_from" type="date" value="${i.available_from||''}" title="Available from"/>
+                  <input name="available_to" type="date" value="${i.available_to||''}" title="Available to"/>
+                </div>
+                <input name="transit_to_sfu_notes" value="${esc(i.transit_to_sfu_notes||'')}" placeholder="SFU transit notes"/>
+                <textarea name="notes" placeholder="Notes">${esc(i.notes||'')}</textarea>
+                <div class="inline">
+                  <button type="submit">Save</button>
+                  <button type="button" class="secondary" data-cancel-edit="${i.id}">Cancel</button>
+                </div>
+              </div>
+            </form>
+          </div>`;
+        }
+        return `<div class="temp-card" data-id="${i.id}">
+          <label style="font-size:.72rem;display:flex;gap:.35rem;align-items:center">
+            <input type="checkbox" data-temp-compare="${i.id}" ${tempCompareSelected.has(i.id)?'checked':''}/> compare
+          </label>
+          <strong>${i.listing_url ? `<a class="ext" href="${i.listing_url}" target="_blank">${esc(i.name)}</a>` : esc(i.name)}</strong>
+          <div class="temp-meta">
+            <span>${i.monthly_cost ? fmtPrice(i.monthly_cost)+'/mo' : 'cost TBD'}</span>
+            <span>parking: ${i.parking ? 'yes' : 'no'}</span>
+            <span>dog: ${i.dog_ok ? 'ok' : '—'}</span>
+            <span>${i.available_from || i.available_to ? `avail ${i.available_from||'?'} → ${i.available_to||'?'}` : 'dates TBD'}</span>
+          </div>
+          <select data-temp-status="${i.id}" style="margin:.35rem 0;font-size:.82rem">
+            ${TEMP_STATUSES.map(s=>`<option value="${s}" ${i.status===s?'selected':''}>${TEMP_STATUS_LABELS[s]}</option>`).join('')}
+          </select>
+          ${i.transit_to_sfu_notes ? `<p class="muted" style="margin:.25rem 0;font-size:.8rem">Transit: ${esc(i.transit_to_sfu_notes)}</p>` : ''}
+          ${i.notes ? `<p class="muted" style="margin:.25rem 0;font-size:.8rem">${esc(i.notes)}</p>` : ''}
+          <div class="temp-actions">
+            <button type="button" class="secondary" data-edit-temp="${i.id}">Edit</button>
+            <button type="button" class="secondary" data-eval-temp="${i.id}">Ask LLM</button>
+            <button type="button" class="secondary" data-del-temp="${i.id}">Delete</button>
+          </div>
+          <div id="temp-eval-${i.id}" class="llm-out" style="display:none"></div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('page-temp').innerHTML = `
+        <div class="card"><h2>Requirements</h2>
+          <p>${budget} · up to ${reqs.duration_months||3} months · family of ${reqs.occupants||4} · parking · ${reqs.transit_note||'SFU transit for Ellowyn'} · dog optional</p>
+        </div>
+        <div class="card"><h2>Import from URL</h2>
+          <p class="muted">Craigslist, Airbnb, Rentals.ca, Facebook Marketplace, etc. — fetches the page and uses vLLM to pre-fill the add form.</p>
+          <form id="temp-url-form" class="inline">
+            <input name="listing_url" placeholder="https://..." required style="flex:3;min-width:240px"/>
+            <button type="submit">Prefill form</button>
+            <button type="button" id="temp-url-save" class="secondary">Import &amp; add</button>
+          </form>
+          <p id="temp-url-result" class="muted"></p>
+        </div>
+        <div class="compare-tray">
+          <strong>Compare candidates</strong> — select 2–4, then run LLM compare
+          <div class="muted" style="margin:.35rem 0">${compareList.map(i=>i.name).join(' · ') || 'None selected'}</div>
+          <button type="button" id="temp-run-compare" ${compareList.length < 2 ? 'disabled' : ''}>Compare (${compareList.length})</button>
+          <button type="button" class="secondary" id="temp-clear-compare">Clear</button>
+          <div id="temp-compare-result" class="llm-out" style="display:none"></div>
+        </div>
+        <div class="card"><h2>Candidates (${items.length})</h2>
+          ${cards || '<p class="muted">No candidates yet — add one below.</p>'}
+        </div>
+        <div class="card"><h2>Add candidate</h2>
+          <form id="temp-form" class="inline" style="flex-direction:column;align-items:stretch">
+            <input name="name" placeholder="Name / area" required/>
+            <input name="listing_url" placeholder="Listing URL"/>
+            <div class="inline">
+              <input name="monthly_cost" type="number" placeholder="$/mo"/>
+              <select name="status">${TEMP_STATUSES.map(s=>`<option value="${s}">${TEMP_STATUS_LABELS[s]}</option>`).join('')}</select>
+              <label><input type="checkbox" name="parking"/> parking</label>
+              <label><input type="checkbox" name="dog_ok"/> dog ok</label>
+            </div>
+            <div class="inline">
+              <input name="available_from" type="date" title="Available from"/>
+              <input name="available_to" type="date" title="Available to"/>
+            </div>
+            <input name="transit_to_sfu_notes" placeholder="SFU transit notes"/>
+            <textarea name="notes" placeholder="Notes"></textarea>
+            <button type="submit">Add candidate</button>
+          </form>
+        </div>`;
+
+      document.getElementById('temp-url-form')?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const url = new FormData(e.target).get('listing_url');
+        try {
+          await intakeTempUrl(url, false);
+        } catch (err) {
+          document.getElementById('temp-url-result').textContent = 'Error: ' + err.message;
+        }
+      });
+      document.getElementById('temp-url-save')?.addEventListener('click', async () => {
+        const form = document.getElementById('temp-url-form');
+        const url = new FormData(form).get('listing_url');
+        if (!url) { document.getElementById('temp-url-result').textContent = 'Enter a URL first.'; return; }
+        try {
+          await intakeTempUrl(url, true);
+        } catch (err) {
+          document.getElementById('temp-url-result').textContent = 'Error: ' + err.message;
+        }
+      });
+
+      document.querySelectorAll('[data-temp-status]').forEach(sel => {
+        sel.onchange = () => patchTemp(sel.dataset.tempStatus, { status: sel.value });
+      });
+      document.querySelectorAll('[data-temp-compare]').forEach(cb => {
+        cb.onchange = () => {
+          if (cb.checked) {
+            if (tempCompareSelected.size >= 4) { cb.checked = false; return; }
+            tempCompareSelected.add(cb.dataset.tempCompare);
+          } else {
+            tempCompareSelected.delete(cb.dataset.tempCompare);
+          }
+          renderTemp();
+        };
+      });
+      document.getElementById('temp-clear-compare')?.addEventListener('click', () => {
+        tempCompareSelected.clear();
+        renderTemp();
+      });
+      document.getElementById('temp-run-compare')?.addEventListener('click', async () => {
+        const out = document.getElementById('temp-compare-result');
+        out.style.display = 'block';
+        out.textContent = 'Calling vLLM…';
+        try {
+          const r = await api('temp-housing/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_ids: [...tempCompareSelected] }),
+          });
+          out.textContent = r.comparison + (r.model === 'fallback' ? '\n\n(LLM unavailable)' : '');
+        } catch (err) {
+          out.textContent = 'Error: ' + err.message;
+        }
+      });
+      document.querySelectorAll('[data-edit-temp]').forEach(btn => {
+        btn.onclick = () => { tempEditingId = btn.dataset.editTemp; renderTemp(); };
+      });
+      document.querySelectorAll('[data-cancel-edit]').forEach(btn => {
+        btn.onclick = () => { tempEditingId = null; renderTemp(); };
+      });
+      document.querySelectorAll('.temp-edit-form').forEach(form => {
+        form.onsubmit = async e => {
+          e.preventDefault();
+          const card = e.target.closest('.temp-card');
+          const fd = new FormData(e.target);
+          const body = Object.fromEntries(fd.entries());
+          body.parking = !!e.target.querySelector('[name=parking]')?.checked;
+          body.dog_ok = !!e.target.querySelector('[name=dog_ok]')?.checked;
+          if (body.monthly_cost) body.monthly_cost = Number(body.monthly_cost);
+          else delete body.monthly_cost;
+          ['listing_url','transit_to_sfu_notes','notes','available_from','available_to'].forEach(k => {
+            if (!body[k]) delete body[k];
+          });
+          await patchTemp(card.dataset.id, body);
+          tempEditingId = null;
+        };
+      });
+      document.querySelectorAll('[data-eval-temp]').forEach(btn => {
+        btn.onclick = async () => {
+          const out = document.getElementById('temp-eval-' + btn.dataset.evalTemp);
+          out.style.display = 'block';
+          out.textContent = 'Calling vLLM…';
+          try {
+            const r = await api('temp-housing/' + btn.dataset.evalTemp + '/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+            });
+            out.textContent = r.evaluation + (r.model === 'fallback' ? '\n\n(LLM unavailable)' : '');
+          } catch (err) {
+            out.textContent = 'Error: ' + err.message;
+          }
+        };
+      });
+      document.querySelectorAll('[data-del-temp]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Delete this candidate?')) return;
+          await api('temp-housing/' + btn.dataset.delTemp, { method: 'DELETE' });
+          tempCompareSelected.delete(btn.dataset.delTemp);
+          if (tempEditingId === btn.dataset.delTemp) tempEditingId = null;
+          renderTemp();
+        };
+      });
+      document.getElementById('temp-form').onsubmit = async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const body = Object.fromEntries(fd.entries());
+        body.parking = !!e.target.querySelector('[name=parking]').checked;
+        body.dog_ok = !!e.target.querySelector('[name=dog_ok]').checked;
+        if (body.monthly_cost) body.monthly_cost = Number(body.monthly_cost);
+        else delete body.monthly_cost;
+        ['listing_url','transit_to_sfu_notes','notes','available_from','available_to'].forEach(k => {
+          if (!body[k]) delete body[k];
+        });
+        await api('temp-housing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        e.target.reset();
+        renderTemp();
+      };
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    }
+
+    function buildMonthGrid(year, month, eventsByDate, todayStr) {
+      const first = new Date(year, month - 1, 1);
+      const startDow = first.getDay();
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const title = first.toLocaleString('default', { month: 'long', year: 'numeric' });
+      let html = `<div class="cal-month"><h3>${title}</h3><div class="cal-grid">`;
+      ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => { html += `<div class="cal-head">${d}</div>`; });
+      for (let i = 0; i < startDow; i++) html += `<div class="cal-day other"></div>`;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const ds = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const evs = eventsByDate[ds] || [];
+        const cls = [ds === todayStr ? 'today' : ''].filter(Boolean).join(' ');
+        html += `<div class="cal-day ${cls}"><span class="num">${day}</span>`;
+        evs.slice(0, 2).forEach(ev => {
+          html += `<span class="cal-dot ${ev.kind==='milestone'?'milestone':''}" title="${ev.label}">${ev.label.slice(0,18)}</span>`;
+        });
+        if (evs.length > 2) html += `<span class="cal-dot muted">+${evs.length-2}</span>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+      return html;
+    }
+
+    async function renderTimeline() {
+      const data = await api('timeline?months=3');
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const eventsByDate = {};
+      (data.events || []).forEach(ev => {
+        (eventsByDate[ev.date] ||= []).push(ev);
+      });
+      const now = new Date();
+      let grids = '';
+      for (let m = 0; m < 3; m++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+        grids += buildMonthGrid(d.getFullYear(), d.getMonth() + 1, eventsByDate, todayStr);
+      }
+      const list = (data.events || []).filter(ev => ev.date >= todayStr || ev.kind === 'milestone').slice(0, 30);
+      document.getElementById('page-timeline').innerHTML = `
+        <div class="grid-2">
+          <div class="card"><h2>Calendar</h2>${grids}</div>
+          <div class="card"><h2>Upcoming</h2><ul>
+            ${list.map(ev => `<li><strong>${ev.date}</strong> · ${ev.label} <span class="badge">${ev.kind}</span></li>`).join('') || '<li class="muted">Nothing scheduled</li>'}
+          </ul></div>
+        </div>`;
+    }
+
+    let tasksTab = 'open';
+    async function renderTasks() {
+      const [tasks, risks, decisions] = await Promise.all([api('tasks'), api('risks'), api('decisions')]);
+      const filtered = tasksTab === 'waiting' ? tasks.filter(t=>t.status==='waiting')
+        : tasksTab === 'open' ? tasks.filter(t=>!['done','cancelled'].includes(t.status)) : tasks;
+      document.getElementById('page-tasks').innerHTML = `
+        <div class="tabs">
+          <button type="button" data-tab="open" class="${tasksTab==='open'?'active':''}">Open</button>
+          <button type="button" data-tab="waiting" class="${tasksTab==='waiting'?'active':''}">Waiting</button>
+          <button type="button" data-tab="all" class="${tasksTab==='all'?'active':''}">All</button>
+        </div>
+        <div class="card"><h2>Tasks</h2>
+          <table><tr><th>Title</th><th>Stream</th><th>Status</th><th>Due</th><th></th></tr>
+            ${filtered.map(t=>`<tr><td>${t.title}</td><td>${t.workstream}</td><td>${t.status}</td><td>${t.due_date||''}</td>
+            <td>${t.status!=='done'?`<button data-done="${t.id}" class="secondary">Done</button>`:''}</td></tr>`).join('')}
+          </table></div>
+        <div class="card"><h2>Risk register</h2>
+          <ul>${risks.map(r=>`<li>${sevBadge(r.severity)} ${r.title} — <span class="muted">${r.mitigation||''}</span> (${r.status})</li>`).join('')}</ul>
+        </div>
+        <div class="card"><h2>Decision log</h2>
+          <form id="decision-form" class="inline" style="flex-direction:column;align-items:stretch">
+            <input name="question" placeholder="Question / decision topic" required/>
+            <input name="outcome" placeholder="Outcome" required/>
+            <textarea name="rationale" placeholder="Rationale (optional)"></textarea>
+            <div class="inline">
+              <select name="workstream"><option value="">workstream</option><option value="sell">sell</option><option value="move">move</option><option value="buy">buy</option><option value="temp_housing">temp_housing</option></select>
+              <input name="date" type="date"/>
+              <button type="submit">Log decision</button>
+            </div>
+          </form>
+          <table style="margin-top:1rem"><tr><th>Date</th><th>Question</th><th>Outcome</th></tr>
+            ${decisions.map(d=>`<tr><td>${d.date}</td><td>${d.question}</td><td>${d.outcome}${d.rationale?`<br><span class="muted">${d.rationale}</span>`:''}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No decisions logged</td></tr>'}
+          </table>
+        </div>`;
+      document.getElementById('decision-form')?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const body = Object.fromEntries(fd);
+        if (!body.workstream) delete body.workstream;
+        if (!body.date) delete body.date;
+        if (!body.rationale) delete body.rationale;
+        await api('decisions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        e.target.reset();
+        renderTasks();
+      });
+      document.querySelectorAll('.tabs button').forEach(btn => btn.onclick = () => { tasksTab = btn.dataset.tab; renderTasks(); });
+      document.querySelectorAll('[data-done]').forEach(btn => btn.onclick = async () => {
+        await api('tasks/' + btn.dataset.done, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'done'}) });
+        renderTasks(); renderHome(); renderMove();
+      });
+    }
+
+    document.getElementById('export-btn').onclick = async () => {
+      const data = await api('export/vault');
+      lastExport = data.markdown;
+      const out = document.getElementById('export-out');
+      out.style.display = 'block';
+      out.textContent = data.markdown;
+      document.getElementById('copy-export').style.display = 'inline-block';
+    };
+    document.getElementById('copy-export').onclick = async () => {
+      await navigator.clipboard.writeText(lastExport);
+      document.getElementById('copy-export').textContent = 'Copied!';
+      setTimeout(() => document.getElementById('copy-export').textContent = 'Copy markdown', 2000);
+    };
+
+    async function init() {
+      await renderHeaderCountdown();
+      await Promise.all([renderHome(), renderBuy(), renderMove(), renderTemp(), renderTimeline(), renderTasks()]);
+    }
+    init();
+  </script>
+</body>
+</html>
