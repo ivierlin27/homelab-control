@@ -1,0 +1,305 @@
+{
+  "finished_at": "2026-05-27T11:30:42-0700",
+  "gpu_after": [
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1695.0,
+      "index": 0,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 11829.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 131.26,
+      "temp.gpu_c": 60.0,
+      "util.gpu_pct": 0.0
+    },
+    {
+      "clock.mem_mhz": 9501.0,
+      "clock.sm_mhz": 1935.0,
+      "index": 1,
+      "memory.total_mib": 24576.0,
+      "memory.used_mib": 13151.0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "power.draw_w": 189.0,
+      "temp.gpu_c": 66.0,
+      "util.gpu_pct": 0.0
+    }
+  ],
+  "meta": {
+    "base_url": "http://127.0.0.1:8002/v1",
+    "gpu_before": [
+      {
+        "clock.mem_mhz": 9501.0,
+        "clock.sm_mhz": 1695.0,
+        "index": 0,
+        "memory.total_mib": 24576.0,
+        "memory.used_mib": 11807.0,
+        "name": "NVIDIA GeForce RTX 3090",
+        "power.draw_w": 111.98,
+        "temp.gpu_c": 55.0,
+        "util.gpu_pct": 0.0
+      },
+      {
+        "clock.mem_mhz": 9501.0,
+        "clock.sm_mhz": 1965.0,
+        "index": 1,
+        "memory.total_mib": 24576.0,
+        "memory.used_mib": 12633.0,
+        "name": "NVIDIA GeForce RTX 3090",
+        "power.draw_w": 145.94,
+        "temp.gpu_c": 56.0,
+        "util.gpu_pct": 0.0
+      }
+    ],
+    "kind": "meta",
+    "model": "lab-qwen36-35b-mtp-d2",
+    "model_key": "qwen36-35b-mtp-llamacpp-d2",
+    "repeats": 10,
+    "started_at": "2026-05-27T11:30:00-0700",
+    "test_ids": [
+      "short_ops_summary",
+      "code_config_review",
+      "structured_json_contract",
+      "tool_call_contract",
+      "long_context_31k",
+      "long_context_60k"
+    ],
+    "vllm_metrics_before": {},
+    "warmup": 2
+  },
+  "per_test": {
+    "code_config_review": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 300.0,
+        "mean": 300.0,
+        "min": 300.0,
+        "n": 8,
+        "p50": 300.0,
+        "p95": 300.0,
+        "p99": 300.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0246,
+        "max": 161.12,
+        "mean": 154.805,
+        "min": 148.44,
+        "n": 8,
+        "p50": 154.78,
+        "p95": 159.9055,
+        "p99": 160.8771,
+        "stdev": 3.8121
+      },
+      "latency_ms": {
+        "cv": 0.0247,
+        "max": 2021,
+        "mean": 1939.125,
+        "min": 1862,
+        "n": 8,
+        "p50": 1938.5,
+        "p95": 2005.6,
+        "p99": 2017.92,
+        "stdev": 47.8002
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 101.0,
+        "mean": 101.0,
+        "min": 101.0,
+        "n": 8,
+        "p50": 101.0,
+        "p95": 101.0,
+        "p99": 101.0,
+        "stdev": 0.0
+      }
+    },
+    "long_context_31k": {
+      "attempts": 8,
+      "completion_tokens": {
+        "n": 0
+      },
+      "decode_tok_s": {
+        "n": 0
+      },
+      "latency_ms": {
+        "n": 0
+      },
+      "ok_count": 0,
+      "ok_rate": 0.0,
+      "prompt_tokens": {
+        "n": 0
+      }
+    },
+    "long_context_60k": {
+      "attempts": 8,
+      "completion_tokens": {
+        "n": 0
+      },
+      "decode_tok_s": {
+        "n": 0
+      },
+      "latency_ms": {
+        "n": 0
+      },
+      "ok_count": 0,
+      "ok_rate": 0.0,
+      "prompt_tokens": {
+        "n": 0
+      }
+    },
+    "short_ops_summary": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0621,
+        "max": 220.0,
+        "mean": 210.25,
+        "min": 186.0,
+        "n": 8,
+        "p50": 220.0,
+        "p95": 220.0,
+        "p99": 220.0,
+        "stdev": 13.0552
+      },
+      "decode_tok_s": {
+        "cv": 0.0332,
+        "max": 149.46,
+        "mean": 142.65,
+        "min": 136.31,
+        "n": 8,
+        "p50": 142.935,
+        "p95": 149.1415,
+        "p99": 149.3963,
+        "stdev": 4.7318
+      },
+      "latency_ms": {
+        "cv": 0.0738,
+        "max": 1614,
+        "mean": 1475.875,
+        "min": 1282,
+        "n": 8,
+        "p50": 1476.5,
+        "p95": 1613.3,
+        "p99": 1613.86,
+        "stdev": 108.9099
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 58.0,
+        "mean": 58.0,
+        "min": 58.0,
+        "n": 8,
+        "p50": 58.0,
+        "p95": 58.0,
+        "p99": 58.0,
+        "stdev": 0.0
+      }
+    },
+    "structured_json_contract": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0355,
+        "max": 51.0,
+        "mean": 48.25,
+        "min": 47.0,
+        "n": 8,
+        "p50": 47.0,
+        "p95": 51.0,
+        "p99": 51.0,
+        "stdev": 1.7139
+      },
+      "decode_tok_s": {
+        "cv": 0.0136,
+        "max": 149.85,
+        "mean": 144.7463,
+        "min": 143.29,
+        "n": 8,
+        "p50": 144.17,
+        "p95": 148.0195,
+        "p99": 149.4839,
+        "stdev": 1.9727
+      },
+      "json_validity_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0358,
+        "max": 355,
+        "mean": 333.375,
+        "min": 325,
+        "n": 8,
+        "p50": 327.0,
+        "p95": 354.3,
+        "p99": 354.86,
+        "stdev": 11.9471
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 62.0,
+        "mean": 62.0,
+        "min": 62.0,
+        "n": 8,
+        "p50": 62.0,
+        "p95": 62.0,
+        "p99": 62.0,
+        "stdev": 0.0
+      },
+      "schema_pass_rate": 1.0
+    },
+    "tool_call_contract": {
+      "attempts": 8,
+      "completion_tokens": {
+        "cv": 0.0,
+        "max": 41.0,
+        "mean": 41.0,
+        "min": 41.0,
+        "n": 8,
+        "p50": 41.0,
+        "p95": 41.0,
+        "p99": 41.0,
+        "stdev": 0.0
+      },
+      "decode_tok_s": {
+        "cv": 0.0083,
+        "max": 158.3,
+        "mean": 156.2,
+        "min": 154.14,
+        "n": 8,
+        "p50": 155.89,
+        "p95": 158.0865,
+        "p99": 158.2573,
+        "stdev": 1.298
+      },
+      "latency_ms": {
+        "cv": 0.0083,
+        "max": 266,
+        "mean": 262.5,
+        "min": 259,
+        "n": 8,
+        "p50": 263.0,
+        "p95": 265.3,
+        "p99": 265.86,
+        "stdev": 2.1794
+      },
+      "ok_count": 8,
+      "ok_rate": 1.0,
+      "prompt_tokens": {
+        "cv": 0.0,
+        "max": 326.0,
+        "mean": 326.0,
+        "min": 326.0,
+        "n": 8,
+        "p50": 326.0,
+        "p95": 326.0,
+        "p99": 326.0,
+        "stdev": 0.0
+      },
+      "tool_call_match_rate": 1.0
+    }
+  },
+  "vllm_metrics_after": {}
+}
