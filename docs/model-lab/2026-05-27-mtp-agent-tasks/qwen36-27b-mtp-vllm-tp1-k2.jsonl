@@ -1,0 +1,2 @@
+{"task_id": "pr_review", "model_key": "qwen36-27b-mtp-vllm-tp1-k2", "wall_s": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "response": "", "rubric": {}, "error": "<urlopen error [Errno 111] Connection refused>"}
+{"task_id": "tool_chain", "model_key": "qwen36-27b-mtp-vllm-tp1-k2", "wall_s": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "response": "", "rubric": {}, "error": "<urlopen error [Errno 111] Connection refused>"}

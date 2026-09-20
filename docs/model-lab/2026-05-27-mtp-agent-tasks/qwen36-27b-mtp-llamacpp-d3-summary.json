@@ -1,0 +1,19 @@
+{
+  "model_key": "qwen36-27b-mtp-llamacpp-d3",
+  "tasks": {
+    "pr_review": {
+      "wall_s": 6.58,
+      "completion_tokens": 322,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "tool_chain": {
+      "wall_s": 1.32,
+      "completion_tokens": 59,
+      "rubric_pass": 2,
+      "rubric_total": 2,
+      "error": ""
+    }
+  }
+}

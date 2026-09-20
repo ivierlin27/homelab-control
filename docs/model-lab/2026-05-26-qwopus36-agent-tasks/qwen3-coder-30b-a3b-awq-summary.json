@@ -1,0 +1,40 @@
+{
+  "model_key": "qwen3-coder-30b-a3b-awq",
+  "tasks": {
+    "pr_review": {
+      "wall_s": 2.28,
+      "completion_tokens": 300,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "finance_categorize": {
+      "wall_s": 1.62,
+      "completion_tokens": 273,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "incident_triage": {
+      "wall_s": 1.47,
+      "completion_tokens": 251,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "tool_chain": {
+      "wall_s": 2.48,
+      "completion_tokens": 430,
+      "rubric_pass": 2,
+      "rubric_total": 2,
+      "error": ""
+    },
+    "structured_json": {
+      "wall_s": 1.18,
+      "completion_tokens": 202,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    }
+  }
+}

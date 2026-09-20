@@ -1,0 +1,19 @@
+{
+  "model_key": "qwen36-27b-awq-tp1-baseline",
+  "tasks": {
+    "pr_review": {
+      "wall_s": 0.0,
+      "completion_tokens": 0,
+      "rubric_pass": 0,
+      "rubric_total": 0,
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "tool_chain": {
+      "wall_s": 0.0,
+      "completion_tokens": 0,
+      "rubric_pass": 0,
+      "rubric_total": 0,
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    }
+  }
+}

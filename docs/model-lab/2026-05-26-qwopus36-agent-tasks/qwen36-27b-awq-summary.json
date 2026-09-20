@@ -1,0 +1,40 @@
+{
+  "model_key": "qwen36-27b-awq",
+  "tasks": {
+    "pr_review": {
+      "wall_s": 8.72,
+      "completion_tokens": 437,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "finance_categorize": {
+      "wall_s": 1.44,
+      "completion_tokens": 76,
+      "rubric_pass": 2,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "incident_triage": {
+      "wall_s": 5.63,
+      "completion_tokens": 347,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "tool_chain": {
+      "wall_s": 0.97,
+      "completion_tokens": 56,
+      "rubric_pass": 2,
+      "rubric_total": 2,
+      "error": ""
+    },
+    "structured_json": {
+      "wall_s": 2.99,
+      "completion_tokens": 185,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    }
+  }
+}

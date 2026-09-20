@@ -1,0 +1,85 @@
+{
+  "model": "lab-qwopus36-35b-mxfp4",
+  "model_key": "qwopus36-35b-mxfp4-gpu0",
+  "overall_args_rate": 1.0,
+  "overall_selection_rate": 1.0,
+  "per_case": {
+    "logs_with_since": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0621,
+        "max": 1597,
+        "mean": 1468.0,
+        "min": 1403,
+        "n": 3,
+        "p50": 1404.0,
+        "p95": 1577.7,
+        "p99": 1593.14,
+        "stdev": 91.2177
+      },
+      "selection_rate": 1.0
+    },
+    "no_tool_needed": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.031,
+        "max": 2967,
+        "mean": 2842.3333,
+        "min": 2779,
+        "n": 3,
+        "p50": 2781.0,
+        "p95": 2948.4,
+        "p99": 2963.28,
+        "stdev": 88.1564
+      },
+      "selection_rate": 1.0
+    },
+    "search_default_limit": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.1058,
+        "max": 891,
+        "mean": 775.0,
+        "min": 717,
+        "n": 3,
+        "p50": 717.0,
+        "p95": 873.6,
+        "p99": 887.52,
+        "stdev": 82.0244
+      },
+      "selection_rate": 1.0
+    },
+    "simple_gpu_memory": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0813,
+        "max": 1080,
+        "mean": 968.6667,
+        "min": 912,
+        "n": 3,
+        "p50": 914.0,
+        "p95": 1063.4,
+        "p99": 1076.68,
+        "stdev": 78.7288
+      },
+      "selection_rate": 1.0
+    },
+    "simple_restart": {
+      "args_rate": 1.0,
+      "latency_ms": {
+        "cv": 0.0973,
+        "max": 1168,
+        "mean": 1026.6667,
+        "min": 956,
+        "n": 3,
+        "p50": 956.0,
+        "p95": 1146.8,
+        "p99": 1163.76,
+        "stdev": 99.9378
+      },
+      "selection_rate": 1.0
+    }
+  },
+  "repeats": 3,
+  "started_at": "2026-05-26T18:14:19-0700"
+}

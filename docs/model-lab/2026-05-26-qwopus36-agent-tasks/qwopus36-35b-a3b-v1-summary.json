@@ -1,0 +1,40 @@
+{
+  "model_key": "qwopus36-35b-a3b-v1",
+  "tasks": {
+    "pr_review": {
+      "wall_s": 5.22,
+      "completion_tokens": 473,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "finance_categorize": {
+      "wall_s": 2.08,
+      "completion_tokens": 293,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "incident_triage": {
+      "wall_s": 2.87,
+      "completion_tokens": 407,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    },
+    "tool_chain": {
+      "wall_s": 0.49,
+      "completion_tokens": 61,
+      "rubric_pass": 2,
+      "rubric_total": 2,
+      "error": ""
+    },
+    "structured_json": {
+      "wall_s": 1.29,
+      "completion_tokens": 178,
+      "rubric_pass": 3,
+      "rubric_total": 3,
+      "error": ""
+    }
+  }
+}
