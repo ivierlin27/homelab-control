@@ -1,20 +1,25 @@
-# Finance UI (F7) — read-only Beancount browser on Alienware.
-# Reverse proxy + Authentik OIDC are operator steps (see docs/runbooks/fava.md).
+# Finance UI (F7) — read-only Beancount browser on CT 107.
+# Reverse proxy + Authentik OIDC: Caddy fava.dev-path.org (see docs/runbooks/fava.md).
 
 service: fava
-host: alienware-r10-primary
-runtime: podman
+host: fava
+vmid: 107
+node: proxmox2
+ip: 192.168.1.74
+runtime: docker
 image: docker.io/yegle/fava@sha256:d94c2011d7ed9f0adf2576c640b8f0164586fe23f32d982b5b80259f102e025e
 ledger_mount:
-  host: ~/finance/ledger
+  host: /opt/finance/ledger
   container: /bean
   readonly: true
 beancount_file: /bean/main.beancount
 listen:
-  bind: 0.0.0.0  # LAN; Authentik forward-auth on NPM
+  bind: 0.0.0.0
   port: 5002  # container Fava listens on 5000
 network:
   reverse_proxy:
     domain: fava.dev-path.org
     sso: authentik
+    upstream: 192.168.1.74:5002
 backup_class: derived  # ledger has its own backup/restic class
+retired_host: alienware-r10-primary  # podman unit disabled 2026-09-19

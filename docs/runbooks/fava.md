@@ -1,87 +1,55 @@
 # Fava (finance ledger UI) — F7
 
-Read-only [Fava](https://beancount.github.io/fava/) over `~/finance/ledger` on
-Alienware. SSO at `https://fava.dev-path.org` is configured on the reverse
-proxy (Authentik), not in this repo.
+Read-only [Fava](https://beancount.github.io/fava/) over `/opt/finance/ledger` on
+**CT 107** (`fava`, `192.168.1.74`, proxmox2). SSO at `https://fava.dev-path.org`
+is Caddy `forward_auth` to Authentik, not this repo.
 
-## Prerequisites
+Moved off Alienware 2026-09-19. The fedora unit `alienware-fava.service` is
+disabled. Do not start it — Caddy points at `.74`, not `.45:5002`.
 
-- Ledger initialized: `~/finance/ledger/main.beancount` exists and `bean-check` passes
-- Podman on Alienware
-- Reverse-proxy route `fava.dev-path.org` → `http://127.0.0.1:5002` (or your `FAVA_PORT`)
+## Layout
 
-## Install
+| | |
+|---|---|
+| Guest | CT 107, debian-13, unprivileged, nesting=1, 512 MB, onboot |
+| Compose | `/opt/fava/compose.yml` (also `config/fava/compose.yml` in this repo) |
+| Ledger | `/opt/finance/ledger/main.beancount` (`:ro` in the container) |
+| Listen | `0.0.0.0:5002` → container `:5000` |
+| Image | digest-pinned in compose / `config/inventory/services/fava.yaml` |
 
-```bash
-cd ~/git/homelab-control
-cp config/env/fava.env.example ~/.config/homelab-control/fava.env
-# edit FAVA_LEDGER_DIR / FAVA_PORT if needed
-
-mkdir -p ~/.config/systemd/user
-cp systemd/alienware-fava.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now alienware-fava.service
-systemctl --user status alienware-fava.service   # active (exited) is normal
-```
+The fedora copy at `~/finance/ledger` is leftover rollback, not what Fava reads.
+Edits belong on CT 107 (or rsync them there) or the UI will go stale.
 
 ## Smoke test (LAN, before SSO)
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5002/
-# expect 200 or 302
+curl -s -o /dev/null -w "%{http_code}\n" http://192.168.1.74:5002/
+# expect 302 to /…/income_statement/
 ```
 
-Open `http://127.0.0.1:5002/` on Alienware (or via SSH tunnel) and confirm
-transactions load.
+Public: `https://fava.dev-path.org/` → Authentik, then Fava.
 
-## NPM reverse proxy
+## Ops
 
-**Preferred (updates NPM database + UI):** REST API via Infisical — see
-`docs/runbooks/nginx-proxy-manager.md` (`NPM_IDENTITY` + `NPM_SECRET` → short-lived JWT per run).
+Debian `docker.io` on this guest has no compose plugin. Recreate with:
 
 ```bash
-# example: macOS Keychain after npm-keychain-store-token.sh
-./scripts/npm_ensure_fava_proxy.sh
+docker rm -f homelab-fava
+docker run -d --name homelab-fava --restart unless-stopped \
+  -p 0.0.0.0:5002:5000 \
+  -v /opt/finance/ledger:/bean:ro \
+  -e BEANCOUNT_FILE=/bean/main.beancount \
+  docker.io/yegle/fava@sha256:d94c2011d7ed9f0adf2576c640b8f0164586fe23f32d982b5b80259f102e025e
 ```
-
-**Fallback (nginx only, no UI row):** `deploy_npm_fava_proxy.sh` without credentials
-copies `config/nginx-proxy-manager/fava.dev-path.org.conf` to LXC **102**
-(`192.168.1.42`), upstream `http://192.168.1.45:5002`.
-
-Pi-hole should already point `fava.dev-path.org` → `192.168.1.42`.
-
-## Authentik SSO
-
-Fava is **read-only** on disk (`:ro` mount). Authentik only protects the web UI.
-
-Step-by-step: **`docs/runbooks/fava-authentik.md`**
-
-Snippet to paste into NPM Advanced:
-`config/nginx-proxy-manager/fava-authentik-advanced.conf`
-
-## Cleanup / ops
 
 | Task | Command |
 |------|---------|
-| Restart Fava | `systemctl --user restart alienware-fava.service` |
-| Logs | `podman logs homelab-fava` |
-| Finance Planka smoke cleanup | `scripts/planka_cleanup_finance_test_cards.py` |
-| Categorize defer Planka | `docs/runbooks/agent-finance.md` |
-
-## Image pin
-
-Production unit uses a digest-pinned image (see `systemd/alienware-fava.service`).
-After `git pull`, reinstall the unit and restart if the digest changed:
-
-```bash
-cp systemd/alienware-fava.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user restart alienware-fava.service
-```
+| Restart | `pct exec 107 -- docker restart homelab-fava` (from proxmox2) |
+| Logs | `pct exec 107 -- docker logs homelab-fava` |
+| Authentik | `docs/runbooks/fava-authentik.md` |
 
 ## Related
 
 - Phase plan: `docs/plans/phase-1-finance.md` (F7 — shipped)
-- Master dashboard: homelab services tile links to `https://fava.dev-path.org`
 - Inventory: `config/inventory/services/fava.yaml`
 - Agent finance: `docs/runbooks/agent-finance.md`

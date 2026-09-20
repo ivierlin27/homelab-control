@@ -1,0 +1,11 @@
+services:
+  fava:
+    image: docker.io/yegle/fava@sha256:d94c2011d7ed9f0adf2576c640b8f0164586fe23f32d982b5b80259f102e025e
+    container_name: homelab-fava
+    restart: unless-stopped
+    ports:
+      - "5002:5000"
+    volumes:
+      - /opt/finance/ledger:/bean:ro
+    environment:
+      BEANCOUNT_FILE: /bean/main.beancount
